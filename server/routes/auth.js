@@ -1,9 +1,35 @@
-import { Router } from 'express';
 import express from 'express';
 import { body, validationResult } from 'express-validator';
+import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import { isAuthenticated, isAdminRole } from '../middleware/auth.js';
-import { logout } from '../controllers/authController.js';
+import jwt from 'jsonwebtoken';
+
+export const verifyToken = (req, res, next) => {
+  const token = req.header('Authorization')?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ msg: 'No token provided' });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(401).json({ msg: 'Invalid token' });
+  }
+};
+
+// Inline logout function
+const logout = (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Logout error:', err);
+      return res.status(500).json({ msg: 'Logout failed' });
+    }
+    res.clearCookie('connect.sid');
+    res.clearCookie('user.sid'); // Clear user session cookie
+    res.clearCookie('admin.sid'); // Clear admin session cookie
+    res.json({ msg: 'Logged out successfully' });
+  });
+};
 
 const router = express.Router();
 
@@ -21,44 +47,57 @@ router.post('/user/register', [
   }
 
   const { username, email, password } = req.body;
+  const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    let user = await User.findOne({ $or: [{ email }, { username }] });
+    let user = await User.findOne({ $or: [{ email: normalizedEmail }, { username }] });
     if (user) {
-      return res.status(400).json({ msg: 'User   already exists' });
+      return res.status(400).json({ msg: 'User already exists' });
     }
 
     user = new User({
       username,
-      email,
+      name: username,
+      email: normalizedEmail,
       password,
       role: 'user'
     });
 
     await user.save();
 
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     req.session.userId = user._id;
     req.session.role = user.role;
     req.session.username = user.username;
+    await req.session.save();
+    console.log('User registered and auto-logged in:', user.email);
 
     res.status(201).json({
-      msg: 'User   registered successfully',
+      msg: 'User registered successfully',
       user: {
         id: user._id,
+        name: user.name,
         username: user.username,
         email: user.email,
         role: user.role
-      }
+      },
+      token
     });
   } catch (err) {
-    console.error(err);
+    console.error('Register error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
 
-// User Login
+// User Login (with JWT)
 router.post('/user/login', [
-  body('email').isEmail().withMessage('Invalid email'),
+  body('email').isEmail().withMessage('Invalid email format'),
   body('password').exists().withMessage('Password is required')
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -67,34 +106,50 @@ router.post('/user/login', [
   }
 
   const { email, password } = req.body;
+  const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    const user = await User.findOne({ email, role: 'user' });
+    let user = await User.findOne({ email: normalizedEmail });
     if (!user) {
-      return res.status(400).json({ msg: 'Invalid credentials' });
+      return res.status(400).json({ msg: 'Invalid credentials (email not found)' });
+    }
+
+    if (user.role !== 'user') {
+      return res.status(400).json({ msg: 'This account is not a regular user.' });
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(400).json({ msg: 'Invalid credentials' });
+      return res.status(400).json({ msg: 'Invalid credentials (wrong password)' });
     }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     req.session.userId = user._id;
     req.session.role = user.role;
-    req.session.username = user.username;
+    await req.session.save();
+
+    console.log('✅ USER logged in:', user.email, 'Role:', user.role);
 
     res.json({
       msg: 'Login successful',
       user: {
         id: user._id,
+        name: user.name || '',
         username: user.username,
         email: user.email,
         role: user.role
-      }
+      },
+      token
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: 'Server error' });
+    console.error('Login error:', err);
+    res.status(500).json({ msg: 'Server error during login' });
   }
 });
 
@@ -113,42 +168,58 @@ router.post('/admin/register', [
   }
 
   const { username, email, password, role } = req.body;
+  const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    let user = await User.findOne({ $or: [{ email }, { username }] });
+    let user = await User.findOne({ $or: [{ email: normalizedEmail }, { username }] });
     if (user) {
-      return res.status(400).json({ msg: 'User   already exists' });
+      return res.status(400).json({ msg: 'User already exists' });
     }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
     user = new User({
       username,
-      email,
-      password,
+      name: username,
+      email: normalizedEmail,
+      password: hashedPassword,
       role
     });
 
     await user.save();
 
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     req.session.userId = user._id;
     req.session.role = user.role;
     req.session.username = user.username;
+    await req.session.save();
+    console.log('Admin registered and auto-logged in:', user.email);
 
     res.status(201).json({
       msg: 'Admin registered successfully',
       user: {
         id: user._id,
+        name: user.name,
         username: user.username,
         email: user.email,
         role: user.role
-      }
+      },
+      token
     });
   } catch (err) {
-    console.error(err);
+    console.error('Admin register error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
 
-// Admin Login
+// Admin Login (with JWT)
 router.post('/admin/login', [
   body('email').isEmail().withMessage('Invalid email'),
   body('password').exists().withMessage('Password is required')
@@ -159,10 +230,11 @@ router.post('/admin/login', [
   }
 
   const { email, password } = req.body;
+  const normalizedEmail = email.toLowerCase().trim();
 
   try {
     const user = await User.findOne({ 
-      email, 
+      email: normalizedEmail, 
       role: { $in: ['admin', 'content_moderator', 'case_manager'] }
     });
     
@@ -175,34 +247,66 @@ router.post('/admin/login', [
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
 
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     req.session.userId = user._id;
     req.session.role = user.role;
-    req.session.username = user.username;
+    await req.session.save();
+
+    console.log('✅ ADMIN logged in:', user.email, 'Role:', user.role);
 
     res.json({
       msg: 'Login successful',
       user: {
         id: user._id,
+        name: user.name || '',
         username: user.username,
         email: user.email,
         role: user.role
-      }
+      },
+      token
     });
   } catch (err) {
-    console.error(err);
+    console.error('Admin login error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
 
 // ============ COMMON ROUTES ============
 
-// Logout
 router.post('/logout', logout);
 
-// Check session status
+// ✅ FIXED: Check session using TOKEN from Authorization header
 router.get('/check-session', (req, res) => {
+  // Priority 1: Check for JWT token in Authorization header
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      console.log('✅ Session check via TOKEN - User:', decoded.id, 'Role:', decoded.role);
+      return res.json({
+        authenticated: true,
+        user: {
+          id: decoded.id,
+          role: decoded.role
+        }
+      });
+    } catch (err) {
+      console.error('Token verification failed in check-session:', err.message);
+      // Token invalid, fall through to session check
+    }
+  }
+
+  // Priority 2: Fallback to session (for backwards compatibility)
   if (req.session && req.session.userId) {
-    res.json({
+    console.log('⚠️ Session check via SESSION - User:', req.session.userId, 'Role:', req.session.role);
+    return res.json({
       authenticated: true,
       user: {
         id: req.session.userId,
@@ -210,24 +314,30 @@ router.get('/check-session', (req, res) => {
         role: req.session.role
       }
     });
-  } else {
-    res.json({ authenticated: false });
   }
+
+  // Not authenticated
+  console.log('❌ Session check failed - No token or session');
+  res.json({ authenticated: false });
 });
 
 // ============ PROTECTED ROUTES ============
 
-// Get current user profile
 router.get('/me', isAuthenticated, async (req, res) => {
   try {
-    const user = await User.findById(req.session.userId).select('-password');
+    const userId = req.user?.id || req.session.userId;
+    console.log('GET /me - User ID from req.user/session:', userId);
+    if (!userId) {
+      return res.status(401).json({ msg: 'Not authenticated' });
+    }
+    const user = await User.findById(userId).select('-password');
     if (!user) {
-      return res.status(404).json({ msg: 'User   not found' });
+      return res.status(404).json({ msg: 'User not found' });
     }
     res.json({ 
       user: {
         id: user._id,
-        name: user.name || '', // Include name if it exists in model
+        name: user.name || '',
         username: user.username,
         email: user.email,
         role: user.role,
@@ -240,14 +350,13 @@ router.get('/me', isAuthenticated, async (req, res) => {
   }
 });
 
-// Get all users (Admin only)
-router.get('/users', isAdminRole, async (req, res) => {
+router.get('/users', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const users = await User.find({}).select('-password').sort({ createdAt: -1 });
     res.json({
       users: users.map(user => ({
         id: user._id,
-        name: user.name || user.username, // Fallback to username if no name
+        name: user.name || '',
         username: user.username,
         email: user.email,
         role: user.role,
@@ -260,8 +369,7 @@ router.get('/users', isAdminRole, async (req, res) => {
   }
 });
 
-// Admin dashboard stats
-router.get('/admin/stats', isAdminRole, async (req, res) => {
+router.get('/admin/stats', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const totalUsers = await User.countDocuments({ role: 'user' });
     const totalAdmins = await User.countDocuments({ role: { $in: ['admin', 'content_moderator', 'case_manager'] } });
@@ -281,85 +389,93 @@ router.get('/admin/stats', isAdminRole, async (req, res) => {
   }
 });
 
-// Delete user (Admin only)
-router.delete('/users/:id', isAdminRole, async (req, res) => {
+router.delete('/users/:id', isAuthenticated, isAdminRole, async (req, res) => {
   try {
-    // Prevent deleting self
-    if (req.params.id === req.session.userId.toString()) {
+    const userId = req.user?.id || req.session.userId;
+    if (req.params.id === userId.toString()) {
       return res.status(400).json({ msg: 'Cannot delete your own account' });
     }
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user) {
-      return res.status(404).json({ msg: 'User   not found' });
+      return res.status(404).json({ msg: 'User not found' });
     }
 
-    res.json({ msg: 'User   deleted successfully' });
+    res.json({ msg: 'User deleted successfully' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
 
-// UPDATED: Update user profile (name and username) - Authenticated users only
 router.put('/profile', [
   isAuthenticated,
-  body('name').optional().trim().isLength({ min: 1, max: 100 }).withMessage('Name must be between 1-100 characters'), // UPDATED: Added max length
-  body('username').optional().trim().isLength({ min: 3 }).withMessage('Username must be at least 3 characters') // Made optional for partial updates
+  body('name').optional().trim().isLength({ min: 1, max: 100 }).withMessage('Name must be between 1-100 characters'),
+  body('username').optional().trim().isLength({ min: 3 }).withMessage('Username must be at least 3 characters')
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
 
+  const userId = req.user?.id || req.session.userId;
+  const userRole = req.user?.role || req.session.role;
+  if (userRole !== 'user') {
+    return res.status(403).json({ msg: 'Only regular users can update profile details here. Admins use the admin panel.' });
+  }
+
   const { name, username } = req.body;
 
   try {
-    const user = await User.findById(req.session.userId);
+    const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ msg: 'User   not found' });
+      return res.status(404).json({ msg: 'User not found' });
     }
 
-    // UPDATED: Check name (alias) uniqueness if provided and changed
-    if (name && name.trim() !== user.name) {
-      const existingUser  = await User.findOne({ name: name.trim() });
-      if (existingUser  && existingUser ._id.toString() !== user._id.toString()) {
+    if (name !== undefined && name.trim() !== (user.name || '')) {
+      const existingUser = await User.findOne({ name: name.trim() });
+      if (existingUser && existingUser._id.toString() !== user._id.toString()) {
         return res.status(400).json({ msg: 'Alias already taken' });
       }
     }
 
-    // Check username uniqueness if provided and changed
-    if (username && username.trim() !== user.username) {
-      const existingUser  = await User.findOne({ username: username.trim() });
-      if (existingUser  && existingUser ._id.toString() !== user._id.toString()) {
+    if (username !== undefined && username.trim() !== user.username) {
+      const existingUser = await User.findOne({ username: username.trim() });
+      if (existingUser && existingUser._id.toString() !== user._id.toString()) {
         return res.status(400).json({ msg: 'Username already taken' });
       }
     }
 
-    // Update fields if provided
-    if (name !== undefined) user.name = name.trim();
-    if (username !== undefined) user.username = username.trim();
+    if (name !== undefined) {
+      user.name = name.trim();
+    }
+    if (username !== undefined) {
+      user.username = username.trim();
+    }
 
     await user.save();
+    console.log('Profile updated for user:', userId);
 
-    req.session.username = user.username; // Update session
+    if (username !== undefined) {
+      req.session.username = user.username;
+      await req.session.save();
+    }
 
     res.json({
       msg: 'Profile updated successfully',
       user: {
         id: user._id,
-        name: user.name,
+        name: user.name || '',
         username: user.username,
         email: user.email,
         role: user.role
       }
     });
   } catch (err) {
-    console.error(err);
+    console.error('Profile update error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
 
-// Change password - Authenticated users only
 router.put('/password', [
   isAuthenticated,
   body('currentPassword').exists().withMessage('Current password is required'),
@@ -377,85 +493,102 @@ router.put('/password', [
   }
 
   const { currentPassword, newPassword } = req.body;
+  const userId = req.user?.id || req.session.userId;
 
   try {
-    const user = await User.findById(req.session.userId);
+    const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ msg: 'User   not found' });
+      return res.status(404).json({ msg: 'User not found' });
     }
 
     const isMatch = await user.comparePassword(currentPassword);
+    console.log('Current password check result:', isMatch ? 'match' : 'mismatch');
     if (!isMatch) {
       return res.status(400).json({ msg: 'Current password is incorrect' });
     }
 
-    user.password = newPassword;
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
     await user.save();
+    console.log('Password changed for user:', userId);
 
     res.json({ msg: 'Password changed successfully' });
   } catch (err) {
-    console.error(err);
+    console.error('Password change error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
 
-// UPDATED: Update user details (name/alias and role) - Admin only
 router.put('/users/:id', [
+  isAuthenticated,
   isAdminRole,
   body('name').optional().trim().isLength({ min: 1, max: 100 }).withMessage('Name must be between 1-100 characters'),
-  body('role').optional().isIn(['user', 'admin', 'content_moderator', 'case_manager']).withMessage('Invalid role') // Made optional for partial updates
+  body('username').optional().trim().isLength({ min: 3 }).withMessage('Username must be at least 3 characters'),
+  body('role').optional().isIn(['user', 'admin', 'content_moderator', 'case_manager']).withMessage('Invalid role')
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, role } = req.body;
-  const userId = req.params.id;
+  const { name, username: newUsername, role } = req.body;
+  const targetUserId = req.params.id;
+  const currentUserId = req.user?.id || req.session.userId;
 
   try {
-    // Prevent updating self (name or role)
-    if (userId === req.session.userId.toString()) {
-      return res.status(400).json({ msg: 'Cannot update your own details' });
-    }
-
-    const user = await User.findById(userId);
+    const user = await User.findById(targetUserId);
     if (!user) {
-      return res.status(404).json({ msg: 'User   not found' });
+      return res.status(404).json({ msg: 'User not found' });
     }
 
-    // UPDATED: Check name (alias) uniqueness if provided and changed
-    if (name !== undefined && name.trim() !== user.name) {
-      const existingUser  = await User.findOne({ name: name.trim() });
-      if (existingUser  && existingUser ._id.toString() !== user._id.toString()) {
+    if (targetUserId === currentUserId && role !== undefined) {
+      return res.status(400).json({ msg: 'Cannot change your own role' });
+    }
+
+    if (name !== undefined && name.trim() !== (user.name || '')) {
+      const existingUser = await User.findOne({ name: name.trim() });
+      if (existingUser && existingUser._id.toString() !== user._id.toString()) {
         return res.status(400).json({ msg: 'Alias already taken' });
       }
     }
 
-    // Update name (alias) if provided
+    if (newUsername !== undefined && newUsername.trim() !== user.username) {
+      const existingUser = await User.findOne({ username: newUsername.trim() });
+      if (existingUser && existingUser._id.toString() !== user._id.toString()) {
+        return res.status(400).json({ msg: 'Username already taken' });
+      }
+    }
+
     if (name !== undefined) {
       user.name = name.trim();
     }
-
-    // Update role if provided
+    if (newUsername !== undefined) {
+      user.username = newUsername.trim();
+    }
     if (role !== undefined) {
       user.role = role;
     }
 
     await user.save();
+    console.log('Admin updated user:', targetUserId, 'New role:', user.role);
+
+    if (newUsername !== undefined && targetUserId === currentUserId) {
+      req.session.username = user.username;
+      await req.session.save();
+    }
 
     res.json({
-      msg: 'User   details updated successfully',
+      msg: 'User details updated successfully',
       user: {
         id: user._id,
-        name: user.name,
+        name: user.name || '',
         username: user.username,
         email: user.email,
         role: user.role
       }
     });
   } catch (err) {
-    console.error(err);
+    console.error('Admin user update error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });

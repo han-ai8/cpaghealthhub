@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+client/dist/
+server/dist/
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.vscode/
+logs/
+*.log
+coverage/
+server/.env
+client/.env

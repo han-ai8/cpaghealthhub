@@ -1,16 +1,25 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react'; // If using React plugin
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  plugins: [react()], // Add your plugins here
+  plugins: [react()],
   server: {
-    port: 5173, // Default Vite port
+    port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:4000', // Your backend URL
-        changeOrigin: true, // Changes the origin of the host header to the target URL
-        secure: false, // For local dev (ignore SSL if needed)
-        rewrite: (path) => path.replace(/^\/api/, '/api'), // Optional: Keep /api prefix if your routes expect it
+        target: 'http://localhost:5000', // Backend server
+        changeOrigin: true,
+        secure: false,
+        // REMOVED: Useless rewrite - proxy forwards /api/... directly to backend /api/...
+        // If backend routes are at /api/auth, this works as-is
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            console.log('Proxying request:', req.method, req.url); // DEBUG: Log proxied requests
+          });
+          proxy.on('error', (err, req, res) => {
+            console.log('Proxy error:', err); // DEBUG: Catch proxy issues
+          });
+        },
       },
     },
   },

@@ -20,7 +20,13 @@ const AdminSidebar = ({ role }) => {
       name: 'Dashboard',
       path: '/admin/dashboard',
       icon: HiOutlineViewGrid,
-      roles: ['admin', 'content-moderator', 'case-manager'],
+      roles: ['admin', 'content_moderator', 'case_manager'],
+    },
+    {
+      name: 'Article',
+      path: '/admin/Articles',
+      icon: HiOutlineViewGrid,
+      roles: ['admin'], 
     },
     {
       name: 'User Management',
@@ -32,13 +38,31 @@ const AdminSidebar = ({ role }) => {
       name: 'Community Forum',
       path: '/admin/community',
       icon: HiOutlineUsers,
-      roles: ['admin', 'content-moderator'],
+      roles: ['admin', 'content_moderator'],
     },
     {
       name: 'Appointments',
       path: '/admin/appointments',
       icon: HiOutlineCalendar,
-      roles: ['admin', 'case-manager'],
+      roles: ['admin', 'case_manager'],
+    },
+    {
+      name: 'Clinic Schedule',
+      path: '/admin/clinic-schedule',
+      icon: HiOutlineCalendar,
+      roles: ['admin'],
+    },
+    {
+      name: 'My Planner',
+      path: '/admin/planner',
+      icon: HiOutlineClipboardList,
+      roles: ['case_manager'], // Only visible to case managers
+    },
+    {
+      name: 'Messages',
+      path: '/admin/messages',
+      icon: HiOutlineChat,
+      roles: ['case_manager'],
     },
     {
       name: 'Clinic Finder',
@@ -47,22 +71,10 @@ const AdminSidebar = ({ role }) => {
       roles: ['admin'],
     },
     {
-      name: 'Schedule',
-      path: '/admin/schedule',
-      icon: HiOutlineClipboardList,
-      roles: ['admin', 'case-manager'],
-    },
-    {
-      name: 'Messages',
-      path: '/admin/messages',
-      icon: HiOutlineChat,
-      roles: ['case-manager'],
-    },
-    {
       name: 'Settings',
       path: '/admin/settings',
       icon: HiOutlineCog,
-      roles: ['admin', 'content-moderator', 'case-manager'],
+      roles: ['admin', 'content_moderator', 'case_manager'],
     }
   ];
 

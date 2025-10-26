@@ -1,12 +1,12 @@
+// context/AuthContext.jsx
 import { createContext, useContext, useState, useEffect } from 'react';
+import api from '../utils/api';
 
 const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };
 
@@ -14,72 +14,129 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    checkSession();
-  }, []);
-
   const checkSession = async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/check-session`, {
-        credentials: 'include'
-      });
-      const data = await res.json();
-      if (data.authenticated) {
-        setUser(data.user);
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        console.log('✅ No token found - user not logged in');
+        setUser(null);
+        setLoading(false);
+        return;
       }
+
+      console.log('🔍 Checking session with token...');
+      
+      const data = await api.get('/auth/me');
+      
+      console.log('✅ Session valid - User:', data.user.username, 'Role:', data.user.role);
+      
+      // Set user with exact data from backend
+      setUser({
+        id: data.user.id,
+        name: data.user.name || '',
+        username: data.user.username,
+        email: data.user.email,
+        role: data.user.role, // This is the authoritative source
+        createdAt: data.user.createdAt
+      });
+      
     } catch (err) {
-      console.error('Session check failed:', err);
+      console.error('Session check error:', err);
+      
+      // If token is invalid, it's already removed by api.js
+      if (err.message.includes('expired') || err.message.includes('401')) {
+        console.log('❌ Token invalid/expired - clearing session');
+        localStorage.removeItem('token');
+      }
+      
+      setUser(null);
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    checkSession();
+  }, []);
+
   const login = async (email, password, isAdmin = false) => {
     const endpoint = isAdmin ? '/auth/admin/login' : '/auth/user/login';
-    const res = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setUser(data.user);
-      return { success: true };
-    }
-    return { success: false, error: data.msg };
-  };
+    
+    console.log('🔐 Attempting login:', { email, isAdmin });
 
-  const register = async (userData, isAdmin = false) => {
-    const endpoint = isAdmin ? '/auth/admin/register' : '/auth/user/register';
-    const res = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(userData)
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setUser(data.user);
-      return { success: true };
+    try {
+      const data = await api.post(endpoint, { email, password });
+      
+      console.log('✅ Login successful - User:', data.user.username, 'Role:', data.user.role);
+      
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        console.log('💾 Token stored');
+      }
+      
+      // Set user with exact data from backend response
+      setUser({
+        id: data.user.id,
+        name: data.user.name || '',
+        username: data.user.username,
+        email: data.user.email,
+        role: data.user.role, // Backend is source of truth for role
+        createdAt: data.user.createdAt
+      });
+      
+      return data;
+    } catch (err) {
+      console.error('❌ Login failed:', err.message);
+      throw err;
     }
-    return { success: false, error: data.msg };
   };
 
   const logout = async () => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      setUser(null);
+      await api.post('/auth/logout', {});
+      console.log('👋 Logged out successfully');
     } catch (err) {
-      console.error('Logout failed:', err);
+      console.error('Logout error:', err);
+    } finally {
+      setUser(null);
+      localStorage.removeItem('token');
+    }
+  };
+
+  const register = async (username, email, password, isAdmin = false) => {
+    const endpoint = isAdmin ? '/auth/admin/register' : '/auth/user/register';
+    
+    console.log('📝 Attempting registration:', { username, email, isAdmin });
+
+    try {
+      const data = await api.post(endpoint, { username, email, password });
+      
+      console.log('✅ Registration successful');
+      
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
+      
+      setUser({
+        id: data.user.id,
+        name: data.user.name || '',
+        username: data.user.username,
+        email: data.user.email,
+        role: data.user.role,
+        createdAt: data.user.createdAt
+      });
+      
+      return data;
+    } catch (err) {
+      console.error('❌ Registration failed:', err.message);
+      throw err;
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, checkSession }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, register, checkSession }}>
       {children}
     </AuthContext.Provider>
   );

@@ -26,3 +26,8 @@
   background: #555;
 }
 
+body {
+  @apply bg-green-200;  /* Or any Tailwind class */
+}
+
+

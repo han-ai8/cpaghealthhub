@@ -66,12 +66,12 @@ const AdminRegister = () => {
     <>
       <div className="flex flex-col md:flex-row min-h-screen bg-base-100">
         {/* Left Side: Logo and Tagline */}
-        <div className="w-full md:w-1/2 bg-gradient-to-br from-primary to-secondary flex flex-col items-center justify-center p-8 md:p-12 shadow-xl">
+        <div className="w-full md:w-1/2 bg-[#4c8dd8] flex flex-col items-center justify-center p-8 md:p-12 shadow-xl">
           <h1 className="mb-6">
             <img 
-              src="/src/assets/HEALTHUB.png" 
-              alt="HealthHub Logo" 
-              className="w-500 h-300 hover:scale-105" 
+              src="/src/assets/hivnice-removebg-preview.png" 
+              alt="HealthHub Promotion" 
+              className="w-300 h-200 rounded-3xl hover:scale-105" 
             />
           </h1>
           <div className="text-center text-xl md:text-2xl lg:text-3xl font-semibold text-white opacity-90 px-4">
@@ -81,8 +81,13 @@ const AdminRegister = () => {
         {/* Right Side: Form */}
         <div className="w-full md:w-1/2 bg-base-100 flex flex-col items-center justify-center p-4 md:p-8">
           <div className="w-full max-w-md mx-auto space-y-6">
-            <div className="text-center">
-              <h2 className="text-3xl md:text-4xl font-bold mb-2 text-primary">Admin Register</h2>
+            <div className="text-center justify-center items-center flex flex-col">
+              <img 
+              src="/src/assets/HEALTHUB.png" 
+              alt="HealthHub Logo" 
+              className=" rounded-lg w-500 h-300  hover:scale-105 mb-4" 
+            />
+              <h2 className="text-3xl md:text-4xl font-bold mb-2 text-[#4c8dd8]">Admin Register</h2>
               <p className="text-base-content/70">Please enter your details to create an admin account.</p>
             </div>
             {error && (
@@ -137,7 +142,7 @@ const AdminRegister = () => {
                   name="consent" 
                   checked={consent} 
                   onChange={onChange}
-                  className="checkbox checkbox-lg checkbox-primary mt-1" 
+                  className="checkbox checkbox-lg checkbox-primary hover:bg-[#4c8dd8] mt-1" 
                 />
                 <span className="text-sm text-base-content/80 leading-relaxed">
                   I confirm that I have read, consent and agree to HealthHub's Terms of Use and Privacy Policy, and I am of legal age.
@@ -145,7 +150,7 @@ const AdminRegister = () => {
               </label>
               <button 
                 type="submit" 
-                className="btn btn-primary w-full btn-lg shadow-lg hover:shadow-xl transition-all duration-300"
+                className="btn bg-[#4c8dd8] hover:bg-[#2E5D93] text-white w-full btn-lg shadow-lg hover:shadow-xl transition-all duration-300"
                 disabled={loading}
               >
                 {loading ? (
@@ -156,7 +161,7 @@ const AdminRegister = () => {
               </button>
               <p className="text-center text-sm text-base-content/70">
                 Already have account?{' '}
-                <Link to="/admin/login" className="link link-hover text-primary font-semibold">Login</Link>
+                <Link to="/admin/login" className="link link-hover text-[#4c8dd8] font-semibold">Login</Link>
               </p>
             </form>
           </div>
@@ -171,7 +176,7 @@ const AdminRegister = () => {
           <div className="space-y-6 text-sm leading-relaxed">
             {/* Terms of Use Section */}
             <div className="bg-base-100 p-4 rounded-lg border border-base-200">
-              <h4 className="font-semibold text-primary mb-2">Terms of Use</h4>
+              <h4 className="font-semibold text-[#4c8dd8] mb-2">Terms of Use</h4>
               <p>
                 Placeholder Terms of Use content: By using HealthHub, you agree to our service terms including user responsibilities, content guidelines, and account usage. This is a sample; replace with full legal text. Users must be 18+ or have parental consent. No liability for user-generated content.
               </p>
@@ -179,7 +184,7 @@ const AdminRegister = () => {
             
             {/* Privacy Policy Section */}
             <div className="bg-base-100 p-4 rounded-lg border border-base-200">
-              <h4 className="font-semibold text-primary mb-2">Privacy Policy</h4>
+              <h4 className="font-semibold text-[#4c8dd8] mb-2">Privacy Policy</h4>
               <p>
                 Placeholder Privacy Policy content: HealthHub collects personal data (e.g., email, username) for account management and service improvement. We do not share data without consent, comply with GDPR/CCPA, and use secure encryption. Cookies are used for session tracking. This is a sample; replace with full legal text.
               </p>
@@ -188,7 +193,7 @@ const AdminRegister = () => {
           <div className="modal-action mt-6">
             <label 
               htmlFor="policy-modal" 
-              className="btn btn-primary"
+              className="btn bg-[#4c8dd8] hover:bg-[#2E5D93] text-white"
               onClick={() => setShowModal(false)}
             >
               I Agree and Close

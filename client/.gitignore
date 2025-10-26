@@ -23,17 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
-node_modules/
-dist/
-build/
-client/dist/
-server/dist/
+
+# Environment variables
 .env
-.env.*
-!.env.example
-.DS_Store
-Thumbs.db
-.vscode/
-logs/
-*.log
-coverage/
+.env.example
+.env.local
+.env.production
