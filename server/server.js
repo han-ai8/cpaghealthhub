@@ -15,6 +15,9 @@ import userRoutes from './routes/userRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
 import { initializeSocket } from './socket/socket.js';
 import clinicScheduleRoutes from './routes/clinicSchedule.js';
+// server.js - ADD this import
+import sessionRoutes from './routes/sessionManagement.js';
+
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -105,7 +108,8 @@ app.use('/api/clinics', clinicRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/articles', articleRoutes);
 app.use('/api/messages', messageRoutes);
-
+// ADD this route mounting (after other routes)
+app.use('/api/sessions', sessionRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err.message);

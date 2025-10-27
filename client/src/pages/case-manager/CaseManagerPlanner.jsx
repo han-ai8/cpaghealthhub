@@ -699,6 +699,7 @@ const CaseManagerPlanner = () => {
               >
                 Set new appointment
               </button>
+              
               <button 
                 onClick={() => {
                   alert('Complete program feature - Mark this patient program as complete');

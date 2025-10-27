@@ -1,3 +1,4 @@
+// src/pages/User/Schedule.jsx - UPDATED WITH PSYCHOSOCIAL SUPPORT FORM
 import React, { useState, useEffect } from 'react';
 import { Eye, X, Calendar, Clock, MapPin, AlertCircle, Edit, Mail, History, FileText, UserCheck, MessageCircle, RefreshCw, CheckCircle, XCircle, TrendingUp, Award, Activity, Phone, User as UserIcon } from 'lucide-react';
 
@@ -5,7 +6,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const Schedule = () => {
   const [showServiceModal, setShowServiceModal] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showPsychosocialFormModal, setShowPsychosocialFormModal] = useState(false); // ✅ NEW
   const [showDateTimeModal, setShowDateTimeModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
@@ -16,14 +17,13 @@ const Schedule = () => {
   const [showSessionDetailsModal, setShowSessionDetailsModal] = useState(false);
   const [clinicSchedule, setClinicSchedule] = useState([]);
 
-  // User Profile States
-  const [userProfile, setUserProfile] = useState({
+  // ✅ NEW: Psychosocial Support Form Data
+  const [psychosocialForm, setPsychosocialForm] = useState({
     fullName: '',
     age: '',
     gender: '',
     location: ''
   });
-  const [hasProfile, setHasProfile] = useState(false);
 
   const [selectedService, setSelectedService] = useState('');
   const [selectedDate, setSelectedDate] = useState(null);
@@ -42,7 +42,7 @@ const Schedule = () => {
 
   const services = [
     { id: 'Testing and Counseling', name: 'Testing and Counseling', color: 'bg-green-600' },
-    { id: 'Psychosocial support and assistance', name: 'Psychosocial support and assistance', color: 'bg-green-600' }
+    { id: 'Psychosocial support and assistance', name: 'Psychosocial support and assistance', color: 'bg-blue-600' }
   ];
 
   const timeSlots = [
@@ -60,6 +60,7 @@ const Schedule = () => {
       'Authorization': token ? `Bearer ${token}` : ''
     };
   };
+
   const fetchClinicSchedule = async () => {
     try {
       const response = await fetch(`${API_URL}/clinic-schedule/active`);
@@ -77,8 +78,7 @@ const Schedule = () => {
     fetchBookedSlots();
     fetchUserAppointment();
     fetchAppointmentHistory();
-    fetchClinicSchedule();  // ⭐ ADD THIS LINE
-    checkUserProfile();
+    fetchClinicSchedule();
   }, []);
   
   // Real-time appointment status polling
@@ -87,7 +87,7 @@ const Schedule = () => {
       if (bookedAppointment) {
         fetchUserAppointment();
       }
-    }, 10000); // Check every 10 seconds
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [bookedAppointment]);
@@ -97,7 +97,7 @@ const Schedule = () => {
     const calendarInterval = setInterval(() => {
       console.log('🔄 Auto-refreshing calendar slots...');
       fetchBookedSlots();
-      fetchClinicSchedule();  // ⭐ ADD THIS LINE
+      fetchClinicSchedule();
       setLastUpdate(new Date());
     }, 30000);
 
@@ -109,52 +109,10 @@ const Schedule = () => {
     if (showDateTimeModal) {
       console.log('📅 Calendar opened - refreshing slots');
       fetchBookedSlots();
-      fetchClinicSchedule();  // ⭐ ADD THIS LINE
+      fetchClinicSchedule();
       setLastUpdate(new Date());
     }
   }, [showDateTimeModal]);
-
-  const checkUserProfile = async () => {
-    try {
-      const response = await fetch(`${API_URL}/user/profile`, {
-        headers: getAuthHeaders()
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.fullName && data.age && data.gender && data.location) {
-          setUserProfile(data);
-          setHasProfile(true);
-        }
-      }
-    } catch (err) {
-      console.error('Error checking user profile:', err);
-    }
-  };
-
-  const saveUserProfile = async () => {
-    if (!userProfile.fullName || !userProfile.age || !userProfile.gender || !userProfile.location) {
-      alert('Please fill in all fields');
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_URL}/user/profile`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(userProfile)
-      });
-
-      if (response.ok) {
-        setHasProfile(true);
-        setShowProfileModal(false);
-        setShowDateTimeModal(true);
-      } else {
-        alert('Failed to save profile');
-      }
-    } catch (err) {
-      alert('Error saving profile: ' + err.message);
-    }
-  };
 
   const fetchBookedSlots = async () => {
     try {
@@ -220,57 +178,74 @@ const Schedule = () => {
   };
 
   const isDateAvailable = (date) => {
-  const dateStr = date.toISOString().split('T')[0];
-  const dayOfWeek = date.getDay();
-  
-  // Check if date has a closure
-  const closure = clinicSchedule.find(schedule => {
-    const start = new Date(schedule.startDate);
-    const end = new Date(schedule.endDate);
-    const checkDate = new Date(dateStr);
-    return schedule.type === 'closure' && checkDate >= start && checkDate <= end;
-  });
-  
-  if (closure) {
-    console.log(`❌ Date ${dateStr} is closed: ${closure.title}`);
-    return false;
-  }
-  
-  // Check if it's a special opening (Saturday)
-  const specialOpening = clinicSchedule.find(schedule => {
-    const scheduleDate = new Date(schedule.date).toISOString().split('T')[0];
-    return schedule.type === 'special_opening' && scheduleDate === dateStr;
-  });
-  
-  if (specialOpening) {
-    console.log(`✅ Date ${dateStr} is special opening: ${specialOpening.title}`);
-    return true;
-  }
-  
-  // Default: closed on Sundays
-  if (dayOfWeek === 0) {
-    console.log(`❌ Date ${dateStr} is Sunday - closed`);
-    return false;
-  }
-  
+    if (!date) return true;
+    const dateStr = date.toISOString().split('T')[0];
+    const dayOfWeek = date.getDay();
+    
+    const closure = clinicSchedule.find(schedule => {
+      const start = new Date(schedule.startDate);
+      const end = new Date(schedule.endDate);
+      const checkDate = new Date(dateStr);
+      return schedule.type === 'closure' && checkDate >= start && checkDate <= end;
+    });
+    
+    if (closure) {
+      console.log(`❌ Date ${dateStr} is closed: ${closure.title}`);
+      return false;
+    }
+    
+    const specialOpening = clinicSchedule.find(schedule => {
+      const scheduleDate = new Date(schedule.date).toISOString().split('T')[0];
+      return schedule.type === 'special_opening' && scheduleDate === dateStr;
+    });
+    
+    if (specialOpening) {
+      console.log(`✅ Date ${dateStr} is special opening: ${specialOpening.title}`);
+      return true;
+    }
+    
+    if (dayOfWeek === 0) {
+      console.log(`❌ Date ${dateStr} is Sunday - closed`);
+      return false;
+    }
+    
     return true;
   };
 
+  // ✅ UPDATED: Service selection handler
   const handleServiceSelection = (service) => {
     setSelectedService(service);
     setShowServiceModal(false);
     
-    // 🆕 ONLY show profile modal for Psychosocial support
+    // ✅ NEW: Only show psychosocial form for "Psychosocial support and assistance"
     if (service === 'Psychosocial support and assistance') {
-      if (!hasProfile) {
-        setShowProfileModal(true);
-      } else {
-        setShowDateTimeModal(true);
-      }
+      setShowPsychosocialFormModal(true);
     } else {
-      // For Testing and Counseling, go straight to date/time
+      // For "Testing and Counseling", go directly to calendar
       setShowDateTimeModal(true);
     }
+  };
+
+  // ✅ NEW: Handle psychosocial form submission
+  const handlePsychosocialFormSubmit = () => {
+    // Validate all fields
+    if (!psychosocialForm.fullName || !psychosocialForm.age || !psychosocialForm.gender || !psychosocialForm.location) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    // Validate age
+    const age = parseInt(psychosocialForm.age);
+    if (isNaN(age) || age < 1 || age > 150) {
+      alert('Please enter a valid age between 1 and 150');
+      return;
+    }
+
+    console.log('✅ Psychosocial form completed:', psychosocialForm);
+    
+    // Close form and proceed to calendar
+    setShowPsychosocialFormModal(false);
+    setShowDateTimeModal(true);
   };
 
   const handleCreateAppointment = () => {
@@ -278,6 +253,7 @@ const Schedule = () => {
     setSelectedDate(null);
     setSelectedTime('');
     setNote('');
+    setPsychosocialForm({ fullName: '', age: '', gender: '', location: '' }); // ✅ Reset form
     setIsEditing(false);
     setShowServiceModal(true);
   };
@@ -288,6 +264,12 @@ const Schedule = () => {
       setSelectedDate(new Date(bookedAppointment.date));
       setSelectedTime(bookedAppointment.time);
       setNote(bookedAppointment.note || '');
+      
+      // ✅ Load psychosocial info if available
+      if (bookedAppointment.psychosocialInfo) {
+        setPsychosocialForm(bookedAppointment.psychosocialInfo);
+      }
+      
       setIsEditing(true);
       setShowServiceModal(true);
     }
@@ -310,6 +292,7 @@ const Schedule = () => {
     setShowReviewModal(true);
   };
 
+  // ✅ UPDATED: Book appointment with psychosocial info
   const bookAppointment = async () => {
     setLoading(true);
     setError('');
@@ -321,6 +304,11 @@ const Schedule = () => {
         time: selectedTime,
         note: note || ''
       };
+
+      // ✅ NEW: Include psychosocial info if service is "Psychosocial support and assistance"
+      if (selectedService === 'Psychosocial support and assistance') {
+        appointmentData.psychosocialInfo = psychosocialForm;
+      }
 
       const url = isEditing 
         ? `${API_URL}/appointments/${bookedAppointment._id}`
@@ -340,75 +328,28 @@ const Schedule = () => {
       }
 
       const newAppointment = await response.json();
-      console.log('Appointment saved:', newAppointment);
-
       setBookedAppointment(newAppointment);
-      await fetchBookedSlots();
-      await fetchAppointmentHistory();
-
+      
       setShowReviewModal(false);
-      setShowConfirmationModal(true);
-
-      setTimeout(() => {
-        setShowConfirmationModal(false);
-        resetForm();
-      }, 3000);
-
+      setShowSuccessModal(true);
+      
+      await fetchBookedSlots();
+      await fetchUserAppointment();
+      await fetchAppointmentHistory();
     } catch (err) {
-      console.error('Error booking appointment:', err);
       setError(err.message);
-      alert(err.message);
+      alert(`Error: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCancelAppointment = async () => {
-    if (!bookedAppointment) return;
-
-    const bookedTime = new Date(bookedAppointment.bookedAt);
-    const now = new Date();
-    const hoursSinceBooking = (now - bookedTime) / (1000 * 60 * 60);
-
-    if (hoursSinceBooking <= 24) {
-      if (!window.confirm('Are you sure you want to cancel this appointment?')) {
-        return;
-      }
-
-      setLoading(true);
-      try {
-        const response = await fetch(`${API_URL}/appointments/${bookedAppointment._id}`, {
-          method: 'DELETE',
-          headers: getAuthHeaders()
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to cancel appointment');
-        }
-
-        alert('Appointment cancelled successfully');
-        setBookedAppointment(null);
-        await fetchBookedSlots();
-        await fetchAppointmentHistory();
-        setShowAppointmentModal(false);
-      } catch (err) {
-        alert(err.message);
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      setShowCancelRequestModal(true);
-    }
-  };
-
-  const submitCancelRequest = async () => {
+  const handleCancelRequest = async () => {
     if (!cancelReason.trim()) {
       alert('Please provide a reason for cancellation');
       return;
     }
 
-    setLoading(true);
     try {
       const response = await fetch(`${API_URL}/appointments/${bookedAppointment._id}/cancel-request`, {
         method: 'POST',
@@ -418,37 +359,45 @@ const Schedule = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to submit cancellation request');
+        throw new Error(errorData.error || 'Failed to submit cancel request');
       }
 
-      const data = await response.json();
-      alert(data.message);
-      setBookedAppointment(data.appointment);
+      alert('Cancellation request submitted successfully!');
       setShowCancelRequestModal(false);
-      setShowAppointmentModal(false);
       setCancelReason('');
+      await fetchUserAppointment();
     } catch (err) {
-      alert(err.message);
-    } finally {
-      setLoading(false);
+      alert(`Error: ${err.message}`);
     }
   };
 
-  const resetForm = () => {
-    setSelectedService('');
-    setSelectedDate(null);
-    setSelectedTime('');
-    setNote('');
-    setIsEditing(false);
-    setError('');
+  const handleDirectCancel = async () => {
+    if (!confirm('Are you sure you want to cancel this appointment?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/appointments/${bookedAppointment._id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to cancel appointment');
+      }
+
+      alert('Appointment cancelled successfully!');
+      setBookedAppointment(null);
+      await fetchBookedSlots();
+      await fetchUserAppointment();
+      await fetchAppointmentHistory();
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
   };
 
-  const isSlotBooked = (date, time) => {
-    if (!date) return false;
-    const dateStr = date.toISOString().split('T')[0];
-    return bookedSlots.some(slot => slot.date === dateStr && slot.time === time);
-  };
-
+  // Calendar helper functions
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -467,20 +416,6 @@ const Schedule = () => {
     return days;
   };
 
-  const isPastDate = (date) => {
-    if (!date) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const compareDate = new Date(date);
-    compareDate.setHours(0, 0, 0, 0);
-    return compareDate < today;
-  };
-
-  const isSameDay = (date1, date2) => {
-    if (!date1 || !date2) return false;
-    return date1.toDateString() === date2.toDateString();
-  };
-
   const changeMonth = (direction) => {
     setCurrentMonth(prev => {
       const newMonth = new Date(prev);
@@ -489,25 +424,25 @@ const Schedule = () => {
     });
   };
 
-  const getNextHalfHour = (time) => {
-    const [hourMin, period] = time.split(' ');
-    const [hour, minute] = hourMin.split(':').map(Number);
-    
-    let nextHour = hour;
-    let nextMinute = minute + 30;
-    let nextPeriod = period;
-    
-    if (nextMinute >= 60) {
-      nextMinute = 0;
-      nextHour += 1;
-      if (nextHour === 12 && period === 'AM') {
-        nextPeriod = 'PM';
-      } else if (nextHour === 13) {
-        nextHour = 1;
-      }
-    }
-    
-    return `${nextHour}:${nextMinute.toString().padStart(2, '0')} ${nextPeriod}`;
+  const isSlotBooked = (date, time) => {
+    if (!date || !time) return false;
+    const dateStr = date.toISOString().split('T')[0];
+    return bookedSlots.some(slot => slot.date === dateStr && slot.time === time);
+  };
+
+  const isToday = (date) => {
+    if (!date) return false;
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
+
+  const isPastDate = (date) => {
+    if (!date) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const compareDate = new Date(date);
+    compareDate.setHours(0, 0, 0, 0);
+    return compareDate < today;
   };
 
   const formatLastUpdate = () => {
@@ -518,9 +453,16 @@ const Schedule = () => {
     });
   };
 
+  const canCancelWithin24Hours = () => {
+    if (!bookedAppointment) return false;
+    const bookedTime = new Date(bookedAppointment.bookedAt);
+    const now = new Date();
+    const hoursSinceBooking = (now - bookedTime) / (1000 * 60 * 60);
+    return hoursSinceBooking <= 24;
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
       {/* 🆕 CPAG HEADER COVER SECTION */}
       <div className="bg-white shadow-lg">
         {/* Header Image Banner */}
@@ -634,172 +576,186 @@ const Schedule = () => {
         </div>
       </div>
       {/* END CPAG HEADER COVER SECTION */}
-
-      {/* Main Content Section */}
-      <div className="max-w-7xl mx-auto p-6">
-        
-        {/* Real-time Update Info */}
-        <div className="bg-white rounded-xl shadow-lg p-4 mb-6">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800">Schedule Your Appointment</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                📡 Real-time updates • Last refresh: {formatLastUpdate()}
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                fetchBookedSlots();
-                setLastUpdate(new Date());
-              }}
-              className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold px-6 py-2.5 rounded-lg shadow-md transform hover:scale-105 transition-all duration-200"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
+      {/* Header */}
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center gap-3">
+              <Calendar className="w-8 h-8 text-blue-600" />
+              HIV Testing & Counseling Schedule
+            </h1>
+            <p className="text-gray-600">Book your appointment for testing, counseling, or psychosocial support</p>
+            <p className="text-sm text-gray-500 mt-2">
+              📡 Real-time updates • Last refresh: {formatLastUpdate()}
+            </p>
           </div>
+          <button
+            onClick={() => {
+              fetchBookedSlots();
+              fetchUserAppointment();
+              fetchClinicSchedule();
+              setLastUpdate(new Date());
+            }}
+            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold px-6 py-3 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200"
+          >
+            <RefreshCw className="w-5 h-5" />
+            Refresh
+          </button>
         </div>
+      </div>
 
-        {/* Current Appointment Card */}
-        {bookedAppointment ? (
-          <div className="bg-white rounded-2xl shadow-xl p-8 mb-6 border-l-8 border-green-500">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-2 flex items-center gap-2">
-                  <CheckCircle className="w-7 h-7 text-green-600" />
-                  Current Appointment
-                </h2>
-                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm ${
-                  bookedAppointment.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                  bookedAppointment.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                  bookedAppointment.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                  'bg-gray-100 text-gray-700'
-                }`}>
-                  {bookedAppointment.status === 'pending' && <AlertCircle className="w-4 h-4" />}
-                  {bookedAppointment.status === 'confirmed' && <CheckCircle className="w-4 h-4" />}
-                  {bookedAppointment.status === 'completed' && <Award className="w-4 h-4" />}
-                  {bookedAppointment.status.toUpperCase()}
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowAppointmentModal(true)}
-                  className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold px-5 py-2.5 rounded-lg shadow-md transform hover:scale-105 transition-all duration-200"
-                >
-                  <Eye className="w-4 h-4" />
-                  View Details
-                </button>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border-2 border-blue-200">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="bg-blue-600 p-2 rounded-lg">
-                    <Activity className="w-5 h-5 text-white" />
-                  </div>
-                  <h3 className="font-bold text-gray-800">Service</h3>
-                </div>
-                <p className="text-gray-700 font-medium pl-11">{bookedAppointment.service}</p>
-              </div>
-
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border-2 border-green-200">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="bg-green-600 p-2 rounded-lg">
-                    <Calendar className="w-5 h-5 text-white" />
-                  </div>
-                  <h3 className="font-bold text-gray-800">Date & Time</h3>
-                </div>
-                <div className="pl-11 space-y-1">
-                  <p className="text-gray-700 font-medium">
-                    {new Date(bookedAppointment.date).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </p>
-                  <p className="text-gray-600">
-                    {bookedAppointment.time} - {getNextHalfHour(bookedAppointment.time)}
-                  </p>
-                </div>
-              </div>
-
-              {bookedAppointment.assignedCaseManager && (
-                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-200">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="bg-purple-600 p-2 rounded-lg">
-                      <UserCheck className="w-5 h-5 text-white" />
-                    </div>
-                    <h3 className="font-bold text-gray-800">Case Manager</h3>
-                  </div>
-                  <div className="pl-11 space-y-1">
-                    <p className="text-gray-700 font-medium">{bookedAppointment.assignedCaseManager.name}</p>
-                    <p className="text-gray-600 text-sm flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
-                      {bookedAppointment.assignedCaseManager.email}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-6 border-2 border-orange-200">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="bg-orange-600 p-2 rounded-lg">
-                    <MapPin className="w-5 h-5 text-white" />
-                  </div>
-                  <h3 className="font-bold text-gray-800">Location</h3>
-                </div>
-                <div className="pl-11 space-y-1 text-gray-700">
-                  <p className="font-medium">CPAG Region IV-A Office</p>
-                  <p className="text-sm">9002 J. Miranda Street</p>
-                  <p className="text-sm">Brgy. Lao Lao Caridad</p>
-                  <p className="text-sm">Cavite City 4100, Philippines</p>
-                </div>
-              </div>
-            </div>
-
-            {bookedAppointment.cancelRequest?.requested && (
-              <div className="mt-6 bg-yellow-50 border-2 border-yellow-300 rounded-xl p-5">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <h4 className="font-bold text-yellow-800 mb-2">Cancellation Request Pending</h4>
-                    <p className="text-sm text-yellow-700 mb-3">
-                      Your cancellation request has been submitted and is awaiting admin review.
-                    </p>
-                    <div className="bg-white rounded-lg p-3 text-sm">
-                      <p className="text-gray-600 font-medium mb-1">Reason:</p>
-                      <p className="text-gray-800">{bookedAppointment.cancelRequest.reason}</p>
-                    </div>
-                    {bookedAppointment.cancelRequest.adminResponse && (
-                      <div className="bg-white rounded-lg p-3 text-sm mt-3">
-                        <p className="text-gray-600 font-medium mb-1">Admin Response:</p>
-                        <p className="text-gray-800">{bookedAppointment.cancelRequest.adminResponse}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl shadow-xl p-16 mb-6 text-center">
-            <div className="max-w-md mx-auto">
-              <div className="bg-gradient-to-br from-blue-100 to-indigo-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Calendar className="w-12 h-12 text-blue-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-3">No Active Appointment</h2>
-              <p className="text-gray-600 mb-8">Schedule your appointment today and take control of your health</p>
+      {/* Current Appointment Card */}
+      {bookedAppointment ? (
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <div className="flex justify-between items-start mb-4">
+            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+              Your Current Appointment
+            </h2>
+            <div className="flex gap-2">
               <button
-                onClick={handleCreateAppointment}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-4 px-8 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200 text-lg"
+                onClick={() => setShowAppointmentModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
               >
-                Book Appointment Now
+                <Eye className="w-4 h-4" />
+                View Details
               </button>
             </div>
           </div>
-        )}
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
+              <h3 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                <Activity className="w-5 h-5" />
+                Service
+              </h3>
+              <p className="text-gray-700 font-medium">{bookedAppointment.service}</p>
+            </div>
+
+            <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
+              <h3 className="font-semibold text-green-800 mb-2 flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Date & Time
+              </h3>
+              <p className="text-gray-700 font-medium">
+                {new Date(bookedAppointment.date).toLocaleDateString('en-US', {
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric'
+                })}
+              </p>
+              <p className="text-gray-600 flex items-center gap-1 mt-1">
+                <Clock className="w-4 h-4" />
+                {bookedAppointment.time}
+              </p>
+            </div>
+
+            {bookedAppointment.assignedCaseManager && (
+              <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
+                <h3 className="font-semibold text-purple-800 mb-2 flex items-center gap-2">
+                  <UserCheck className="w-5 h-5" />
+                  Assigned Case Manager
+                </h3>
+                <p className="text-gray-700 font-medium">
+                  {bookedAppointment.assignedCaseManager.name || bookedAppointment.assignedCaseManager.username}
+                </p>
+              </div>
+            )}
+
+            <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
+              <h3 className="font-semibold text-yellow-800 mb-2 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                Status
+              </h3>
+              <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                bookedAppointment.status === 'confirmed' ? 'bg-green-600 text-white' :
+                bookedAppointment.status === 'pending' ? 'bg-yellow-500 text-white' :
+                'bg-gray-600 text-white'
+              }`}>
+                {bookedAppointment.status.toUpperCase()}
+              </span>
+              {bookedAppointment.cancelRequest?.requested && (
+                <p className="text-orange-600 text-sm mt-2 font-medium">
+                  ⚠️ Cancellation requested - Pending admin review
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Psychosocial Info Display */}
+          {bookedAppointment.service === 'Psychosocial support and assistance' && bookedAppointment.psychosocialInfo && (
+            <div className="mt-4 bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
+              <h3 className="font-semibold text-indigo-800 mb-3 flex items-center gap-2">
+                <UserIcon className="w-5 h-5" />
+                Personal Information
+              </h3>
+              <div className="grid md:grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-gray-600">Full Name:</span>
+                  <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.fullName}</p>
+                </div>
+                <div>
+                  <span className="text-gray-600">Age:</span>
+                  <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.age}</p>
+                </div>
+                <div>
+                  <span className="text-gray-600">Gender:</span>
+                  <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.gender}</p>
+                </div>
+                <div>
+                  <span className="text-gray-600">Location:</span>
+                  <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.location}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="mt-6 flex gap-3">
+            {canCancelWithin24Hours() && !bookedAppointment.cancelRequest?.requested && (
+              <button
+                onClick={handleDirectCancel}
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold"
+              >
+                <XCircle className="w-5 h-5" />
+                Cancel Appointment
+              </button>
+            )}
+            {!canCancelWithin24Hours() && !bookedAppointment.cancelRequest?.requested && (
+              <button
+                onClick={() => setShowCancelRequestModal(true)}
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-semibold"
+              >
+                <AlertCircle className="w-5 h-5" />
+                Request Cancellation
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-lg p-12 mb-6 text-center">
+          <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-2xl font-bold text-gray-700 mb-2">No Active Appointment</h3>
+          <p className="text-gray-600 mb-6">You currently don't have any active appointment</p>
+          <button
+            onClick={handleCreateAppointment}
+            className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200 font-semibold text-lg"
+          >
+            <Calendar className="w-6 h-6" />
+            Book New Appointment
+          </button>
+        </div>
+      )}
+
+      {/* View History Button */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <button
+          onClick={() => setShowHistoryModal(true)}
+          className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200 font-semibold text-lg"
+        >
+          <History className="w-6 h-6" />
+          View Appointment History ({appointmentHistory.length})
+        </button>
       </div>
 
       {/* Service Selection Modal */}
@@ -807,15 +763,9 @@ const Schedule = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-800">Select Service</h3>
-              <button 
-                onClick={() => {
-                  setShowServiceModal(false);
-                  resetForm();
-                }} 
-                className="text-gray-500 hover:text-gray-700 transition"
-              >
-                <X className="w-6 h-6" />
+              <h3 className="text-3xl font-bold text-gray-800">Select a Service</h3>
+              <button onClick={() => setShowServiceModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-8 h-8" />
               </button>
             </div>
 
@@ -824,22 +774,9 @@ const Schedule = () => {
                 <button
                   key={service.id}
                   onClick={() => handleServiceSelection(service.id)}
-                  className="flex items-center gap-4 p-6 border-2 border-gray-200 rounded-xl hover:border-green-500 hover:bg-green-50 transition-all duration-200 text-left group"
+                  className={`${service.color} text-white p-6 rounded-xl hover:opacity-90 transition-all transform hover:scale-105 shadow-lg`}
                 >
-                  <div className={`${service.color} w-12 h-12 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                    <Activity className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-bold text-gray-800 text-lg group-hover:text-green-700 transition">
-                      {service.name}
-                    </h4>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {service.id === 'Testing and Counseling' 
-                        ? 'Get tested and receive professional counseling' 
-                        : 'Comprehensive psychosocial support sessions'}
-                    </p>
-                  </div>
-                  <CheckCircle className="w-6 h-6 text-gray-300 group-hover:text-green-600 transition" />
+                  <h4 className="text-2xl font-bold mb-2">{service.name}</h4>
                 </button>
               ))}
             </div>
@@ -847,70 +784,70 @@ const Schedule = () => {
         </div>
       )}
 
-      {/* Profile Modal - ONLY for Psychosocial support */}
-      {showProfileModal && (
+      {/* ✅ NEW: Psychosocial Support Form Modal */}
+      {showPsychosocialFormModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-800">Complete Your Profile</h3>
+              <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <UserIcon className="w-7 h-7 text-blue-600" />
+                Personal Information
+              </h3>
               <button 
                 onClick={() => {
-                  setShowProfileModal(false);
-                  setShowServiceModal(true);
+                  setShowPsychosocialFormModal(false);
+                  setShowServiceModal(true); // Go back to service selection
                 }} 
-                className="text-gray-500 hover:text-gray-700 transition"
+                className="text-gray-500 hover:text-gray-700"
               >
-                <X className="w-6 h-6" />
+                <X className="w-7 h-7" />
               </button>
             </div>
 
-            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-6">
-              <div className="flex gap-3">
-                <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-blue-800">
-                  For Psychosocial support services, we need some additional information to better assist you.
-                </p>
-              </div>
-            </div>
+            <p className="text-gray-600 mb-6">
+              Please provide your information for psychosocial support services
+            </p>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  <UserIcon className="w-4 h-4 inline mr-1" />
-                  Full Name *
+                  Full Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={userProfile.fullName}
-                  onChange={(e) => setUserProfile({...userProfile, fullName: e.target.value})}
-                  className="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-blue-500 focus:outline-none"
+                  value={psychosocialForm.fullName}
+                  onChange={(e) => setPsychosocialForm({ ...psychosocialForm, fullName: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Enter your full name"
+                  required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Age *
+                  Age <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
-                  value={userProfile.age}
-                  onChange={(e) => setUserProfile({...userProfile, age: e.target.value})}
-                  className="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-blue-500 focus:outline-none"
+                  value={psychosocialForm.age}
+                  onChange={(e) => setPsychosocialForm({ ...psychosocialForm, age: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Enter your age"
                   min="1"
-                  max="120"
+                  max="150"
+                  required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Gender *
+                  Gender <span className="text-red-500">*</span>
                 </label>
                 <select
-                  value={userProfile.gender}
-                  onChange={(e) => setUserProfile({...userProfile, gender: e.target.value})}
-                  className="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-blue-500 focus:outline-none"
+                  value={psychosocialForm.gender}
+                  onChange={(e) => setPsychosocialForm({ ...psychosocialForm, gender: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
                 >
                   <option value="">Select gender</option>
                   <option value="Male">Male</option>
@@ -922,188 +859,205 @@ const Schedule = () => {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  <MapPin className="w-4 h-4 inline mr-1" />
-                  Location *
+                  Location <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={userProfile.location}
-                  onChange={(e) => setUserProfile({...userProfile, location: e.target.value})}
-                  className="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-blue-500 focus:outline-none"
-                  placeholder="City, Province"
+                  value={psychosocialForm.location}
+                  onChange={(e) => setPsychosocialForm({ ...psychosocialForm, location: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter your location (e.g., City, Province)"
+                  required
                 />
               </div>
             </div>
 
-            <div className="flex gap-3 mt-6">
+            <div className="mt-8 flex gap-3">
               <button
                 onClick={() => {
-                  setShowProfileModal(false);
+                  setShowPsychosocialFormModal(false);
                   setShowServiceModal(true);
                 }}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg transition"
+                className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
               >
                 Back
               </button>
               <button
-                onClick={saveUserProfile}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition"
+                onClick={handlePsychosocialFormSubmit}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition font-semibold"
               >
-                Continue
+                Next: Select Date & Time
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Date & Time Selection Modal */}
+      {/* Calendar Modal */}
       {showDateTimeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-4xl w-full p-8 my-8 shadow-2xl">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-auto">
+          <div className="bg-white rounded-2xl max-w-5xl w-full p-8 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h3 className="text-2xl font-bold text-gray-800">Select Date & Time</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Service: <span className="font-semibold text-blue-600">{selectedService}</span>
+                <h3 className="text-3xl font-bold text-gray-800">Select Date & Time</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  ⏰ Last updated: {formatLastUpdate()}
                 </p>
               </div>
               <button 
                 onClick={() => {
                   setShowDateTimeModal(false);
-                  setShowServiceModal(true);
+                  // ✅ Go back to appropriate modal
+                  if (selectedService === 'Psychosocial support and assistance') {
+                    setShowPsychosocialFormModal(true);
+                  } else {
+                    setShowServiceModal(true);
+                  }
                 }} 
-                className="text-gray-500 hover:text-gray-700 transition"
+                className="text-gray-500 hover:text-gray-700"
               >
-                <X className="w-6 h-6" />
+                <X className="w-8 h-8" />
               </button>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Calendar */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border-2 border-blue-200">
-                <div className="flex items-center justify-between mb-4">
-                  <button 
-                    onClick={() => changeMonth(-1)}
-                    className="p-2 hover:bg-blue-200 rounded-lg transition"
-                  >
-                    ←
-                  </button>
-                  <h4 className="font-bold text-gray-800">
-                    {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                  </h4>
-                  <button 
-                    onClick={() => changeMonth(1)}
-                    className="p-2 hover:bg-blue-200 rounded-lg transition"
-                  >
-                    →
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-7 gap-2">
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                    <div key={day} className="text-center font-semibold text-sm text-gray-600 py-2">
-                      {day}
-                    </div>
-                  ))}
-                  {getDaysInMonth(currentMonth).map((date, index) => (
-                    <button
-                      key={index}
-                      onClick={() => date && !isPastDate(date) && handleDateSelection(date)}
-                      disabled={isPastDate(day) || !isDateAvailable(day)}  // ⭐ ADD !isDateAvailable(day)
-                      className={`
-                        aspect-square rounded-lg font-semibold text-sm transition-all
-                        ${!date ? 'invisible' : ''}
-                        ${isPastDate(date) ? 'text-gray-300 cursor-not-allowed' : ''}
-                        ${date && !isPastDate(date) && !isSameDay(date, selectedDate) 
-                          ? 'bg-white hover:bg-blue-500 hover:text-white text-gray-700' 
-                          : ''}
-                        ${isSameDay(date, selectedDate) 
-                          ? 'bg-blue-600 text-white shadow-lg transform scale-110' 
-                          : ''}
-                      `}
-                    >
-                      {date && date.getDate()}
-                    </button>
-                  ))}
-                </div>
+            {/* Calendar Component */}
+            <div className="bg-gray-50 rounded-xl p-6 mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <button
+                  onClick={() => changeMonth(-1)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+                >
+                  Previous
+                </button>
+                <h4 className="text-2xl font-bold text-gray-800">
+                  {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </h4>
+                <button
+                  onClick={() => changeMonth(1)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+                >
+                  Next
+                </button>
               </div>
 
-              {/* Time Slots */}
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border-2 border-green-200 overflow-y-auto max-h-96">
-                <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-green-600" />
-                  Available Time Slots
-                </h4>
-                
-                {!selectedDate ? (
-                  <div className="text-center py-12">
-                    <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">Please select a date first</p>
+              <div className="grid grid-cols-7 gap-2 mb-2">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                  <div key={day} className="text-center font-bold text-gray-700 py-2">
+                    {day}
                   </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3">
-                    {timeSlots.map((time) => {
-                      const isBooked = isSlotBooked(selectedDate, time);
-                      const isSelected = selectedTime === time;
-                      
-                      return (
-                        <button
-                          key={time}
-                          onClick={() => !isBooked && handleTimeSelection(time)}
-                          disabled={isBooked}
-                          className={`
-                            p-3 rounded-lg font-semibold text-sm transition-all
-                            ${isBooked 
-                              ? 'bg-gray-200 text-gray-400 cursor-not-allowed line-through' 
-                              : isSelected
-                                ? 'bg-green-600 text-white shadow-lg transform scale-105'
-                                : 'bg-white text-gray-700 hover:bg-green-500 hover:text-white border-2 border-green-200'
-                            }
-                          `}
-                        >
-                          {time}
-                          {isBooked && (
-                            <div className="text-xs mt-1">Booked</div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7 gap-2">
+                {getDaysInMonth(currentMonth).map((date, index) => {
+                  if (!date) return <div key={`empty-${index}`} />;
+
+                  const isPast = isPastDate(date);
+                  const isTodayDate = isToday(date);
+                  const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
+                  const available = isDateAvailable(date);
+
+                  return (
+                    <button
+                      key={date.toISOString()}
+                      onClick={() => available && !isPast && handleDateSelection(date)}
+                      disabled={!available || isPast}
+                      className={`
+                        p-3 rounded-lg text-center font-semibold transition-all
+                        ${isSelected ? 'bg-blue-600 text-white ring-4 ring-blue-300' : ''}
+                        ${isTodayDate && !isSelected ? 'bg-yellow-100 text-yellow-800 ring-2 ring-yellow-400' : ''}
+                        ${!available || isPast ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : ''}
+                        ${available && !isPast && !isSelected && !isTodayDate ? 'bg-white text-gray-700 hover:bg-blue-100 hover:text-blue-700 border-2 border-gray-200' : ''}
+                      `}
+                    >
+                      {date.getDate()}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 flex gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-yellow-100 border-2 border-yellow-400 rounded"></div>
+                  <span className="text-gray-600">Today</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-blue-600 rounded"></div>
+                  <span className="text-gray-600">Selected</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-gray-200 rounded"></div>
+                  <span className="text-gray-600">Not Available</span>
+                </div>
               </div>
             </div>
 
-            <div className="mt-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+            {/* Time Slots */}
+            {selectedDate && (
+              <div className="mb-6">
+                <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <Clock className="w-6 h-6 text-blue-600" />
+                  Select Time Slot for {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+                </h4>
+                <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                  {timeSlots.map((time) => {
+                    const booked = isSlotBooked(selectedDate, time);
+                    const selected = selectedTime === time;
+
+                    return (
+                      <button
+                        key={time}
+                        onClick={() => !booked && handleTimeSelection(time)}
+                        disabled={booked}
+                        className={`
+                          p-3 rounded-lg font-semibold transition-all
+                          ${selected ? 'bg-blue-600 text-white ring-4 ring-blue-300' : ''}
+                          ${booked ? 'bg-gray-200 text-gray-400 cursor-not-allowed line-through' : ''}
+                          ${!booked && !selected ? 'bg-white text-gray-700 hover:bg-blue-100 hover:text-blue-700 border-2 border-gray-200' : ''}
+                        `}
+                      >
+                        {time}
+                        {booked && <span className="block text-xs mt-1">Booked</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Note Section */}
+            <div className="mb-6">
+              <label className="block text-lg font-semibold text-gray-800 mb-2">
                 Additional Notes (Optional)
               </label>
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                className="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-blue-500 focus:outline-none resize-none"
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 rows="3"
                 placeholder="Any special requests or information..."
               />
             </div>
 
-            <div className="flex gap-3 mt-6">
+            {/* Action Buttons */}
+            <div className="flex gap-3">
               <button
                 onClick={() => {
                   setShowDateTimeModal(false);
-                  if (selectedService === 'Psychosocial support and assistance' && !hasProfile) {
-                    setShowProfileModal(true);
+                  if (selectedService === 'Psychosocial support and assistance') {
+                    setShowPsychosocialFormModal(true);
                   } else {
                     setShowServiceModal(true);
                   }
                 }}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg transition"
+                className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
               >
                 Back
               </button>
               <button
                 onClick={handleProceedToReview}
                 disabled={!selectedDate || !selectedTime}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition disabled:bg-gray-300 disabled:cursor-not-allowed"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Review Appointment
               </button>
@@ -1117,84 +1071,63 @@ const Schedule = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-800">Review Your Appointment</h3>
-              <button 
-                onClick={() => {
-                  setShowReviewModal(false);
-                  setShowDateTimeModal(true);
-                }} 
-                className="text-gray-500 hover:text-gray-700 transition"
-              >
-                <X className="w-6 h-6" />
+              <h3 className="text-3xl font-bold text-gray-800">Review Your Appointment</h3>
+              <button onClick={() => {
+                setShowReviewModal(false);
+                setShowDateTimeModal(true);
+              }} className="text-gray-500 hover:text-gray-700">
+                <X className="w-8 h-8" />
               </button>
             </div>
 
             <div className="space-y-4 mb-6">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 border-2 border-blue-200">
-                <div className="flex items-center gap-3 mb-2">
-                  <Activity className="w-5 h-5 text-blue-600" />
-                  <h4 className="font-bold text-gray-800">Service</h4>
-                </div>
-                <p className="text-gray-700 pl-8">{selectedService}</p>
+              <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
+                <h4 className="font-semibold text-blue-800 mb-2">Service</h4>
+                <p className="text-gray-700 text-lg">{selectedService}</p>
               </div>
 
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-5 border-2 border-green-200">
-                <div className="flex items-center gap-3 mb-2">
-                  <Calendar className="w-5 h-5 text-green-600" />
-                  <h4 className="font-bold text-gray-800">Date</h4>
-                </div>
-                <p className="text-gray-700 pl-8">
-                  {selectedDate?.toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
+              <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
+                <h4 className="font-semibold text-green-800 mb-2">Date & Time</h4>
+                <p className="text-gray-700 text-lg">
+                  {selectedDate.toLocaleDateString('en-US', { 
+                    month: 'long', 
+                    day: 'numeric', 
+                    year: 'numeric'
+                  })} at {selectedTime}
                 </p>
               </div>
 
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-5 border-2 border-purple-200">
-                <div className="flex items-center gap-3 mb-2">
-                  <Clock className="w-5 h-5 text-purple-600" />
-                  <h4 className="font-bold text-gray-800">Time</h4>
-                </div>
-                <p className="text-gray-700 pl-8">
-                  {selectedTime} - {getNextHalfHour(selectedTime)}
-                </p>
-              </div>
-
-              <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-5 border-2 border-orange-200">
-                <div className="flex items-center gap-3 mb-2">
-                  <MapPin className="w-5 h-5 text-orange-600" />
-                  <h4 className="font-bold text-gray-800">Location</h4>
-                </div>
-                <div className="pl-8 text-gray-700 space-y-1">
-                  <p className="font-medium">CPAG Region IV-A Office</p>
-                  <p className="text-sm">9002 J. Miranda Street</p>
-                  <p className="text-sm">Brgy. Lao Lao Caridad</p>
-                  <p className="text-sm">Cavite City 4100, Philippines</p>
-                </div>
-              </div>
-
-              {note && (
-                <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-5 border-2 border-gray-200">
-                  <div className="flex items-center gap-3 mb-2">
-                    <FileText className="w-5 h-5 text-gray-600" />
-                    <h4 className="font-bold text-gray-800">Notes</h4>
+              {/* ✅ Show Psychosocial Info in Review */}
+              {selectedService === 'Psychosocial support and assistance' && (
+                <div className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
+                  <h4 className="font-semibold text-indigo-800 mb-3">Personal Information</h4>
+                  <div className="grid md:grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-gray-600">Name:</span>
+                      <p className="font-medium text-gray-800">{psychosocialForm.fullName}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Age:</span>
+                      <p className="font-medium text-gray-800">{psychosocialForm.age}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Gender:</span>
+                      <p className="font-medium text-gray-800">{psychosocialForm.gender}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Location:</span>
+                      <p className="font-medium text-gray-800">{psychosocialForm.location}</p>
+                    </div>
                   </div>
-                  <p className="text-gray-700 pl-8">{note}</p>
                 </div>
               )}
-            </div>
 
-            <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 mb-6">
-              <div className="flex gap-3">
-                <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-yellow-800">
-                  <p className="font-semibold mb-1">Important:</p>
-                  <p>You can cancel within 24 hours of booking. After that, you'll need to request cancellation from admin.</p>
+              {note && (
+                <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
+                  <h4 className="font-semibold text-yellow-800 mb-2">Notes</h4>
+                  <p className="text-gray-700">{note}</p>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="flex gap-3">
@@ -1203,17 +1136,16 @@ const Schedule = () => {
                   setShowReviewModal(false);
                   setShowDateTimeModal(true);
                 }}
-                disabled={loading}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg transition"
+                className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
               >
-                Back
+                Back to Calendar
               </button>
               <button
                 onClick={bookAppointment}
                 disabled={loading}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition disabled:bg-gray-300"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg transition font-semibold disabled:opacity-50"
               >
-                {loading ? 'Booking...' : isEditing ? 'Update Appointment' : 'Confirm Booking'}
+                {loading ? 'Booking...' : isEditing ? 'Update Appointment' : 'Confirm Appointment'}
               </button>
             </div>
           </div>
@@ -1221,129 +1153,21 @@ const Schedule = () => {
       )}
 
       {/* Success Modal */}
-      {showConfirmationModal && (
+      {showSuccessModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl text-center">
-            <div className="bg-gradient-to-br from-green-100 to-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="w-10 h-10 text-green-600" />
-            </div>
-            <h3 className="text-2xl font-bold text-gray-800 mb-3">
-              {isEditing ? 'Updated!' : 'Booked Successfully!'}
-            </h3>
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 text-center shadow-2xl">
+            <CheckCircle className="w-20 h-20 text-green-600 mx-auto mb-4" />
+            <h3 className="text-3xl font-bold text-gray-800 mb-2">Appointment {isEditing ? 'Updated' : 'Booked'}!</h3>
             <p className="text-gray-600 mb-6">
-              Your appointment has been {isEditing ? 'updated' : 'confirmed'}. We look forward to seeing you!
+              Your appointment has been successfully {isEditing ? 'updated' : 'booked'}. 
+              You will receive confirmation soon.
             </p>
-          </div>
-        </div>
-      )}
-
-      {/* Appointment Details Modal */}
-      {showAppointmentModal && bookedAppointment && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-auto">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-8 max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-800">Appointment Details</h3>
-              <button 
-                onClick={() => setShowAppointmentModal(false)} 
-                className="text-gray-500 hover:text-gray-700 transition"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="space-y-4 mb-6">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 border-2 border-blue-200">
-                <div className="flex items-center gap-3 mb-3">
-                  <Activity className="w-5 h-5 text-blue-600" />
-                  <h4 className="font-bold text-gray-800">Service</h4>
-                </div>
-                <p className="text-gray-700 pl-8">{bookedAppointment.service}</p>
-              </div>
-
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-5 border-2 border-green-200">
-                <div className="flex items-center gap-3 mb-3">
-                  <Calendar className="w-5 h-5 text-green-600" />
-                  <h4 className="font-bold text-gray-800">Schedule</h4>
-                </div>
-                <div className="pl-8 space-y-2">
-                  <div>
-                    <p className="text-sm text-gray-600">Date</p>
-                    <p className="text-gray-800 font-medium">
-                      {new Date(bookedAppointment.date).toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Time</p>
-                    <p className="text-gray-800 font-medium">
-                      {bookedAppointment.time} - {getNextHalfHour(bookedAppointment.time)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {bookedAppointment.assignedCaseManager && (
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-5 border-2 border-purple-200">
-                  <div className="flex items-center gap-3 mb-3">
-                    <UserCheck className="w-5 h-5 text-purple-600" />
-                    <h4 className="font-bold text-gray-800">Case Manager</h4>
-                  </div>
-                  <div className="pl-8 space-y-1">
-                    <p className="font-medium text-gray-800">{bookedAppointment.assignedCaseManager.name}</p>
-                    <p className="text-sm text-gray-600 flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
-                      {bookedAppointment.assignedCaseManager.email}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-5 border-2 border-orange-200">
-                <div className="flex items-center gap-3 mb-3">
-                  <MapPin className="w-5 h-5 text-orange-600" />
-                  <h4 className="font-bold text-gray-800">Location</h4>
-                </div>
-                <div className="pl-8 space-y-1 text-gray-700">
-                  <p className="font-medium">CPAG Region IV-A Office</p>
-                  <p className="text-sm">9002 J. Miranda Street</p>
-                  <p className="text-sm">Brgy. Lao Lao Caridad</p>
-                  <p className="text-sm">Cavite City 4100, Philippines</p>
-                </div>
-              </div>
-
-              {bookedAppointment.note && (
-                <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-5 border-2 border-gray-200">
-                  <div className="flex items-center gap-3 mb-3">
-                    <FileText className="w-5 h-5 text-gray-600" />
-                    <h4 className="font-bold text-gray-800">Notes</h4>
-                  </div>
-                  <p className="text-gray-700 pl-8">{bookedAppointment.note}</p>
-                </div>
-              )}
-            </div>
-
-            {bookedAppointment.status !== 'cancelled' && bookedAppointment.status !== 'completed' && (
-              <div className="flex gap-3">
-                <button
-                  onClick={handleEditAppointment}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2"
-                >
-                  <Edit className="w-4 h-4" />
-                  Edit
-                </button>
-                <button
-                  onClick={handleCancelAppointment}
-                  disabled={bookedAppointment.cancelRequest?.requested}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg transition disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  {bookedAppointment.cancelRequest?.requested ? 'Cancel Requested' : 'Cancel'}
-                </button>
-              </div>
-            )}
+            <button
+              onClick={() => setShowSuccessModal(false)}
+              className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg transition font-semibold"
+            >
+              Done
+            </button>
           </div>
         </div>
       )}
@@ -1354,281 +1178,347 @@ const Schedule = () => {
           <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-bold text-gray-800">Request Cancellation</h3>
-              <button 
-                onClick={() => setShowCancelRequestModal(false)} 
-                className="text-gray-500 hover:text-gray-700 transition"
-              >
-                <X className="w-6 h-6" />
+              <button onClick={() => setShowCancelRequestModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-7 h-7" />
               </button>
             </div>
 
-            <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4 mb-6">
-              <div className="flex gap-3">
-                <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-orange-800">
-                  It's been more than 24 hours since booking. Please provide a reason for cancellation. Admin will review your request.
-                </p>
-              </div>
-            </div>
+            <p className="text-gray-600 mb-4">
+              Since it's been more than 24 hours since booking, please provide a reason for cancellation. Admin will review your request.
+            </p>
 
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Reason for Cancellation *
-              </label>
-              <textarea
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                className="w-full border-2 border-gray-300 rounded-lg p-3 focus:border-blue-500 focus:outline-none resize-none"
-                rows="4"
-                placeholder="Please explain why you need to cancel..."
-              />
-            </div>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
+              rows="4"
+              placeholder="Please explain why you need to cancel..."
+            />
 
             <div className="flex gap-3">
               <button
                 onClick={() => setShowCancelRequestModal(false)}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg transition"
+                className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
               >
-                Back
+                Cancel
               </button>
               <button
-                onClick={submitCancelRequest}
-                disabled={loading || !cancelReason.trim()}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg transition disabled:bg-gray-300"
+                onClick={handleCancelRequest}
+                className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-semibold"
               >
-                {loading ? 'Submitting...' : 'Submit Request'}
+                Submit Request
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* History Modal */}
-      {showHistoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-auto">
-          <div className="bg-white rounded-2xl max-w-4xl w-full p-8 max-h-[90vh] overflow-y-auto shadow-2xl">
+      {/* Appointment Details Modal */}
+      {showAppointmentModal && bookedAppointment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-800">Appointment History</h3>
-                <p className="text-sm text-gray-600 mt-1">View your past appointments</p>
-              </div>
-              <button 
-                onClick={() => setShowHistoryModal(false)} 
-                className="text-gray-500 hover:text-gray-700 transition"
-              >
-                <X className="w-6 h-6" />
+              <h3 className="text-3xl font-bold text-gray-800">Appointment Details</h3>
+              <button onClick={() => setShowAppointmentModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-8 h-8" />
               </button>
             </div>
 
-            {appointmentHistory.length === 0 ? (
-              <div className="text-center py-16">
-                <div className="bg-gradient-to-br from-gray-100 to-slate-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <History className="w-12 h-12 text-gray-400" />
-                </div>
-                <p className="text-gray-600 text-lg">No appointment history yet</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {appointmentHistory.map((item) => (
-                  <div 
-                    key={item._id}
-                    onClick={() => {
-                      setSelectedHistoryItem(item);
-                      setShowHistoryModal(false);
-                      setShowSessionDetailsModal(true);
-                    }}
-                    className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
-                        <h4 className="font-bold text-gray-800 text-lg mb-2">{item.service}</h4>
-                        <div className="text-sm text-gray-600 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4" />
-                            <span>{new Date(item.date).toLocaleDateString('en-US', { 
-                              weekday: 'short',
-                              year: 'numeric', 
-                              month: 'short', 
-                              day: 'numeric' 
-                            })}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4" />
-                            <span>{item.time}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        item.status === 'completed' ? 'bg-green-100 text-green-700' :
-                        item.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {item.status.toUpperCase()}
-                      </div>
-                    </div>
-                    
-                    {item.assignedCaseManager && (
-                      <div className="text-sm text-gray-600 flex items-center gap-2 mt-2">
-                        <UserCheck className="w-4 h-4 text-blue-600" />
-                        <span>Case Manager: {item.assignedCaseManager.name}</span>
-                      </div>
-                    )}
-
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <button className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
-                        <FileText className="w-4 h-4" />
-                        View Full Details →
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Session Details Modal (from History) */}
-      {showSessionDetailsModal && selectedHistoryItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-auto">
-          <div className="bg-white rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-800">Session Details</h3>
-                <p className="text-sm text-gray-600 mt-1">Complete appointment information</p>
-              </div>
-              <button 
-                onClick={() => {
-                  setShowSessionDetailsModal(false);
-                  setShowHistoryModal(true);
-                }} 
-                className="text-gray-500 hover:text-gray-700 transition"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 space-y-6">
-              
-              {/* Status */}
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-lg text-gray-800">Status</h4>
-                <div className={`px-4 py-2 rounded-full font-semibold text-sm shadow-md ${
-                  selectedHistoryItem.status === 'completed' ? 'bg-green-600 text-white' :
-                  selectedHistoryItem.status === 'cancelled' ? 'bg-red-600 text-white' :
-                  'bg-gray-600 text-white'
-                }`}>
-                  {selectedHistoryItem.status.toUpperCase()}
-                </div>
+            <div className="space-y-4">
+              <div className="bg-blue-50 rounded-lg p-5 border-2 border-blue-200">
+                <h4 className="font-bold text-blue-800 mb-2 text-lg">Service</h4>
+                <p className="text-gray-700 text-lg">{bookedAppointment.service}</p>
               </div>
 
-              {/* Service */}
-              <div className="bg-white rounded-lg p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <Activity className="w-5 h-5 text-green-600" />
-                  <h5 className="font-semibold text-gray-800">Service</h5>
-                </div>
-                <p className="text-gray-700 ml-7">{selectedHistoryItem.service}</p>
+              <div className="bg-green-50 rounded-lg p-5 border-2 border-green-200">
+                <h4 className="font-bold text-green-800 mb-2 text-lg">Date & Time</h4>
+                <p className="text-gray-700 text-lg flex items-center gap-2">
+                  <Calendar className="w-5 h-5" />
+                  {new Date(bookedAppointment.date).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </p>
+                <p className="text-gray-700 flex items-center gap-2 mt-2">
+                  <Clock className="w-5 h-5" />
+                  {bookedAppointment.time}
+                </p>
               </div>
 
-              {/* Case Manager */}
-              {selectedHistoryItem.assignedCaseManager && (
-                <div className="bg-white rounded-lg p-4 shadow-sm">
-                  <div className="flex items-center gap-2 mb-3">
-                    <UserCheck className="w-5 h-5 text-blue-600" />
-                    <h5 className="font-semibold text-gray-800">Case Manager</h5>
-                  </div>
-                  <div className="ml-7 space-y-1">
-                    <p className="font-medium text-gray-800">{selectedHistoryItem.assignedCaseManager.name}</p>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
+              {bookedAppointment.assignedCaseManager && (
+                <div className="bg-purple-50 rounded-lg p-5 border-2 border-purple-200">
+                  <h4 className="font-bold text-purple-800 mb-2 text-lg flex items-center gap-2">
+                    <UserCheck className="w-5 h-5" />
+                    Assigned Case Manager
+                  </h4>
+                  <p className="text-gray-700 text-lg font-medium">
+                    {bookedAppointment.assignedCaseManager.name || bookedAppointment.assignedCaseManager.username}
+                  </p>
+                  {bookedAppointment.assignedCaseManager.email && (
+                    <p className="text-gray-600 text-sm flex items-center gap-1 mt-1">
                       <Mail className="w-4 h-4" />
-                      <span>{selectedHistoryItem.assignedCaseManager.email}</span>
+                      {bookedAppointment.assignedCaseManager.email}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {bookedAppointment.service === 'Psychosocial support and assistance' && bookedAppointment.psychosocialInfo && (
+                <div className="bg-indigo-50 rounded-lg p-5 border-2 border-indigo-200">
+                  <h4 className="font-bold text-indigo-800 mb-3 text-lg flex items-center gap-2">
+                    <UserIcon className="w-5 h-5" />
+                    Personal Information
+                  </h4>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-gray-600 text-sm">Full Name:</span>
+                      <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.fullName}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600 text-sm">Age:</span>
+                      <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.age}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600 text-sm">Gender:</span>
+                      <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.gender}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600 text-sm">Location:</span>
+                      <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.location}</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Date & Time */}
-              <div className="bg-white rounded-lg p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <Calendar className="w-5 h-5 text-purple-600" />
-                  <h5 className="font-semibold text-gray-800">Schedule</h5>
+              {bookedAppointment.note && (
+                <div className="bg-yellow-50 rounded-lg p-5 border-2 border-yellow-200">
+                  <h4 className="font-bold text-yellow-800 mb-2 text-lg">Notes</h4>
+                  <p className="text-gray-700">{bookedAppointment.note}</p>
                 </div>
-                <div className="ml-7 space-y-2">
-                  <div>
-                    <p className="text-sm text-gray-600">Date</p>
-                    <p className="font-medium text-gray-800">
-                      {new Date(selectedHistoryItem.date).toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })}
-                    </p>
+              )}
+
+              <div className="bg-gray-50 rounded-lg p-5 border-2 border-gray-200">
+                <h4 className="font-bold text-gray-800 mb-2 text-lg">Status</h4>
+                <span className={`inline-block px-4 py-2 rounded-full text-sm font-semibold ${
+                  bookedAppointment.status === 'confirmed' ? 'bg-green-600 text-white' :
+                  bookedAppointment.status === 'pending' ? 'bg-yellow-500 text-white' :
+                  'bg-gray-600 text-white'
+                }`}>
+                  {bookedAppointment.status.toUpperCase()}
+                </span>
+                {bookedAppointment.cancelRequest?.requested && (
+                  <p className="text-orange-600 text-sm mt-2 font-medium">
+                    ⚠️ Cancellation requested - Pending admin review
+                  </p>
+                )}
+                <p className="text-gray-600 text-sm mt-3">
+                  Booked on: {new Date(bookedAppointment.bookedAt).toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowAppointmentModal(false)}
+              className="mt-6 w-full px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* History Modal - Similar structure, shortened for brevity */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-4xl w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
+                <History className="w-8 h-8 text-purple-600" />
+                Appointment History
+              </h3>
+              <button onClick={() => setShowHistoryModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-8 h-8" />
+              </button>
+            </div>
+
+            {appointmentHistory.length === 0 ? (
+              <div className="text-center py-12">
+                <History className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 text-lg">No appointment history yet</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {appointmentHistory.map((apt) => (
+                  <div key={apt._id} className="bg-gray-50 rounded-lg p-5 border-2 border-gray-200 hover:border-purple-300 transition">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-gray-800 text-lg mb-2">{apt.service}</h4>
+                        <p className="text-gray-600 flex items-center gap-2 mb-1">
+                          <Calendar className="w-4 h-4" />
+                          {new Date(apt.date).toLocaleDateString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })} at {apt.time}
+                        </p>
+                        {apt.assignedCaseManager && (
+                          <p className="text-gray-600 flex items-center gap-2">
+                            <UserCheck className="w-4 h-4" />
+                            Case Manager: {apt.assignedCaseManager.name || apt.assignedCaseManager.username}
+                          </p>
+                        )}
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        apt.status === 'completed' ? 'bg-blue-600 text-white' :
+                        apt.status === 'cancelled' ? 'bg-red-600 text-white' :
+                        'bg-gray-600 text-white'
+                      }`}>
+                        {apt.status.toUpperCase()}
+                      </span>
+                    </div>
+                    
+                    {apt.sessionTracking?.sessionNumber && (
+                      <p className="text-sm text-gray-500 mt-2">
+                        Session #{apt.sessionTracking.sessionNumber}
+                      </p>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        setSelectedHistoryItem(apt);
+                        setShowSessionDetailsModal(true);
+                      }}
+                      className="mt-3 text-purple-600 hover:text-purple-700 font-semibold text-sm flex items-center gap-1"
+                    >
+                      <FileText className="w-4 h-4" />
+                      View Details
+                    </button>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Time</p>
-                    <p className="font-medium text-gray-800">
-                      {selectedHistoryItem.time} - {getNextHalfHour(selectedHistoryItem.time)}
-                    </p>
-                  </div>
-                </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowHistoryModal(false)}
+              className="mt-6 w-full px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Session Details Modal */}
+      {showSessionDetailsModal && selectedHistoryItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-gray-800">Session Details</h3>
+              <button onClick={() => setShowSessionDetailsModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-7 h-7" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
+                <h4 className="font-semibold text-blue-800 mb-2">Service</h4>
+                <p className="text-gray-700">{selectedHistoryItem.service}</p>
               </div>
 
-              {/* Location */}
-              <div className="bg-white rounded-lg p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <MapPin className="w-5 h-5 text-red-600" />
-                  <h5 className="font-semibold text-gray-800">Location</h5>
-                </div>
-                <div className="ml-7 space-y-1 text-gray-700">
-                  <p className="font-medium">CPAG Region IV-A Office</p>
-                  <p>9002 J. Miranda Street</p>
-                  <p>Barangay Lao Lao Caridad</p>
-                  <p>Cavite City 4100, Philippines</p>
-                </div>
+              <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
+                <h4 className="font-semibold text-green-800 mb-2">Date & Time</h4>
+                <p className="text-gray-700">
+                  {new Date(selectedHistoryItem.date).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })} at {selectedHistoryItem.time}
+                </p>
               </div>
 
-              {/* Session Notes (if available) */}
-              {selectedHistoryItem.sessionTracking?.sessionNotes && selectedHistoryItem.sessionTracking.sessionNotes.length > 0 && (
-                <div className="bg-white rounded-lg p-4 shadow-sm">
-                  <div className="flex items-center gap-2 mb-3">
-                    <FileText className="w-5 h-5 text-indigo-600" />
-                    <h5 className="font-semibold text-gray-800">Session Notes</h5>
+              {selectedHistoryItem.service === 'Psychosocial support and assistance' && selectedHistoryItem.psychosocialInfo && (
+                <div className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
+                  <h4 className="font-semibold text-indigo-800 mb-3">Personal Information</h4>
+                  <div className="grid md:grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-gray-600">Name:</span>
+                      <p className="font-medium text-gray-800">{selectedHistoryItem.psychosocialInfo.fullName}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Age:</span>
+                      <p className="font-medium text-gray-800">{selectedHistoryItem.psychosocialInfo.age}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Gender:</span>
+                      <p className="font-medium text-gray-800">{selectedHistoryItem.psychosocialInfo.gender}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Location:</span>
+                      <p className="font-medium text-gray-800">{selectedHistoryItem.psychosocialInfo.location}</p>
+                    </div>
                   </div>
-                  <div className="ml-7 space-y-3">
+                </div>
+              )}
+
+              {selectedHistoryItem.assignedCaseManager && (
+                <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
+                  <h4 className="font-semibold text-purple-800 mb-2">Case Manager</h4>
+                  <p className="text-gray-700 font-medium">
+                    {selectedHistoryItem.assignedCaseManager.name || selectedHistoryItem.assignedCaseManager.username}
+                  </p>
+                </div>
+              )}
+
+              <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
+                <h4 className="font-semibold text-gray-800 mb-2">Status</h4>
+                <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                  selectedHistoryItem.status === 'completed' ? 'bg-blue-600 text-white' :
+                  selectedHistoryItem.status === 'cancelled' ? 'bg-red-600 text-white' :
+                  'bg-gray-600 text-white'
+                }`}>
+                  {selectedHistoryItem.status.toUpperCase()}
+                </span>
+              </div>
+
+              {selectedHistoryItem.sessionTracking?.sessionNotes?.length > 0 && (
+                <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
+                  <h4 className="font-semibold text-yellow-800 mb-3">Session Notes</h4>
+                  <div className="space-y-2">
                     {selectedHistoryItem.sessionTracking.sessionNotes.map((note, idx) => (
-                      <div key={idx} className="border-l-4 border-indigo-400 pl-3 py-2 bg-indigo-50/50 rounded">
-                        <p className="text-sm text-gray-600 mb-1">Session {note.sessionNumber}</p>
-                        <p className="text-gray-700 text-sm">{note.summary}</p>
-                        <p className="text-xs text-gray-500 mt-1">Progress: <span className="font-medium">{note.progress}</span></p>
+                      <div key={idx} className="bg-white p-3 rounded border border-yellow-200">
+                        <p className="text-sm text-gray-600">Session #{note.sessionNumber}</p>
+                        <p className="text-gray-700 mt-1">{note.notes || 'No notes'}</p>
+                        {note.progress && (
+                          <span className={`inline-block mt-2 px-2 py-1 rounded text-xs font-semibold ${
+                            note.progress === 'excellent' ? 'bg-green-100 text-green-700' :
+                            note.progress === 'good' ? 'bg-blue-100 text-blue-700' :
+                            note.progress === 'fair' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {note.progress}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-
-              {/* Notes */}
-              <div className="bg-white rounded-lg p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <FileText className="w-5 h-5 text-orange-600" />
-                  <h5 className="font-semibold text-gray-800">Notes</h5>
-                </div>
-                <p className="text-gray-700 ml-7">
-                  {selectedHistoryItem.note || 'No additional notes'}
-                </p>
-              </div>
-
             </div>
 
             <button
-              onClick={() => {
-                setShowSessionDetailsModal(false);
-                setShowHistoryModal(true);
-              }}
-              className="w-full mt-6 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg transition"
+              onClick={() => setShowSessionDetailsModal(false)}
+              className="mt-6 w-full px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
             >
-              BACK TO HISTORY
+              Close
             </button>
           </div>
         </div>

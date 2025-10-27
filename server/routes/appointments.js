@@ -1,4 +1,4 @@
-// routes/appointments.js - USER ONLY appointment routes (FIXED)
+// routes/appointments.js - USER ONLY appointment routes (COMPLETE FIX)
 import express from 'express';
 import Appointment from '../models/appointment.js';
 import { isAuthenticated, isUserRole } from '../middleware/auth.js';
@@ -10,40 +10,40 @@ const router = express.Router();
 // ============================================
 router.get('/booked-slots', async (req, res) => {
   try {
-    console.log('Fetching booked slots for calendar');
-    
+    console.log('📅 Fetching booked slots for calendar');
+
     const bookedSlots = await Appointment.find({ 
       status: { $in: ['pending', 'confirmed'] } 
     }).select('date time -_id');
 
+    console.log(`✅ Found ${bookedSlots.length} booked slots`);
     res.json(bookedSlots);
   } catch (err) {
-    console.error('Error fetching booked slots:', err);
+    console.error('❌ Error fetching booked slots:', err);
     res.status(500).json({ error: 'Failed to fetch booked slots' });
   }
 });
 
 // ============================================
 // GET USER'S APPOINTMENTS - User Only
-// ✅ FIXED: Added assignedCaseManager population
 // ============================================
 router.get('/my-appointments', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const userId = req.user.id;
-    console.log(`Fetching appointments for user: ${userId}`);
-    
+    console.log(`📋 Fetching appointments for user: ${userId}`);
+
     const currentAppointment = await Appointment.findOne({
       user: userId,
       status: { $in: ['pending', 'confirmed'] }
     })
     .populate('user', 'name email username')
-    .populate('assignedCaseManager', 'name email username') // ✅ FIXED: Added case manager population
+    .populate('assignedCaseManager', 'name email username')
     .populate('assignedBy', 'name username')
     .sort({ createdAt: -1 });
 
     const allAppointments = await Appointment.find({ user: userId })
       .populate('user', 'name email username')
-      .populate('assignedCaseManager', 'name email username') // ✅ FIXED: Added case manager population
+      .populate('assignedCaseManager', 'name email username')
       .populate('assignedBy', 'name username')
       .sort({ createdAt: -1 });
 
@@ -58,21 +58,47 @@ router.get('/my-appointments', isAuthenticated, isUserRole, async (req, res) => 
       all: allAppointments 
     });
   } catch (err) {
-    console.error('Error fetching user appointments:', err);
+    console.error('❌ Error fetching user appointments:', err);
     res.status(500).json({ error: 'Failed to fetch appointments' });
   }
 });
 
 // ============================================
+// GET APPOINTMENT HISTORY - User Only
+// ============================================
+router.get('/history', isAuthenticated, isUserRole, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    console.log(`📚 Fetching appointment history for user: ${userId}`);
+
+    const history = await Appointment.find({
+      user: userId,
+      status: { $in: ['completed', 'cancelled'] }
+    })
+    .populate('user', 'name email username')
+    .populate('assignedCaseManager', 'name email username')
+    .sort({ date: -1 });
+
+    console.log(`✅ Found ${history.length} historical appointments`);
+    res.json(history);
+  } catch (err) {
+    console.error('❌ Error fetching appointment history:', err);
+    res.status(500).json({ error: 'Failed to fetch appointment history' });
+  }
+});
+
+// ============================================
 // CREATE NEW APPOINTMENT - User Only
-// ✅ FIXED: Better validation and error messages
+// ✅ FIXED: Now properly handles psychosocialInfo
 // ============================================
 router.post('/', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { service, date, time, note } = req.body;
+    const { service, date, time, note, psychosocialInfo } = req.body;
 
-    console.log(`User ${userId} attempting to book appointment for ${date} at ${time}`);
+    console.log(`📝 User ${userId} attempting to book appointment for ${date} at ${time}`);
+    console.log('Service:', service);
+    console.log('PsychosocialInfo provided:', !!psychosocialInfo);
 
     // Validate required fields
     if (!service || !date || !time) {
@@ -85,6 +111,33 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
     const validServices = ['Testing and Counseling', 'Psychosocial support and assistance'];
     if (!validServices.includes(service)) {
       return res.status(400).json({ error: 'Invalid service type' });
+    }
+
+    // ✅ NEW: Validate psychosocialInfo for Psychosocial support
+    if (service === 'Psychosocial support and assistance' && psychosocialInfo) {
+      const { fullName, age, gender, location } = psychosocialInfo;
+      
+      if (!fullName || !age || !gender || !location) {
+        return res.status(400).json({
+          error: 'Psychosocial support requires: fullName, age, gender, and location'
+        });
+      }
+
+      // Validate age
+      const ageNum = parseInt(age);
+      if (isNaN(ageNum) || ageNum < 1 || ageNum > 150) {
+        return res.status(400).json({
+          error: 'Age must be a number between 1 and 150'
+        });
+      }
+
+      // Validate gender
+      const validGenders = ['Male', 'Female', 'Other', 'Prefer not to say'];
+      if (!validGenders.includes(gender)) {
+        return res.status(400).json({
+          error: 'Invalid gender value'
+        });
+      }
     }
 
     // Check for existing active appointment
@@ -116,15 +169,15 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
     const appointmentDate = new Date(date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     if (appointmentDate < today) {
       return res.status(400).json({ 
         error: 'Cannot book appointments in the past' 
       });
     }
 
-    // Create appointment
-    const appointment = new Appointment({
+    // ✅ FIXED: Create appointment with psychosocialInfo
+    const appointmentData = {
       user: userId,
       service,
       date,
@@ -132,11 +185,23 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
       note: note || '',
       status: 'pending',
       bookedAt: new Date()
-    });
+    };
 
+    // Add psychosocialInfo if provided
+    if (service === 'Psychosocial support and assistance' && psychosocialInfo) {
+      appointmentData.psychosocialInfo = {
+        fullName: psychosocialInfo.fullName,
+        age: parseInt(psychosocialInfo.age),
+        gender: psychosocialInfo.gender,
+        location: psychosocialInfo.location
+      };
+      console.log('✅ Psychosocial info added to appointment:', appointmentData.psychosocialInfo);
+    }
+
+    const appointment = new Appointment(appointmentData);
     await appointment.save();
-    
-    // ✅ FIXED: Populate all fields including case manager
+
+    // Populate all fields
     await appointment.populate([
       { path: 'user', select: 'name email username' },
       { path: 'assignedCaseManager', select: 'name email username' },
@@ -146,21 +211,23 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
     console.log(`✅ Appointment created: ${appointment._id}`);
     res.status(201).json(appointment);
   } catch (err) {
-    console.error('Error creating appointment:', err);
-    res.status(500).json({ error: 'Failed to create appointment' });
+    console.error('❌ Error creating appointment:', err);
+    res.status(500).json({ 
+      error: 'Failed to create appointment',
+      details: err.message 
+    });
   }
 });
 
 // ============================================
 // UPDATE APPOINTMENT - User Only
-// ✅ FIXED: Better validation and case manager preservation
 // ============================================
 router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { service, date, time, note } = req.body;
+    const { service, date, time, note, psychosocialInfo } = req.body;
 
-    console.log(`User ${userId} attempting to update appointment ${req.params.id}`);
+    console.log(`📝 User ${userId} attempting to update appointment ${req.params.id}`);
 
     const appointment = await Appointment.findOne({
       _id: req.params.id,
@@ -210,7 +277,7 @@ router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
         const appointmentDate = new Date(date);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
         if (appointmentDate < today) {
           return res.status(400).json({ 
             error: 'Cannot reschedule to a past date' 
@@ -233,9 +300,19 @@ router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
     if (time) appointment.time = time;
     if (note !== undefined) appointment.note = note;
 
+    // ✅ NEW: Update psychosocialInfo if provided
+    if (psychosocialInfo && appointment.service === 'Psychosocial support and assistance') {
+      appointment.psychosocialInfo = {
+        fullName: psychosocialInfo.fullName,
+        age: parseInt(psychosocialInfo.age),
+        gender: psychosocialInfo.gender,
+        location: psychosocialInfo.location
+      };
+      console.log('✅ Updated psychosocial info');
+    }
+
     await appointment.save();
-    
-    // ✅ FIXED: Populate all fields including case manager
+
     await appointment.populate([
       { path: 'user', select: 'name email username' },
       { path: 'assignedCaseManager', select: 'name email username' },
@@ -245,8 +322,62 @@ router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
     console.log(`✅ Appointment ${req.params.id} updated`);
     res.json(appointment);
   } catch (err) {
-    console.error('Error updating appointment:', err);
+    console.error('❌ Error updating appointment:', err);
     res.status(500).json({ error: 'Failed to update appointment' });
+  }
+});
+
+// ============================================
+// REQUEST CANCELLATION - User Only
+// ============================================
+router.post('/:id/request-cancel', isAuthenticated, isUserRole, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { reason } = req.body;
+
+    console.log(`🚫 User ${userId} requesting cancellation for appointment ${req.params.id}`);
+
+    const appointment = await Appointment.findOne({
+      _id: req.params.id,
+      user: userId
+    });
+
+    if (!appointment) {
+      return res.status(404).json({ 
+        error: 'Appointment not found or you do not have permission' 
+      });
+    }
+
+    if (appointment.status === 'cancelled') {
+      return res.status(400).json({ error: 'Appointment is already cancelled' });
+    }
+
+    if (appointment.status === 'completed') {
+      return res.status(400).json({ error: 'Cannot cancel completed appointments' });
+    }
+
+    if (appointment.cancelRequest?.requested) {
+      return res.status(400).json({ 
+        error: 'Cancellation request already submitted. Waiting for admin approval.' 
+      });
+    }
+
+    appointment.cancelRequest = {
+      requested: true,
+      reason: reason || '',
+      requestedAt: new Date()
+    };
+
+    await appointment.save();
+
+    console.log(`✅ Cancellation requested for appointment ${req.params.id}`);
+    res.json({ 
+      message: 'Cancellation request submitted. An admin will review it shortly.',
+      appointment 
+    });
+  } catch (err) {
+    console.error('❌ Error requesting cancellation:', err);
+    res.status(500).json({ error: 'Failed to request cancellation' });
   }
 });
 
@@ -257,7 +388,7 @@ router.delete('/:id', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    console.log(`User ${userId} attempting to cancel appointment ${req.params.id}`);
+    console.log(`🗑️ User ${userId} attempting to cancel appointment ${req.params.id}`);
 
     const appointment = await Appointment.findOne({
       _id: req.params.id,
@@ -282,7 +413,7 @@ router.delete('/:id', isAuthenticated, isUserRole, async (req, res) => {
     const bookedTime = new Date(appointment.bookedAt);
     const now = new Date();
     const hoursSinceBooking = (now - bookedTime) / (1000 * 60 * 60);
-    
+
     if (hoursSinceBooking > 24) {
       return res.status(400).json({ 
         error: 'Cannot cancel appointment after 24 hours. Please request cancellation through the system.' 
@@ -291,136 +422,11 @@ router.delete('/:id', isAuthenticated, isUserRole, async (req, res) => {
 
     await Appointment.findByIdAndDelete(req.params.id);
 
-    console.log(`✅ Appointment ${req.params.id} cancelled by user (within 24hrs)`);
-    res.json({ 
-      message: 'Appointment cancelled successfully',
-      deletedAppointment: appointment
-    });
+    console.log(`✅ Appointment ${req.params.id} cancelled and deleted`);
+    res.json({ message: 'Appointment cancelled successfully' });
   } catch (err) {
-    console.error('Error cancelling appointment:', err);
+    console.error('❌ Error cancelling appointment:', err);
     res.status(500).json({ error: 'Failed to cancel appointment' });
-  }
-});
-
-// ============================================
-// REQUEST CANCELLATION (after 24 hours) - User Only
-// ============================================
-router.post('/:id/cancel-request', isAuthenticated, isUserRole, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { reason } = req.body;
-
-    console.log(`User ${userId} submitting cancel request for appointment ${req.params.id}`);
-
-    if (!reason || reason.trim().length === 0) {
-      return res.status(400).json({ 
-        error: 'Please provide a reason for cancellation' 
-      });
-    }
-
-    const appointment = await Appointment.findOne({
-      _id: req.params.id,
-      user: userId
-    });
-
-    if (!appointment) {
-      return res.status(404).json({ 
-        error: 'Appointment not found or you do not have permission to request cancellation' 
-      });
-    }
-
-    if (appointment.status === 'cancelled') {
-      return res.status(400).json({ error: 'Appointment is already cancelled' });
-    }
-
-    if (appointment.status === 'completed') {
-      return res.status(400).json({ error: 'Cannot cancel completed appointments' });
-    }
-
-    if (appointment.cancelRequest?.requested) {
-      return res.status(400).json({ 
-        error: 'Cancellation request has already been submitted. Please wait for admin response.' 
-      });
-    }
-
-    appointment.cancelRequest = {
-      requested: true,
-      reason: reason.trim(),
-      requestedAt: new Date()
-    };
-
-    await appointment.save();
-    
-    // ✅ FIXED: Populate all fields
-    await appointment.populate([
-      { path: 'user', select: 'name email username' },
-      { path: 'assignedCaseManager', select: 'name email username' },
-      { path: 'assignedBy', select: 'name username' }
-    ]);
-
-    console.log(`✅ Cancel request submitted for appointment ${req.params.id}`);
-    res.json({ 
-      message: 'Cancellation request submitted successfully. Admin will review your request.',
-      appointment 
-    });
-  } catch (err) {
-    console.error('Error submitting cancel request:', err);
-    res.status(500).json({ error: 'Failed to submit cancellation request' });
-  }
-});
-
-// ============================================
-// GET APPOINTMENT HISTORY - User Only
-// ✅ FIXED: Added case manager population
-// ============================================
-router.get('/history', isAuthenticated, isUserRole, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    console.log(`Fetching appointment history for user: ${userId}`);
-
-    const history = await Appointment.find({
-      user: userId,
-      status: { $in: ['completed', 'cancelled'] }
-    })
-    .populate('user', 'name email username')
-    .populate('assignedCaseManager', 'name email username') // ✅ FIXED: Added case manager population
-    .populate('assignedBy', 'name username')
-    .populate('sessionTracking.sessionNotes.caseManagerId', 'name username')
-    .sort({ createdAt: -1 });
-
-    console.log(`✅ Found ${history.length} history items for user ${userId}`);
-    res.json(history);
-  } catch (err) {
-    console.error('Error fetching appointment history:', err);
-    res.status(500).json({ error: 'Failed to fetch appointment history' });
-  }
-});
-
-// ============================================
-// CHECK SLOT AVAILABILITY - Public
-// ============================================
-router.get('/check-slot/:date/:time', async (req, res) => {
-  try {
-    const { date, time } = req.params;
-
-    console.log(`Checking slot availability: ${date} at ${time}`);
-
-    const existingAppointment = await Appointment.findOne({
-      date,
-      time,
-      status: { $in: ['pending', 'confirmed'] }
-    });
-
-    const isAvailable = !existingAppointment;
-
-    res.json({ 
-      available: isAvailable,
-      date,
-      time
-    });
-  } catch (err) {
-    console.error('Error checking slot availability:', err);
-    res.status(500).json({ error: 'Failed to check slot availability' });
   }
 });
 
