@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-
 import { User, CheckCircle, XCircle, Trash2, Flag, MessageCircle, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 
@@ -13,6 +12,27 @@ const CommunityForum = () => {
   });
   const [loading, setLoading] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
+
+  // Anonymous name generator (same as user-side)
+  const generateAnonymousName = (userId) => {
+    if (!userId) return 'Anonymous User';
+    
+    // Convert userId to string and create a hash
+    const idStr = userId.toString();
+    let hash = 0;
+    
+    for (let i = 0; i < idStr.length; i++) {
+      const char = idStr.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    
+    // Use absolute value and generate a unique 5-digit number (10000-99999)
+    const absHash = Math.abs(hash);
+    const uniqueNumber = (absHash % 90000) + 10000;
+    
+    return `Anonymous #${uniqueNumber}`;
+  };
 
   useEffect(() => {
     fetchPosts();
@@ -113,9 +133,13 @@ const CommunityForum = () => {
             <User className="w-6 h-6 text-white" />
           </div>
           <div>
-            <p className="font-semibold text-gray-900">Anonymous</p>
+            <p className="font-semibold text-gray-900">
+              {generateAnonymousName(post.author?._id || post.author)}
+            </p>
             <p className="text-xs text-gray-500">{formatTimestamp(post.createdAt)}</p>
-            <p className="text-xs text-gray-600">By: {post.author?.name || 'Unknown User'}</p>
+            <p className="text-xs text-gray-600">
+              Real User: {post.author?.name || post.author?.email || 'Unknown User'}
+            </p>
           </div>
         </div>
         <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-medium">
@@ -154,7 +178,9 @@ const CommunityForum = () => {
               <div key={comment._id} className="bg-gray-50 rounded p-3">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <p className="font-semibold text-sm">Anonymous</p>
+                    <p className="font-semibold text-sm">
+                      {generateAnonymousName(comment.author)}
+                    </p>
                     <p className="text-sm text-gray-700">{comment.body}</p>
                     <p className="text-xs text-gray-500 mt-1">{formatTimestamp(comment.createdAt)}</p>
                     
@@ -163,8 +189,11 @@ const CommunityForum = () => {
                       <div className="ml-4 mt-2 space-y-1">
                         {comment.replies.map((reply, idx) => (
                           <div key={idx} className="bg-white rounded p-2">
-                            <p className="font-semibold text-xs">Anonymous</p>
+                            <p className="font-semibold text-xs">
+                              {generateAnonymousName(reply.author)}
+                            </p>
                             <p className="text-xs text-gray-700">{reply.body}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{formatTimestamp(reply.createdAt)}</p>
                           </div>
                         ))}
                       </div>
@@ -263,52 +292,51 @@ const CommunityForum = () => {
   };
 
   return (
-      <div className="p-6">
-        <h2 className="text-2xl font-bold mb-6">Community Forum Management</h2>
+    <div className="p-6">
+      <h2 className="text-2xl font-bold mb-6">Community Forum Management</h2>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-yellow-100 rounded-lg p-4">
-            <p className="text-2xl font-bold text-yellow-800">{posts.pendingPosts?.length || 0}</p>
-            <p className="text-sm text-yellow-700">Pending Posts</p>
-          </div>
-          <div className="bg-green-100 rounded-lg p-4">
-            <p className="text-2xl font-bold text-green-800">{posts.approvedPosts?.length || 0}</p>
-            <p className="text-sm text-green-700">Approved Posts</p>
-          </div>
-          <div className="bg-red-100 rounded-lg p-4">
-            <p className="text-2xl font-bold text-red-800">{posts.reportedPosts?.length || 0}</p>
-            <p className="text-sm text-red-700">Reported Posts</p>
-          </div>
-          <div className="bg-gray-100 rounded-lg p-4">
-            <p className="text-2xl font-bold text-gray-800">{posts.rejectedPosts?.length || 0}</p>
-            <p className="text-sm text-gray-700">Rejected Posts</p>
-          </div>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-yellow-100 rounded-lg p-4">
+          <p className="text-2xl font-bold text-yellow-800">{posts.pendingPosts?.length || 0}</p>
+          <p className="text-sm text-yellow-700">Pending Posts</p>
         </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b">
-          {['pending', 'approved', 'reported', 'rejected'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 font-medium capitalize ${
-                activeTab === tab
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+        <div className="bg-green-100 rounded-lg p-4">
+          <p className="text-2xl font-bold text-green-800">{posts.approvedPosts?.length || 0}</p>
+          <p className="text-sm text-green-700">Approved Posts</p>
         </div>
-
-        {/* Posts List */}
-        <div>
-          {renderTabContent()}
+        <div className="bg-red-100 rounded-lg p-4">
+          <p className="text-2xl font-bold text-red-800">{posts.reportedPosts?.length || 0}</p>
+          <p className="text-sm text-red-700">Reported Posts</p>
+        </div>
+        <div className="bg-gray-100 rounded-lg p-4">
+          <p className="text-2xl font-bold text-gray-800">{posts.rejectedPosts?.length || 0}</p>
+          <p className="text-sm text-gray-700">Rejected Posts</p>
         </div>
       </div>
-   
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b">
+        {['pending', 'approved', 'reported', 'rejected'].map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 font-medium capitalize ${
+              activeTab === tab
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* Posts List */}
+      <div>
+        {renderTabContent()}
+      </div>
+    </div>
   );
 };
 

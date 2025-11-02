@@ -1,40 +1,5 @@
-// models/Appointment.js - UPDATED
+// models/appointment.js - COMPLETE MODEL with Session Tracking
 import { Schema, model } from 'mongoose';
-
-const sessionNoteSchema = new Schema({
-  sessionNumber: {
-    type: Number,
-    required: true
-  },
-  date: {
-    type: Date,
-    required: true
-  },
-  time: String,
-  notes: {
-    type: String,
-    required: true
-  },
-  sessionSummary: {  // ✅ NEW: Detailed summary
-    type: String,
-    default: ''
-  },
-  progress: {
-    type: String,
-    enum: ['excellent', 'good', 'fair', 'poor'],
-    default: 'good'
-  },
-  caseManagerId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  completedAt: Date,  // ✅ NEW: When session was completed
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
 
 const appointmentSchema = new Schema({
   user: {
@@ -48,11 +13,11 @@ const appointmentSchema = new Schema({
     required: true
   },
   date: {
-    type: String,
+    type: String,  // Format: YYYY-MM-DD
     required: true
   },
   time: {
-    type: String,
+    type: String,  // Format: HH:MM AM/PM
     required: true
   },
   note: {
@@ -64,99 +29,157 @@ const appointmentSchema = new Schema({
     enum: ['pending', 'confirmed', 'completed', 'cancelled'],
     default: 'pending'
   },
-  
-  psychosocialInfo: {
+
+  // ✅ NEW: HIV Status Tracking (only for Testing and Counseling)
+  hivStatus: {
+    status: {
+      type: String,
+      enum: ['pending', 'positive', 'negative'],
+      default: 'pending'
+    },
+    confirmedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    confirmedAt: Date,
+    notes: String
+  },
+   // ✅ NEW: Testing Demographics (for Testing and Counseling)
+  testingInfo: {
     fullName: String,
     age: Number,
     gender: {
       type: String,
-      enum: ['Male', 'Female', 'Other', 'Prefer not to say', '']
+      enum: ['Male', 'Female', 'Other', 'Prefer not to say']
     },
     location: String
   },
-
-  // Case Manager Assignment
+  // ✅ Case Manager Assignment
   assignedCaseManager: {
     type: Schema.Types.ObjectId,
     ref: 'User',
     default: null
   },
-  assignedAt: Date,
   assignedBy: {
     type: Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'User',
+    default: null
+  },
+  assignedAt: {
+    type: Date,
+    default: null
   },
   
-  // ✅ ENHANCED Session Tracking
+  // ✅ Session Tracking
   sessionTracking: {
     sessionNumber: {
       type: Number,
       default: 1
     },
-    isPartOfProgram: {  // ✅ NEW: Links sessions together
-      type: Boolean,
-      default: false
-    },
-    programId: {  // ✅ NEW: Links all sessions for a user
-      type: String,
-      default: null
-    },
-    sessionNotes: [sessionNoteSchema],
+    sessionNotes: [{
+      sessionNumber: Number,
+      date: Date,
+      time: String,
+      notes: String,
+      sessionSummary: {
+        type: String,
+        default: ''
+      },
+      progress: {
+        type: String,
+        enum: ['excellent', 'good', 'fair', 'poor'],
+        default: 'good'
+      },
+      caseManagerId: {
+        type: Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      completedAt: Date,
+      createdAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],
     totalSessions: {
       type: Number,
       default: 0
     },
-    lastSessionDate: Date,
-    programCompleted: {  // ✅ NEW: Track program completion
+    lastSessionDate: {
+      type: Date,
+      default: null
+    }
+  },
+  
+  // ✅ Program Completion
+  programCompleted: {
+    type: Boolean,
+    default: false
+  },
+  completionNotes: {
+    type: String,
+    default: ''
+  },
+  completedAt: {
+    type: Date,
+    default: null
+  },
+  completedBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  
+  // Psychosocial Info (for Psychosocial support service)
+  psychosocialInfo: {
+    fullName: String,
+    age: Number,
+    gender: {
+      type: String,
+      enum: ['Male', 'Female', 'Other', 'Prefer not to say']
+    },
+    location: String
+  },
+  
+  // Saturday Request
+  saturdayRequest: {
+    requested: {
       type: Boolean,
       default: false
     },
-    programCompletedAt: Date,
-    programCompletedBy: {
+    reason: String,
+    approved: {
+      type: Boolean,
+      default: null
+    },
+    processedBy: {
       type: Schema.Types.ObjectId,
       ref: 'User'
-    }
+    },
+    processedAt: Date,
+    adminNotes: String,
+    requestedAt: Date
   },
-
-  // Cancellation Request
+  
+  // Cancel Request
   cancelRequest: {
     requested: {
       type: Boolean,
       default: false
     },
     reason: String,
-    requestedAt: Date,
+    approved: {
+      type: Boolean,
+      default: null
+    },
     processedBy: {
       type: Schema.Types.ObjectId,
       ref: 'User'
     },
     processedAt: Date,
-    approved: Boolean
+    adminNotes: String,
+    requestedAt: Date
   },
-
-  // ✅ NEW: Session completion details
-  completedAt: Date,
-  completedBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  sessionSummary: {  // ✅ For final session summary
-    type: String,
-    default: ''
-  },
-
-  // 🆕 Program completion tracking
-  programCompleted: {
-    type: Boolean,
-    default: false
-  },
-  completedAt: Date,
-  completedBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  completionNotes: String,
-
+  
   bookedAt: {
     type: Date,
     default: Date.now
@@ -171,8 +194,9 @@ const appointmentSchema = new Schema({
   }
 });
 
+// Update the updatedAt timestamp before saving
 appointmentSchema.pre('save', function(next) {
-  this.updatedAt = new Date();
+  this.updatedAt = Date.now();
   next();
 });
 

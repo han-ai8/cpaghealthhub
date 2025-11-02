@@ -15,9 +15,9 @@ import userRoutes from './routes/userRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
 import { initializeSocket } from './socket/socket.js';
 import clinicScheduleRoutes from './routes/clinicSchedule.js';
-// server.js - ADD this import
-import sessionRoutes from './routes/sessionManagement.js';
 
+import sessionRoutes from './routes/sessionManagement.js';
+import hivAnalyticsRoutes from './routes/hivAnalytics.js';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -61,12 +61,13 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin']
 }));
 
-// ✅ Body parser - MUST BE BEFORE ROUTES!
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/users', userRoutes);
 app.use('/api/clinic-schedule', clinicScheduleRoutes);
-// ✅ Separate session middleware for USER and ADMIN
+app.use('/api/hiv', hivAnalyticsRoutes);
+
 app.use((req, res, next) => {
   const isAdminRoute = req.path.startsWith('/api/admin') || 
                        req.path.startsWith('/api/auth/admin');

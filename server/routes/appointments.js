@@ -1,4 +1,4 @@
-// routes/appointments.js - USER ONLY appointment routes (COMPLETE FIX)
+// routes/appointments.js - FIXED TO SAVE testingInfo FOR TESTING AND COUNSELING
 import express from 'express';
 import Appointment from '../models/appointment.js';
 import { isAuthenticated, isUserRole } from '../middleware/auth.js';
@@ -6,17 +6,65 @@ import { isAuthenticated, isUserRole } from '../middleware/auth.js';
 const router = express.Router();
 
 // ============================================
-// GET BOOKED SLOTS - Public (no auth required)
+// 🇵🇭 PHILIPPINE TIMEZONE HELPER FUNCTIONS
+// ============================================
+const getPhilippineDate = () => {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+};
+
+const isWeekend = (dateString) => {
+  const date = new Date(dateString);
+  const day = date.getDay();
+  return day === 0 || day === 6; // Sunday = 0, Saturday = 6
+};
+
+const formatPhilippineDate = (date) => {
+  return new Date(date).toLocaleString('en-US', { 
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+};
+
+const normalizeDate = (dateString) => {
+  // Parse date as local time to avoid timezone shifts
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+// ============================================
+// ✅ ENHANCED GET BOOKED SLOTS
 // ============================================
 router.get('/booked-slots', async (req, res) => {
   try {
-    console.log('📅 Fetching booked slots for calendar');
+    console.log('📅 Fetching ALL booked slots (including user names)');
 
-    const bookedSlots = await Appointment.find({ 
-      status: { $in: ['pending', 'confirmed'] } 
-    }).select('date time -_id');
+    const appointments = await Appointment.find({ 
+      status: { $in: ['pending', 'confirmed', 'completed'] }
+    })
+    .populate('user', 'name username')
+    .populate('assignedCaseManager', 'name username')
+    .select('date time status user assignedCaseManager _id')
+    .lean();
 
-    console.log(`✅ Found ${bookedSlots.length} booked slots`);
+    const bookedSlots = appointments.map(apt => ({
+      _id: apt._id,
+      date: apt.date,
+      time: apt.time,
+      status: apt.status,
+      appointmentId: apt._id,
+      userName: apt.user?.name || apt.user?.username || 'Unknown User',
+      userId: apt.user?._id,
+      caseManagerName: apt.assignedCaseManager?.name || apt.assignedCaseManager?.username,
+      caseManagerId: apt.assignedCaseManager?._id
+    }));
+
+    console.log(`✅ Found ${bookedSlots.length} booked slots with user information`);
     res.json(bookedSlots);
   } catch (err) {
     console.error('❌ Error fetching booked slots:', err);
@@ -25,7 +73,7 @@ router.get('/booked-slots', async (req, res) => {
 });
 
 // ============================================
-// GET USER'S APPOINTMENTS - User Only
+// GET USER'S APPOINTMENTS
 // ============================================
 router.get('/my-appointments', isAuthenticated, isUserRole, async (req, res) => {
   try {
@@ -55,7 +103,8 @@ router.get('/my-appointments', isAuthenticated, isUserRole, async (req, res) => 
 
     res.json({ 
       current: currentAppointment,
-      all: allAppointments 
+      all: allAppointments,
+      philippineTime: getPhilippineDate()
     });
   } catch (err) {
     console.error('❌ Error fetching user appointments:', err);
@@ -64,7 +113,7 @@ router.get('/my-appointments', isAuthenticated, isUserRole, async (req, res) => 
 });
 
 // ============================================
-// GET APPOINTMENT HISTORY - User Only
+// GET APPOINTMENT HISTORY
 // ============================================
 router.get('/history', isAuthenticated, isUserRole, async (req, res) => {
   try {
@@ -77,6 +126,8 @@ router.get('/history', isAuthenticated, isUserRole, async (req, res) => {
     })
     .populate('user', 'name email username')
     .populate('assignedCaseManager', 'name email username')
+    .populate('completedBy', 'name username')
+    .populate('sessionTracking.sessionNotes.caseManagerId', 'name username')
     .sort({ date: -1 });
 
     console.log(`✅ Found ${history.length} historical appointments`);
@@ -88,17 +139,17 @@ router.get('/history', isAuthenticated, isUserRole, async (req, res) => {
 });
 
 // ============================================
-// CREATE NEW APPOINTMENT - User Only
-// ✅ FIXED: Now properly handles psychosocialInfo
+// ✅ FIXED: CREATE NEW APPOINTMENT
+// NOW PROPERLY SAVES testingInfo FOR TESTING AND COUNSELING
 // ============================================
 router.post('/', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { service, date, time, note, psychosocialInfo } = req.body;
+    const { service, date, time, note, psychosocialInfo, requestSaturday, saturdayReason } = req.body;
 
     console.log(`📝 User ${userId} attempting to book appointment for ${date} at ${time}`);
     console.log('Service:', service);
-    console.log('PsychosocialInfo provided:', !!psychosocialInfo);
+    console.log('Demographic data received:', psychosocialInfo);
 
     // Validate required fields
     if (!service || !date || !time) {
@@ -113,17 +164,16 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
       return res.status(400).json({ error: 'Invalid service type' });
     }
 
-    // ✅ NEW: Validate psychosocialInfo for Psychosocial support
-    if (service === 'Psychosocial support and assistance' && psychosocialInfo) {
+    // ✅ VALIDATE DEMOGRAPHIC INFO FOR BOTH SERVICES
+    if (psychosocialInfo) {
       const { fullName, age, gender, location } = psychosocialInfo;
       
       if (!fullName || !age || !gender || !location) {
         return res.status(400).json({
-          error: 'Psychosocial support requires: fullName, age, gender, and location'
+          error: 'Please provide: fullName, age, gender, and location'
         });
       }
 
-      // Validate age
       const ageNum = parseInt(age);
       if (isNaN(ageNum) || ageNum < 1 || ageNum > 150) {
         return res.status(400).json({
@@ -131,11 +181,42 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
         });
       }
 
-      // Validate gender
       const validGenders = ['Male', 'Female', 'Other', 'Prefer not to say'];
       if (!validGenders.includes(gender)) {
         return res.status(400).json({
           error: 'Invalid gender value'
+        });
+      }
+    }
+
+    // 🇵🇭 Check if date is weekend
+    const appointmentDate = new Date(date);
+    const dayOfWeek = appointmentDate.getDay();
+
+    // Sunday is completely unavailable
+    if (dayOfWeek === 0) {
+      return res.status(400).json({
+        error: '❌ Sundays are not available. Please select a weekday.',
+        isWeekend: true,
+        day: 'Sunday'
+      });
+    }
+
+    // Saturday requires special request
+    if (dayOfWeek === 6) {
+      if (!requestSaturday) {
+        return res.status(400).json({
+          error: '⚠️ Saturday appointments require a special request.',
+          isWeekend: true,
+          day: 'Saturday',
+          requiresRequest: true
+        });
+      }
+
+      if (!saturdayReason || saturdayReason.trim().length < 10) {
+        return res.status(400).json({
+          error: 'Please provide a detailed reason (minimum 10 characters) for Saturday appointment.',
+          requiresRequest: true
         });
       }
     }
@@ -152,23 +233,27 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
       });
     }
 
-    // Check if slot is already booked
+    // ✅ STRICT SLOT AVAILABILITY CHECK
     const slotTaken = await Appointment.findOne({
       date,
       time,
-      status: { $in: ['pending', 'confirmed'] }
-    });
+      status: { $in: ['pending', 'confirmed', 'completed'] }
+    })
+    .populate('user', 'name username');
 
     if (slotTaken) {
+      const bookedBy = slotTaken.user?.name || slotTaken.user?.username || 'Another user';
       return res.status(400).json({ 
-        error: 'This time slot is already booked. Please select a different time.' 
+        error: `This time slot is already booked by ${bookedBy}. Please select a different time.`,
+        conflict: true,
+        bookedBy: bookedBy
       });
     }
 
     // Validate date is not in the past
-    const appointmentDate = new Date(date);
-    const today = new Date();
+    const today = getPhilippineDate();
     today.setHours(0, 0, 0, 0);
+    appointmentDate.setHours(0, 0, 0, 0);
 
     if (appointmentDate < today) {
       return res.status(400).json({ 
@@ -176,7 +261,7 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
       });
     }
 
-    // ✅ FIXED: Create appointment with psychosocialInfo
+    // ✅ CREATE APPOINTMENT WITH PROPER FIELD NAMES
     const appointmentData = {
       user: userId,
       service,
@@ -184,32 +269,62 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
       time,
       note: note || '',
       status: 'pending',
-      bookedAt: new Date()
+      bookedAt: getPhilippineDate(),
+      saturdayRequest: dayOfWeek === 6 ? {
+        requested: true,
+        reason: saturdayReason,
+        requestedAt: getPhilippineDate(),
+        approved: null,
+        processedBy: null,
+        processedAt: null
+      } : undefined
     };
 
-    // Add psychosocialInfo if provided
-    if (service === 'Psychosocial support and assistance' && psychosocialInfo) {
-      appointmentData.psychosocialInfo = {
+    // ✅ KEY FIX: Save demographic data with correct field name based on service
+    if (psychosocialInfo) {
+      const demographicData = {
         fullName: psychosocialInfo.fullName,
         age: parseInt(psychosocialInfo.age),
         gender: psychosocialInfo.gender,
         location: psychosocialInfo.location
       };
-      console.log('✅ Psychosocial info added to appointment:', appointmentData.psychosocialInfo);
+
+      if (service === 'Testing and Counseling') {
+        // ✅ FOR TESTING AND COUNSELING → Save as testingInfo
+        appointmentData.testingInfo = demographicData;
+        console.log('✅ Testing demographic info saved as testingInfo:', demographicData);
+      } else if (service === 'Psychosocial support and assistance') {
+        // ✅ FOR PSYCHOSOCIAL → Save as psychosocialInfo
+        appointmentData.psychosocialInfo = demographicData;
+        console.log('✅ Psychosocial info saved as psychosocialInfo:', demographicData);
+      }
     }
 
     const appointment = new Appointment(appointmentData);
     await appointment.save();
 
-    // Populate all fields
     await appointment.populate([
       { path: 'user', select: 'name email username' },
       { path: 'assignedCaseManager', select: 'name email username' },
       { path: 'assignedBy', select: 'name username' }
     ]);
 
+    const responseMessage = dayOfWeek === 6 
+      ? '📅 Saturday appointment request submitted! Waiting for admin approval.'
+      : '✅ Appointment created successfully!';
+
     console.log(`✅ Appointment created: ${appointment._id}`);
-    res.status(201).json(appointment);
+    console.log('✅ Saved data:', {
+      service: appointment.service,
+      testingInfo: appointment.testingInfo,
+      psychosocialInfo: appointment.psychosocialInfo
+    });
+
+    res.status(201).json({
+      ...appointment.toObject(),
+      message: responseMessage,
+      isSaturdayRequest: dayOfWeek === 6
+    });
   } catch (err) {
     console.error('❌ Error creating appointment:', err);
     res.status(500).json({ 
@@ -220,12 +335,12 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
 });
 
 // ============================================
-// UPDATE APPOINTMENT - User Only
+// UPDATE APPOINTMENT
 // ============================================
 router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { service, date, time, note, psychosocialInfo } = req.body;
+    const { service, date, time, note, psychosocialInfo, requestSaturday, saturdayReason } = req.body;
 
     console.log(`📝 User ${userId} attempting to update appointment ${req.params.id}`);
 
@@ -240,16 +355,9 @@ router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
       });
     }
 
-    // Cannot edit completed or cancelled appointments
-    if (appointment.status === 'completed') {
+    if (appointment.status === 'completed' || appointment.status === 'cancelled') {
       return res.status(400).json({ 
-        error: 'Cannot edit completed appointments' 
-      });
-    }
-
-    if (appointment.status === 'cancelled') {
-      return res.status(400).json({ 
-        error: 'Cannot edit cancelled appointments' 
+        error: `Cannot edit ${appointment.status} appointments` 
       });
     }
 
@@ -257,40 +365,50 @@ router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
     if ((date && date !== appointment.date) || (time && time !== appointment.time)) {
       const newDate = date || appointment.date;
       const newTime = time || appointment.time;
+      const newAppointmentDate = new Date(newDate);
+      const dayOfWeek = newAppointmentDate.getDay();
 
-      // Check if new slot is available
+      if (dayOfWeek === 0) {
+        return res.status(400).json({
+          error: '❌ Sundays are not available',
+          isWeekend: true
+        });
+      }
+
+      if (dayOfWeek === 6 && !requestSaturday) {
+        return res.status(400).json({
+          error: '⚠️ Saturday requires special request',
+          requiresRequest: true
+        });
+      }
+
       const slotTaken = await Appointment.findOne({
         _id: { $ne: req.params.id },
         date: newDate,
         time: newTime,
-        status: { $in: ['pending', 'confirmed'] }
-      });
+        status: { $in: ['pending', 'confirmed', 'completed'] }
+      })
+      .populate('user', 'name username');
 
       if (slotTaken) {
+        const bookedBy = slotTaken.user?.name || slotTaken.user?.username || 'Another user';
         return res.status(400).json({ 
-          error: 'The selected time slot is already booked' 
+          error: `The selected time slot is already booked by ${bookedBy}`,
+          conflict: true,
+          bookedBy: bookedBy
         });
       }
 
-      // Validate new date is not in the past
       if (date) {
-        const appointmentDate = new Date(date);
-        const today = new Date();
+        const today = getPhilippineDate();
         today.setHours(0, 0, 0, 0);
+        newAppointmentDate.setHours(0, 0, 0, 0);
 
-        if (appointmentDate < today) {
+        if (newAppointmentDate < today) {
           return res.status(400).json({ 
             error: 'Cannot reschedule to a past date' 
           });
         }
-      }
-    }
-
-    // Validate service if being changed
-    if (service) {
-      const validServices = ['Testing and Counseling', 'Psychosocial support and assistance'];
-      if (!validServices.includes(service)) {
-        return res.status(400).json({ error: 'Invalid service type' });
       }
     }
 
@@ -300,15 +418,22 @@ router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
     if (time) appointment.time = time;
     if (note !== undefined) appointment.note = note;
 
-    // ✅ NEW: Update psychosocialInfo if provided
-    if (psychosocialInfo && appointment.service === 'Psychosocial support and assistance') {
-      appointment.psychosocialInfo = {
+    // ✅ UPDATE DEMOGRAPHIC INFO WITH CORRECT FIELD NAME
+    if (psychosocialInfo) {
+      const demographicData = {
         fullName: psychosocialInfo.fullName,
         age: parseInt(psychosocialInfo.age),
         gender: psychosocialInfo.gender,
         location: psychosocialInfo.location
       };
-      console.log('✅ Updated psychosocial info');
+
+      if (appointment.service === 'Testing and Counseling') {
+        appointment.testingInfo = demographicData;
+        console.log('✅ Updated testingInfo');
+      } else if (appointment.service === 'Psychosocial support and assistance') {
+        appointment.psychosocialInfo = demographicData;
+        console.log('✅ Updated psychosocialInfo');
+      }
     }
 
     await appointment.save();
@@ -328,7 +453,7 @@ router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
 });
 
 // ============================================
-// REQUEST CANCELLATION - User Only
+// REQUEST CANCELLATION
 // ============================================
 router.post('/:id/request-cancel', isAuthenticated, isUserRole, async (req, res) => {
   try {
@@ -358,21 +483,21 @@ router.post('/:id/request-cancel', isAuthenticated, isUserRole, async (req, res)
 
     if (appointment.cancelRequest?.requested) {
       return res.status(400).json({ 
-        error: 'Cancellation request already submitted. Waiting for admin approval.' 
+        error: 'Cancellation request already submitted.' 
       });
     }
 
     appointment.cancelRequest = {
       requested: true,
       reason: reason || '',
-      requestedAt: new Date()
+      requestedAt: getPhilippineDate()
     };
 
     await appointment.save();
 
     console.log(`✅ Cancellation requested for appointment ${req.params.id}`);
     res.json({ 
-      message: 'Cancellation request submitted. An admin will review it shortly.',
+      message: 'Cancellation request submitted.',
       appointment 
     });
   } catch (err) {
@@ -382,7 +507,7 @@ router.post('/:id/request-cancel', isAuthenticated, isUserRole, async (req, res)
 });
 
 // ============================================
-// CANCEL APPOINTMENT (within 24 hours) - User Only
+// CANCEL APPOINTMENT (within 24 hours ONLY)
 // ============================================
 router.delete('/:id', isAuthenticated, isUserRole, async (req, res) => {
   try {
@@ -397,7 +522,7 @@ router.delete('/:id', isAuthenticated, isUserRole, async (req, res) => {
 
     if (!appointment) {
       return res.status(404).json({ 
-        error: 'Appointment not found or you do not have permission to cancel it' 
+        error: 'Appointment not found' 
       });
     }
 
@@ -409,21 +534,24 @@ router.delete('/:id', isAuthenticated, isUserRole, async (req, res) => {
       return res.status(400).json({ error: 'Cannot cancel completed appointments' });
     }
 
-    // Check 24-hour window
     const bookedTime = new Date(appointment.bookedAt);
-    const now = new Date();
+    const now = getPhilippineDate();
     const hoursSinceBooking = (now - bookedTime) / (1000 * 60 * 60);
 
     if (hoursSinceBooking > 24) {
       return res.status(400).json({ 
-        error: 'Cannot cancel appointment after 24 hours. Please request cancellation through the system.' 
+        error: '⏰ Cannot cancel after 24 hours. Please request cancellation.',
+        canCancel: false
       });
     }
 
     await Appointment.findByIdAndDelete(req.params.id);
 
-    console.log(`✅ Appointment ${req.params.id} cancelled and deleted`);
-    res.json({ message: 'Appointment cancelled successfully' });
+    console.log(`✅ Appointment ${req.params.id} cancelled`);
+    res.json({ 
+      message: '✅ Appointment cancelled successfully',
+      cancelledWithin24Hours: true 
+    });
   } catch (err) {
     console.error('❌ Error cancelling appointment:', err);
     res.status(500).json({ error: 'Failed to cancel appointment' });

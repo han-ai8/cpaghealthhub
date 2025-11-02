@@ -2,13 +2,13 @@ import mongoose from 'mongoose';
 
 const replySchema = new mongoose.Schema({
   body: { type: String, required: true },
-  author: { type: String, default: 'Anonymous' },
+  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Store actual user ID
   createdAt: { type: Date, default: Date.now }
 });
 
 const commentSchema = new mongoose.Schema({
   body: { type: String, required: true },
-  author: { type: String, default: 'Anonymous' },
+  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Store actual user ID
   createdAt: { type: Date, default: Date.now },
   replies: [replySchema]
 });
@@ -31,7 +31,6 @@ const communityPostSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-// Update timestamp on save
 communityPostSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
   next();

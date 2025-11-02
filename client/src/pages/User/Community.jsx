@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { User, Flag, Shield, Lock, Send, MessageCircle, Reply } from 'lucide-react';
 import axios from 'axios';
 import { useToast } from '../../context/ToastContext';
-import { useConfirm } from '../../components/ConfirmModal';
+import { useAuth } from '../../context/AuthContext';
 
 const Community = () => {
   const toast = useToast();
-  const { confirm } = useConfirm();
+  const { user } = useAuth();
   
   const [posts, setPosts] = useState([]);
+  const [filteredPosts, setFilteredPosts] = useState([]);
   const [newPost, setNewPost] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('General Support');
+  const [activeFilter, setActiveFilter] = useState('all'); // 'all' or specific category
   const [loading, setLoading] = useState(false);
   const [expandedPost, setExpandedPost] = useState(null);
   const [commentText, setCommentText] = useState({});
@@ -31,6 +33,27 @@ const Community = () => {
     'Stigma & Discrimination'
   ];
 
+  // Anonymous name generator (client-side)
+  const generateAnonymousName = (userId) => {
+    if (!userId) return 'Anonymous User';
+    
+    // Convert userId to string and create a hash
+    const idStr = userId.toString();
+    let hash = 0;
+    
+    for (let i = 0; i < idStr.length; i++) {
+      const char = idStr.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    
+    // Use absolute value and generate a unique 5-digit number (10000-99999)
+    const absHash = Math.abs(hash);
+    const uniqueNumber = (absHash % 90000) + 10000;
+    
+    return `Anonymous #${uniqueNumber}`;
+  };
+
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
     return {
@@ -41,6 +64,15 @@ const Community = () => {
   useEffect(() => {
     fetchPosts();
   }, []);
+
+  useEffect(() => {
+    // Filter posts based on active category
+    if (activeFilter === 'all') {
+      setFilteredPosts(posts);
+    } else {
+      setFilteredPosts(posts.filter(post => post.category === activeFilter));
+    }
+  }, [posts, activeFilter]);
 
   const fetchPosts = async () => {
     try {
@@ -161,6 +193,14 @@ const Community = () => {
     }
   };
 
+  const handleCategoryFilter = (category) => {
+    setActiveFilter(category);
+  };
+
+  const isMyComment = (commentAuthorId) => {
+    return user && commentAuthorId && user.id === commentAuthorId.toString();
+  };
+
   const formatTimestamp = (date) => {
     const now = new Date();
     const postDate = new Date(date);
@@ -177,7 +217,7 @@ const Community = () => {
   };
 
   return (
-    <div className="min-h-screen bg-blue-200  sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-blue-200 sm:px-6 lg:px-8">
       {/* Page Header */}
       <div className="max-w-6xl mx-auto bg-white rounded-md p-6 md:p-8 mb-6 shadow-sm text-center">
         <h1 className="text-2xl md:text-3xl font-bold mb-2">Community Forum</h1>
@@ -255,14 +295,53 @@ const Community = () => {
             </div>
           </div>
 
+          {/* Category Filter Buttons */}
+          <div className="mb-6 pb-4 border-b">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Filter by Category:</h3>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => handleCategoryFilter('all')}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition ${
+                  activeFilter === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                All Posts
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => handleCategoryFilter(cat)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition ${
+                    activeFilter === cat
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            {activeFilter !== 'all' && (
+              <p className="mt-3 text-xs text-gray-600">
+                Showing {filteredPosts.length} post{filteredPosts.length !== 1 ? 's' : ''} in "{activeFilter}"
+              </p>
+            )}
+          </div>
+
           {/* Posts */}
           <div className="space-y-6 mt-6">
-            {posts.length === 0 ? (
+            {filteredPosts.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
-                <p>No posts yet. Be the first to share!</p>
+                <p>
+                  {activeFilter === 'all' 
+                    ? 'No posts yet. Be the first to share!' 
+                    : `No posts in "${activeFilter}" category yet.`}
+                </p>
               </div>
             ) : (
-              posts.map(post => (
+              filteredPosts.map(post => (
                 <article key={post._id} className="relative bg-white rounded-md shadow p-5 border border-gray-200">
                   {/* Report button */}
                   <button
@@ -278,7 +357,9 @@ const Community = () => {
                       <User className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900 select-none">Anonymous</p>
+                      <p className="font-semibold text-gray-900 select-none">
+                        {generateAnonymousName(post.author)}
+                      </p>
                       <p className="text-xs text-gray-500">{formatTimestamp(post.createdAt)}</p>
                     </div>
                     <span className="ml-auto bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium select-none">
@@ -307,6 +388,7 @@ const Community = () => {
                             placeholder="Add a comment..."
                             value={commentText[post._id] || ''}
                             onChange={(e) => setCommentText({ ...commentText, [post._id]: e.target.value })}
+                            onKeyPress={(e) => e.key === 'Enter' && handleAddComment(post._id)}
                             className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                           />
                           <button
@@ -318,50 +400,98 @@ const Community = () => {
                         </div>
 
                         {/* Display Comments */}
-                        {post.comments?.map(comment => (
-                          <div key={comment._id} className="bg-gray-50 rounded-md p-3">
-                            <div className="flex items-start gap-2">
-                              <div className="w-8 h-8 rounded-full bg-gray-400 flex items-center justify-center shrink-0">
-                                <User className="w-4 h-4 text-white" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="font-semibold text-sm">Anonymous</p>
-                                <p className="text-sm text-gray-700">{comment.body}</p>
-                                <p className="text-xs text-gray-500 mt-1">{formatTimestamp(comment.createdAt)}</p>
-
-                                {/* Reply Section */}
-                                {comment.replies?.length > 0 && (
-                                  <div className="mt-2 ml-4 space-y-2">
-                                    {comment.replies.map((reply, idx) => (
-                                      <div key={idx} className="bg-white rounded p-2">
-                                        <p className="font-semibold text-xs">Anonymous</p>
-                                        <p className="text-xs text-gray-700">{reply.body}</p>
-                                        <p className="text-xs text-gray-500">{formatTimestamp(reply.createdAt)}</p>
-                                      </div>
-                                    ))}
+                        {post.comments?.map(comment => {
+                          const isMyCommentFlag = isMyComment(comment.author);
+                          
+                          return (
+                            <div 
+                              key={comment._id} 
+                              className={`rounded-md p-3 ${
+                                isMyCommentFlag 
+                                  ? 'bg-blue-50 border-2 border-blue-300' 
+                                  : 'bg-gray-50'
+                              }`}
+                            >
+                              <div className="flex items-start gap-2">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                                  isMyCommentFlag ? 'bg-blue-500' : 'bg-gray-400'
+                                }`}>
+                                  <User className="w-4 h-4 text-white" />
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <p className={`font-semibold text-sm ${
+                                      isMyCommentFlag ? 'text-blue-700' : 'text-gray-900'
+                                    }`}>
+                                      {generateAnonymousName(comment.author)}
+                                    </p>
+                                    {isMyCommentFlag && (
+                                      <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">
+                                        You
+                                      </span>
+                                    )}
                                   </div>
-                                )}
+                                  <p className="text-sm text-gray-700 mt-1">{comment.body}</p>
+                                  <p className="text-xs text-gray-500 mt-1">{formatTimestamp(comment.createdAt)}</p>
 
-                                {/* Add Reply */}
-                                <div className="flex gap-2 mt-2">
-                                  <input
-                                    type="text"
-                                    placeholder="Reply..."
-                                    value={replyText[comment._id] || ''}
-                                    onChange={(e) => setReplyText({ ...replyText, [comment._id]: e.target.value })}
-                                    className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-                                  />
-                                  <button
-                                    onClick={() => handleAddReply(post._id, comment._id)}
-                                    className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs transition"
-                                  >
-                                    <Reply className="w-3 h-3" />
-                                  </button>
+                                  {/* Reply Section */}
+                                  {comment.replies?.length > 0 && (
+                                    <div className="mt-2 ml-4 space-y-2">
+                                      {comment.replies.map((reply, idx) => {
+                                        const isMyReplyFlag = isMyComment(reply.author);
+                                        
+                                        return (
+                                          <div 
+                                            key={idx} 
+                                            className={`rounded p-2 ${
+                                              isMyReplyFlag 
+                                                ? 'bg-blue-100 border border-blue-300' 
+                                                : 'bg-white'
+                                            }`}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <p className={`font-semibold text-xs ${
+                                                isMyReplyFlag ? 'text-blue-700' : 'text-gray-900'
+                                              }`}>
+                                                {generateAnonymousName(reply.author)}
+                                              </p>
+                                              {isMyReplyFlag && (
+                                                <span className="px-1.5 py-0.5 bg-blue-600 text-white text-xs rounded-full">
+                                                  You
+                                                </span>
+                                              )}
+                                            </div>
+                                            <p className="text-xs text-gray-700 mt-1">{reply.body}</p>
+                                            <p className="text-xs text-gray-500 mt-0.5">{formatTimestamp(reply.createdAt)}</p>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+
+                                  {/* Add Reply */}
+                                  <div className="flex gap-2 mt-2">
+                                    <input
+                                      type="text"
+                                      placeholder="Reply..."
+                                      value={replyText[comment._id] || ''}
+                                      onChange={(e) => setReplyText({ ...replyText, [comment._id]: e.target.value })}
+                                      onKeyPress={(e) => e.key === 'Enter' && handleAddReply(post._id, comment._id)}
+                                      className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+                                    />
+                                    <button
+                                      onClick={() => handleAddReply(post._id, comment._id)}
+                                      className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs transition flex items-center gap-1"
+                                    >
+                                      <Reply className="w-3 h-3" />
+                                      Reply
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -410,12 +540,15 @@ const Community = () => {
             </p>
           </section>
 
-          {/* Discussion Categories */}
+          {/* Discussion Categories Info */}
           <section className="bg-white rounded-md shadow-md p-6">
             <h3 className="font-semibold text-gray-900 mb-3">Discussion Categories</h3>
+            <p className="text-xs text-gray-600 mb-3">
+              Browse topics by clicking the category buttons above the posts.
+            </p>
             <div className="space-y-2 text-sm text-gray-600">
               {categories.map(cat => (
-                <div key={cat} className="cursor-default px-3 py-1 rounded hover:bg-gray-50 transition">
+                <div key={cat} className="px-3 py-1 rounded hover:bg-gray-50 transition text-xs">
                   {cat}
                 </div>
               ))}

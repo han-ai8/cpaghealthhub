@@ -10,12 +10,19 @@ import {
   HiOutlineChat,
   HiOutlineClipboardList,
 } from 'react-icons/hi';
+import { HiOutlineChartBar } from 'react-icons/hi';
 
 const AdminSidebar = ({ role }) => {
   const location = useLocation();
 
   // Define menu items by roles
   const menuItems = [
+    {
+      name: 'HIV Analytics',
+      path: '/admin/hiv-analytics',
+      icon: HiOutlineChartBar,
+      roles: ['admin'],
+    },
     {
       name: 'Dashboard',
       path: '/admin/dashboard',

@@ -1,10 +1,11 @@
-// src/pages/admin/Appointments.jsx - UPDATED WITH CASE MANAGER WORKLOAD
+// src/pages/admin/Appointments.jsx - COMPLETE WITH testingInfo DISPLAY
 import React, { useState, useEffect } from 'react';
 import { 
   Eye, X, Calendar, Clock, User as UserIcon, AlertCircle, 
   CheckCircle, XCircle, RefreshCw, UserCheck, Trash2, 
   FileText, Award, TrendingUp, Activity, Users 
 } from 'lucide-react';
+import SessionTimelineModal from '../../components/SessionTimelineModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -14,14 +15,19 @@ const Appointments = () => {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [showSessionNoteModal, setShowSessionNoteModal] = useState(false);
   const [selectedCaseManager, setSelectedCaseManager] = useState('');
-  const [sessionNote, setSessionNote] = useState({ notes: '', progress: 'good' });
   const [filterStatus, setFilterStatus] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [showTimelineModal, setShowTimelineModal] = useState(false);
+  const [timelineAppointment, setTimelineAppointment] = useState(null);
+  const [showHIVStatusModal, setShowHIVStatusModal] = useState(false);
+  const [hivStatusForm, setHivStatusForm] = useState({
+    status: '',
+    notes: ''
+  });
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
@@ -37,46 +43,40 @@ const Appointments = () => {
     fetchStats();
   }, []);
 
-  // Real-time polling
   useEffect(() => {
     const interval = setInterval(() => {
       console.log('🔄 Auto-refreshing appointments...');
       fetchAppointments();
-      fetchCaseManagers(); // Refresh workload info
+      fetchCaseManagers();
       fetchStats();
       setLastUpdate(new Date());
-    }, 30000); // Every 30 seconds
+    }, 30000);
 
     return () => clearInterval(interval);
   }, []);
 
   const fetchAppointments = async () => {
-  try {
-    const response = await fetch(`${API_URL}/admin/appointments`, {
-      headers: getAuthHeaders()
-    });
+    try {
+      const response = await fetch(`${API_URL}/admin/appointments`, {
+        headers: getAuthHeaders()
+      });
 
-    if (response.ok) {
-      const data = await response.json();
-      // Validate that data is an array; fallback to empty array if not
-      setAppointments(Array.isArray(data) ? data : []);
-      console.log('✅ Appointments loaded:', Array.isArray(data) ? data.length : 'Invalid data format - defaulting to empty array');
-    } else {
-      // Handle non-OK responses (e.g., 404, 500) by resetting to empty array
+      if (response.ok) {
+        const data = await response.json();
+        setAppointments(Array.isArray(data) ? data : []);
+        console.log('✅ Appointments loaded:', Array.isArray(data) ? data.length : 'Invalid data format');
+      } else {
+        setAppointments([]);
+        console.error('Failed to fetch appointments:', response.status, response.statusText);
+      }
+    } catch (err) {
       setAppointments([]);
-      console.error('Failed to fetch appointments:', response.status, response.statusText);
+      console.error('Error fetching appointments:', err);
     }
-  } catch (err) {
-    // Handle network errors by resetting to empty array
-    setAppointments([]);
-    console.error('Error fetching appointments:', err);
-  }
-};
-
+  };
 
   const fetchCaseManagers = async () => {
     try {
-      // ✅ Use the new endpoint with workload info
       const response = await fetch(`${API_URL}/admin/appointments/case-managers/available`, {
         headers: getAuthHeaders()
       });
@@ -106,6 +106,42 @@ const Appointments = () => {
     }
   };
 
+  const handleUpdateHIVStatus = async () => {
+    if (!hivStatusForm.status) {
+      alert('Please select HIV status');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${API_URL}/admin/appointments/${selectedAppointment._id}/hiv-status`,
+        {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(hivStatusForm)
+        }
+      );
+
+      if (response.ok) {
+        alert('HIV status updated successfully and appointment completed');
+        setShowHIVStatusModal(false);
+        setShowDetailsModal(false);
+        setHivStatusForm({ status: '', notes: '' });
+        fetchAppointments();
+        fetchStats();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || 'Failed to update HIV status');
+      }
+    } catch (error) {
+      console.error('Error updating HIV status:', error);
+      alert('Failed to update HIV status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAssignCaseManager = async () => {
     if (!selectedCaseManager) {
       alert('Please select a case manager');
@@ -130,7 +166,7 @@ const Appointments = () => {
         setShowAssignModal(false);
         setSelectedCaseManager('');
         await fetchAppointments();
-        await fetchCaseManagers(); // Refresh workload
+        await fetchCaseManagers();
         await fetchStats();
       } else {
         alert(data.error || 'Failed to assign case manager');
@@ -159,7 +195,7 @@ const Appointments = () => {
       if (response.ok) {
         alert('Case manager unassigned successfully!');
         await fetchAppointments();
-        await fetchCaseManagers(); // Refresh workload
+        await fetchCaseManagers();
         await fetchStats();
       }
     } catch (err) {
@@ -427,7 +463,32 @@ const Appointments = () => {
                       </div>
                     </div>
 
-                    {/* ✅ Show psychosocial info if available */}
+                    {/* Testing Demographics - LIST VIEW */}
+                    {apt.service === 'Testing and Counseling' && apt.testingInfo && (
+                      <div className="bg-teal-50 rounded-lg p-3 mb-3 border border-teal-200">
+                        <p className="text-xs font-semibold text-teal-800 mb-2">Patient Demographics:</p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                          <div>
+                            <span className="text-gray-600">Name:</span>
+                            <p className="font-medium text-gray-800">{apt.testingInfo.fullName}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Age:</span>
+                            <p className="font-medium text-gray-800">{apt.testingInfo.age}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Gender:</span>
+                            <p className="font-medium text-gray-800">{apt.testingInfo.gender}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Location:</span>
+                            <p className="font-medium text-gray-800">{apt.testingInfo.location}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Psychosocial Info - LIST VIEW */}
                     {apt.service === 'Psychosocial support and assistance' && apt.psychosocialInfo && (
                       <div className="bg-indigo-50 rounded-lg p-3 mb-3 border border-indigo-200">
                         <p className="text-xs font-semibold text-indigo-800 mb-2">Patient Information:</p>
@@ -452,50 +513,96 @@ const Appointments = () => {
                       </div>
                     )}
 
-                    {/* Case Manager Assignment */}
-                    {apt.assignedCaseManager ? (
-                      <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs font-semibold text-purple-800 mb-1 flex items-center gap-1">
-                              <UserCheck className="w-4 h-4" />
-                              Case Manager Assigned
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {apt.assignedCaseManager.name || apt.assignedCaseManager.username}
-                            </p>
-                            {apt.assignedAt && (
-                              <p className="text-xs text-gray-600 mt-1">
-                                Assigned on {new Date(apt.assignedAt).toLocaleDateString()}
+                    {/* Case Manager Assignment - ONLY for Psychosocial support */}
+                    {apt.service === 'Psychosocial support and assistance' && (
+                      apt.assignedCaseManager ? (
+                        <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-semibold text-purple-800 mb-1 flex items-center gap-1">
+                                <UserCheck className="w-4 h-4" />
+                                Case Manager Assigned
                               </p>
-                            )}
+                              <p className="text-sm font-medium text-gray-800">
+                                {apt.assignedCaseManager.name || apt.assignedCaseManager.username}
+                              </p>
+                              {apt.assignedAt && (
+                                <p className="text-xs text-gray-600 mt-1">
+                                  Assigned on {new Date(apt.assignedAt).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleUnassignCaseManager(apt._id)}
+                              className="px-3 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition"
+                            >
+                              Unassign
+                            </button>
                           </div>
+                        </div>
+                      ) : (
+                        <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                          <p className="text-xs font-semibold text-orange-800 mb-2 flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4" />
+                            No Case Manager Assigned
+                          </p>
                           <button
-                            onClick={() => handleUnassignCaseManager(apt._id)}
-                            className="px-3 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition"
+                            onClick={() => {
+                              setSelectedAppointment(apt);
+                              setShowAssignModal(true);
+                            }}
+                            className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition font-semibold"
                           >
-                            Unassign
+                            Assign Case Manager
                           </button>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
-                        <p className="text-xs font-semibold text-orange-800 mb-2 flex items-center gap-1">
-                          <AlertCircle className="w-4 h-4" />
-                          No Case Manager Assigned
+                      )
+                    )}
+
+                    {/* Testing and Counseling - Admin Actions */}
+                    {apt.service === 'Testing and Counseling' && (
+                      <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                        <p className="text-xs font-semibold text-blue-800 mb-2">
+                          Admin Actions for Testing & Counseling
                         </p>
-                        <button
-                          onClick={() => {
-                            setSelectedAppointment(apt);
-                            setShowAssignModal(true);
-                          }}
-                          className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition font-semibold"
-                        >
-                          Assign Case Manager
-                        </button>
+                        <div className="flex gap-2 flex-wrap">
+                          {apt.status === 'pending' && (
+                            <button
+                              onClick={() => handleUpdateStatus(apt._id, 'confirmed')}
+                              className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition font-semibold"
+                            >
+                              Confirm Appointment
+                            </button>
+                          )}
+                          {apt.status === 'confirmed' && (
+                            <button
+                              onClick={() => {
+                                setSelectedAppointment(apt);
+                                setHivStatusForm({
+                                  status: apt.hivStatus?.status === 'pending' ? '' : apt.hivStatus?.status || '',
+                                  notes: apt.hivStatus?.notes || ''
+                                });
+                                setShowHIVStatusModal(true);
+                              }}
+                              className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition font-semibold"
+                            >
+                              Set HIV Result & Complete
+                            </button>
+                          )}
+                          {apt.status === 'completed' && apt.hivStatus?.status && apt.hivStatus.status !== 'pending' && (
+                            <span className={`px-4 py-2 rounded-lg font-semibold ${
+                              apt.hivStatus.status === 'positive' 
+                                ? 'bg-red-600 text-white' 
+                                : 'bg-green-600 text-white'
+                            }`}>
+                              Completed - {apt.hivStatus.status.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
 
+                    {/* Cancellation Request */}
                     {apt.cancelRequest?.requested && (
                       <div className="mt-3 bg-orange-50 rounded-lg p-3 border border-orange-200">
                         <p className="text-xs font-semibold text-orange-800 mb-1">Cancellation Request:</p>
@@ -546,7 +653,7 @@ const Appointments = () => {
         )}
       </div>
 
-      {/* ✅ UPDATED: Assign Case Manager Modal with Workload Display */}
+      {/* Assign Case Manager Modal */}
       {showAssignModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl">
@@ -703,7 +810,94 @@ const Appointments = () => {
                 </div>
               </div>
 
-              {/* Psychosocial Info */}
+              {/* Testing Demographics - DETAILS MODAL */}
+              {selectedAppointment.service === 'Testing and Counseling' && 
+               selectedAppointment.testingInfo && (
+                <div className="bg-teal-50 rounded-lg p-4 border-2 border-teal-200">
+                  <h4 className="font-bold text-teal-800 mb-3 text-lg flex items-center gap-2">
+                    <UserIcon className="w-5 h-5" />
+                    Patient Demographics (for Analytics)
+                  </h4>
+                  <div className="grid md:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-gray-600">Full Name:</span>
+                      <p className="font-medium text-gray-800">
+                        {selectedAppointment.testingInfo.fullName}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Age:</span>
+                      <p className="font-medium text-gray-800">
+                        {selectedAppointment.testingInfo.age} years
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Gender:</span>
+                      <p className="font-medium text-gray-800">
+                        {selectedAppointment.testingInfo.gender}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Location:</span>
+                      <p className="font-medium text-gray-800">
+                        {selectedAppointment.testingInfo.location}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* HIV Test Status - ONLY for Testing and Counseling */}
+              {selectedAppointment.service === 'Testing and Counseling' && (
+                <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
+                  <h4 className="font-bold text-purple-800 mb-3 text-lg">HIV Test Status</h4>
+                  
+                  {selectedAppointment.hivStatus?.status && 
+                   selectedAppointment.hivStatus.status !== 'pending' ? (
+                    <div>
+                      <div className={`inline-block px-4 py-2 rounded-full font-semibold ${
+                        selectedAppointment.hivStatus.status === 'positive' 
+                          ? 'bg-red-600 text-white' 
+                          : 'bg-green-600 text-white'
+                      }`}>
+                        Status: {selectedAppointment.hivStatus.status.toUpperCase()}
+                      </div>
+                      {selectedAppointment.hivStatus.notes && (
+                        <p className="text-sm text-gray-700 mt-2">
+                          <strong>Notes:</strong> {selectedAppointment.hivStatus.notes}
+                        </p>
+                      )}
+                      {selectedAppointment.hivStatus.confirmedAt && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Confirmed on {new Date(selectedAppointment.hivStatus.confirmedAt).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-gray-600 text-sm mb-3">Status not yet set</p>
+                  )}
+                  
+                  <button
+                    onClick={() => {
+                      setHivStatusForm({
+                        status: selectedAppointment.hivStatus?.status === 'pending' 
+                          ? '' 
+                          : selectedAppointment.hivStatus?.status || '',
+                        notes: selectedAppointment.hivStatus?.notes || ''
+                      });
+                      setShowHIVStatusModal(true);
+                    }}
+                    className="mt-3 w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-semibold"
+                  >
+                    {selectedAppointment.hivStatus?.status && 
+                     selectedAppointment.hivStatus.status !== 'pending'
+                      ? 'Update HIV Status' 
+                      : 'Set HIV Status & Complete'}
+                  </button>
+                </div>
+              )}
+
+              {/* Psychosocial Info - DETAILS MODAL */}
               {selectedAppointment.service === 'Psychosocial support and assistance' && 
                selectedAppointment.psychosocialInfo && (
                 <div className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
@@ -777,8 +971,9 @@ const Appointments = () => {
                 </div>
               </div>
 
-              {/* Case Manager */}
-              {selectedAppointment.assignedCaseManager && (
+              {/* Case Manager - ONLY for Psychosocial */}
+              {selectedAppointment.service === 'Psychosocial support and assistance' && 
+               selectedAppointment.assignedCaseManager && (
                 <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
                   <h4 className="font-bold text-purple-800 mb-2 text-lg flex items-center gap-2">
                     <UserCheck className="w-5 h-5" />
@@ -802,8 +997,9 @@ const Appointments = () => {
                 </div>
               )}
 
-              {/* Session Notes */}
-              {selectedAppointment.sessionTracking?.sessionNotes?.length > 0 && (
+              {/* Session Notes - ONLY for Psychosocial */}
+              {selectedAppointment.service === 'Psychosocial support and assistance' &&
+               selectedAppointment.sessionTracking?.sessionNotes?.length > 0 && (
                 <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
                   <h4 className="font-bold text-gray-800 mb-3 text-lg flex items-center gap-2">
                     <FileText className="w-5 h-5" />
@@ -831,6 +1027,23 @@ const Appointments = () => {
                   </div>
                 </div>
               )}
+
+              {selectedAppointment.service === 'Psychosocial support and assistance' &&
+               selectedAppointment.sessionTracking?.sessionNotes?.length > 0 && (
+                <div className="mt-4">
+                  <button
+                    onClick={() => {
+                      setTimelineAppointment(selectedAppointment);
+                      setShowTimelineModal(true);
+                      setShowDetailsModal(false);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-semibold"
+                  >
+                    <FileText className="w-5 h-5" />
+                    View Full Session Timeline
+                  </button>
+                </div>
+              )}
             </div>
 
             <button
@@ -841,6 +1054,100 @@ const Appointments = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {/* HIV Status Modal - STANDALONE */}
+      {showHIVStatusModal && selectedAppointment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-gray-800">Set HIV Test Result</h3>
+              <button 
+                onClick={() => {
+                  setShowHIVStatusModal(false);
+                  setHivStatusForm({ status: '', notes: '' });
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                  Test Result <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setHivStatusForm({ ...hivStatusForm, status: 'positive' })}
+                    className={`px-6 py-4 rounded-lg font-semibold transition-all ${
+                      hivStatusForm.status === 'positive'
+                        ? 'bg-red-600 text-white ring-4 ring-red-300'
+                        : 'bg-gray-200 text-gray-700 hover:bg-red-100'
+                    }`}
+                  >
+                    ❌ HIV Positive
+                  </button>
+                  <button
+                    onClick={() => setHivStatusForm({ ...hivStatusForm, status: 'negative' })}
+                    className={`px-6 py-4 rounded-lg font-semibold transition-all ${
+                      hivStatusForm.status === 'negative'
+                        ? 'bg-green-600 text-white ring-4 ring-green-300'
+                        : 'bg-gray-200 text-gray-700 hover:bg-green-100'
+                    }`}
+                  >
+                    ✅ HIV Negative
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Additional Notes (Optional)
+                </label>
+                <textarea
+                  value={hivStatusForm.notes}
+                  onChange={(e) => setHivStatusForm({ ...hivStatusForm, notes: e.target.value })}
+                  rows="3"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  placeholder="Any additional notes about the test..."
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowHIVStatusModal(false);
+                  setHivStatusForm({ status: '', notes: '' });
+                }}
+                className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateHIVStatus}
+                disabled={!hivStatusForm.status || loading}
+                className="flex-1 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Saving...' : 'Confirm & Complete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Session Timeline Modal */}
+      {showTimelineModal && timelineAppointment && (
+        <SessionTimelineModal
+          appointment={timelineAppointment}
+          onClose={() => {
+            setShowTimelineModal(false);
+            setTimelineAppointment(null);
+            setShowDetailsModal(true);
+          }}
+        />
       )}
     </div>
   );

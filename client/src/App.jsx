@@ -27,6 +27,7 @@ import AdminArticles from './pages/admin/AdminArticles';
 import CaseManagerMessages from './components/CaseManagerMessages';
 import CaseManagerPlanner from './pages/case-manager/CaseManagerPlanner';
 import ClinicScheduleManager from './pages/admin/ClinicScheduleManager';
+import HIVAnalytics from './pages/admin/HIVAnalytics';
 
 function App() {
   const { user, loading, logout } = useAuth();
@@ -97,7 +98,8 @@ function App() {
               onLogout={logout}
             >
               <Routes>
-                <Route index element={<Dashboard />} />
+                <Route index element={<HIVAnalytics />} />
+                <Route path="hiv-analytics" element={<HIVAnalytics />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="articles" element={<AdminArticles />} />
                 <Route path="users" element={<UserManagement />} />

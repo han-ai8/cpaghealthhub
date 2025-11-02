@@ -640,7 +640,7 @@ router.post('/community/posts/:id/comments', isAuthenticated, isUserRole, async 
 
     const comment = {
       body: body.trim(),
-      author: 'Anonymous',
+      author: req.user.id, // Store actual user ID
       createdAt: new Date()
     };
 
@@ -675,7 +675,7 @@ router.post('/community/posts/:id/comments/:commentId/replies', isAuthenticated,
 
     const reply = {
       body: body.trim(),
-      author: 'Anonymous',
+      author: req.user.id, // Store actual user ID
       createdAt: new Date()
     };
 

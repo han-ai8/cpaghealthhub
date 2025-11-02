@@ -1,10 +1,72 @@
 import React, { useState, useEffect } from "react";
 import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../components/ConfirmModal';
+import { useAuth } from '../../context/AuthContext';
 
 const Home = () => {
   const toast = useToast();
   const { confirm } = useConfirm();
+  const { user } = useAuth(); // Get current logged-in user
+  
+  // Anonymous name generator function
+  const generateAnonymousName = (userId) => {
+    if (!userId) return 'Anonymous User';
+    
+    // Convert userId to string and create a hash
+    const idStr = userId.toString();
+    let hash = 0;
+    
+    for (let i = 0; i < idStr.length; i++) {
+      const char = idStr.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    
+    // Use absolute value and generate a unique 5-digit number (10000-99999)
+    const absHash = Math.abs(hash);
+    const uniqueNumber = (absHash % 90000) + 10000;
+    
+    return `Anonymous #${uniqueNumber}`;
+  };
+  
+  // Check if a comment is from the current user
+  // ✅ FIXED: Works with both user IDs and usernames
+  const isMyComment = (commentAuthor) => {
+    if (!user || !commentAuthor) {
+      return false;
+    }
+    
+    // Debug logging (remove after testing)
+    console.log('Checking comment:', {
+      commentAuthor,
+      userId: user.id,
+      userName: user.name,
+      userUsername: user.username
+    });
+    
+    // Try multiple comparisons to handle different backend structures
+    
+    // If backend stores user ID (correct way)
+    if (user.id && commentAuthor.toString() === user.id.toString()) {
+      console.log('✅ Matched by user ID');
+      return true;
+    }
+    
+    // If backend stores username (temporary compatibility)
+    if (user.username && commentAuthor === user.username) {
+      console.log('✅ Matched by username');
+      return true;
+    }
+    
+    // If backend stores name (temporary compatibility)
+    if (user.name && commentAuthor === user.name) {
+      console.log('✅ Matched by name');
+      return true;
+    }
+    
+    console.log('❌ No match found');
+    return false;
+  };
   
   const [announcement, setAnnouncement] = useState(null);
   const [posts, setPosts] = useState([]);
@@ -38,6 +100,33 @@ const Home = () => {
     fetchSavedPostIds();
     fetchLikedStatus();
   }, []);
+
+  // 🔍 DEBUG: Log user info (remove after blue highlighting works)
+  useEffect(() => {
+    if (user) {
+      console.log('=== USER DEBUG INFO ===');
+      console.log('User object:', user);
+      console.log('User ID:', user.id);
+      console.log('User name:', user.name);
+      console.log('User username:', user.username);
+      console.log('======================');
+    }
+  }, [user]);
+
+  // 🔍 DEBUG: Log comments when they load (remove after blue highlighting works)
+  useEffect(() => {
+    if (announcementComments.length > 0) {
+      console.log('=== ANNOUNCEMENT COMMENTS DEBUG ===');
+      announcementComments.forEach((comment, idx) => {
+        console.log(`Comment ${idx}:`, {
+          author: comment.author,
+          authorType: typeof comment.author,
+          body: comment.body.substring(0, 30) + '...'
+        });
+      });
+      console.log('===================================');
+    }
+  }, [announcementComments]);
 
   const fetchData = async () => {
     try {
@@ -359,7 +448,7 @@ const Home = () => {
   }
 
   return (
-    <div className="min-h-screen   space-y-8">
+    <div className="min-h-screen space-y-8">
       {/* Announcement Post */}
       {announcement ? (
         <div className="card bg-[#FFFFFF] shadow-lg border border-[#4C8DD8]/20 max-w-6xl mx-auto">
@@ -445,25 +534,47 @@ const Home = () => {
 
                 <div className="space-y-3">
                   {announcementComments.length > 0 ? (
-                    announcementComments.map((comment) => (
-                      <div key={comment._id} className="bg-[#4C8DD8]/5 p-3 rounded">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <p className="font-semibold text-sm text-[#4C8DD8]">{comment.author}</p>
-                            <p className="text-xs text-[#4C8DD8]/60">{new Date(comment.createdAt).toLocaleString()}</p>
-                            <p className="mt-2 text-[#4C8DD8]/80">{comment.body}</p>
-                            
-                            {comment.reply && (
-                              <div className="mt-3 ml-6 bg-[#2E7D32]/10 p-3 rounded border-l-4 border-[#2E7D32]">
-                                <p className="font-semibold text-sm text-[#2E7D32]">{comment.reply.author}</p>
-                                <p className="text-xs text-[#2E7D32]/60">{new Date(comment.reply.createdAt).toLocaleString()}</p>
-                                <p className="mt-1 text-[#2E7D32]/80">{comment.reply.body}</p>
+                    announcementComments.map((comment) => {
+                      const isMyCommentFlag = isMyComment(comment.author);
+                      
+                      return (
+                        <div 
+                          key={comment._id} 
+                          className={`p-3 rounded ${
+                            isMyCommentFlag 
+                              ? 'bg-blue-50 border-2 border-blue-300' 
+                              : 'bg-[#4C8DD8]/5'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className={`font-semibold text-sm ${
+                                  isMyCommentFlag ? 'text-blue-700' : 'text-[#4C8DD8]'
+                                }`}>
+                                  {generateAnonymousName(comment.author)}
+                                </p>
+                                {isMyCommentFlag && (
+                                  <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">
+                                    You
+                                  </span>
+                                )}
                               </div>
-                            )}
+                              <p className="text-xs text-[#4C8DD8]/60">{new Date(comment.createdAt).toLocaleString()}</p>
+                              <p className="mt-2 text-[#4C8DD8]/80">{comment.body}</p>
+                              
+                              {comment.reply && (
+                                <div className="mt-3 ml-6 bg-[#2E7D32]/10 p-3 rounded border-l-4 border-[#2E7D32]">
+                                  <p className="font-semibold text-sm text-[#2E7D32]">{comment.reply.author}</p>
+                                  <p className="text-xs text-[#2E7D32]/60">{new Date(comment.reply.createdAt).toLocaleString()}</p>
+                                  <p className="mt-1 text-[#2E7D32]/80">{comment.reply.body}</p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <p className="text-[#4C8DD8]/60 text-sm">No comments yet. Be the first to comment!</p>
                   )}
@@ -473,7 +584,7 @@ const Home = () => {
           </div>
         </div>
       ) : (
-                <div className="text-center text-[#4C8DD8]/60 bg-[#FFFFFF] rounded-lg p-6 max-w-4xl mx-auto">
+        <div className="text-center text-[#4C8DD8]/60 bg-[#FFFFFF] rounded-lg p-6 max-w-4xl mx-auto">
           No announcements available.
         </div>
       )}
@@ -591,25 +702,47 @@ const Home = () => {
 
                     <div className="space-y-3">
                       {comments.length > 0 ? (
-                        comments.map((comment) => (
-                          <div key={comment._id} className="bg-[#4C8DD8]/5 p-3 rounded">
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                <p className="font-semibold text-sm text-[#4C8DD8]">{comment.author}</p>
-                                <p className="text-xs text-[#4C8DD8]/60">{new Date(comment.createdAt).toLocaleString()}</p>
-                                <p className="mt-2 text-[#4C8DD8]/80">{comment.body}</p>
-                                
-                                {comment.reply && (
-                                  <div className="mt-3 ml-6 bg-[#2E7D32]/10 p-3 rounded border-l-4 border-[#2E7D32]">
-                                    <p className="font-semibold text-sm text-[#2E7D32]">{comment.reply.author}</p>
-                                    <p className="text-xs text-[#2E7D32]/60">{new Date(comment.reply.createdAt).toLocaleString()}</p>
-                                    <p className="mt-1 text-[#2E7D32]/80">{comment.reply.body}</p>
+                        comments.map((comment) => {
+                          const isMyCommentFlag = isMyComment(comment.author);
+                          
+                          return (
+                            <div 
+                              key={comment._id} 
+                              className={`p-3 rounded ${
+                                isMyCommentFlag 
+                                  ? 'bg-blue-50 border-2 border-blue-300' 
+                                  : 'bg-[#4C8DD8]/5'
+                              }`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <p className={`font-semibold text-sm ${
+                                      isMyCommentFlag ? 'text-blue-700' : 'text-[#4C8DD8]'
+                                    }`}>
+                                      {generateAnonymousName(comment.author)}
+                                    </p>
+                                    {isMyCommentFlag && (
+                                      <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">
+                                        You
+                                      </span>
+                                    )}
                                   </div>
-                                )}
+                                  <p className="text-xs text-[#4C8DD8]/60">{new Date(comment.createdAt).toLocaleString()}</p>
+                                  <p className="mt-2 text-[#4C8DD8]/80">{comment.body}</p>
+                                  
+                                  {comment.reply && (
+                                    <div className="mt-3 ml-6 bg-[#2E7D32]/10 p-3 rounded border-l-4 border-[#2E7D32]">
+                                      <p className="font-semibold text-sm text-[#2E7D32]">{comment.reply.author}</p>
+                                      <p className="text-xs text-[#2E7D32]/60">{new Date(comment.reply.createdAt).toLocaleString()}</p>
+                                      <p className="mt-1 text-[#2E7D32]/80">{comment.reply.body}</p>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       ) : (
                         <p className="text-[#4C8DD8]/60 text-sm">No comments yet. Be the first to comment!</p>
                       )}

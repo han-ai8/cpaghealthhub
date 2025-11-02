@@ -1,12 +1,29 @@
-// src/pages/User/Schedule.jsx - UPDATED WITH PSYCHOSOCIAL SUPPORT FORM
 import React, { useState, useEffect } from 'react';
 import { Eye, X, Calendar, Clock, MapPin, AlertCircle, Edit, Mail, History, FileText, UserCheck, MessageCircle, RefreshCw, CheckCircle, XCircle, TrendingUp, Award, Activity, Phone, User as UserIcon } from 'lucide-react';
+import SessionTimelineModal from '../../components/SessionTimelineModal';
+import CaviteLocationSelect from '../../components/CaviteLocationSelect';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+// ✅ FIXED: Universal date formatter to prevent timezone issues
+const formatDateToLocal = (date) => {
+  if (!date) return '';
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateFromString = (dateString) => {
+  if (!dateString) return null;
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
 const Schedule = () => {
   const [showServiceModal, setShowServiceModal] = useState(false);
-  const [showPsychosocialFormModal, setShowPsychosocialFormModal] = useState(false); // ✅ NEW
+  const [showPsychosocialFormModal, setShowPsychosocialFormModal] = useState(false);
   const [showDateTimeModal, setShowDateTimeModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
@@ -16,8 +33,12 @@ const Schedule = () => {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showSessionDetailsModal, setShowSessionDetailsModal] = useState(false);
   const [clinicSchedule, setClinicSchedule] = useState([]);
+  const [showTimelineModal, setShowTimelineModal] = useState(false);
+  const [timelineAppointment, setTimelineAppointment] = useState(null);
 
-  // ✅ NEW: Psychosocial Support Form Data
+  const [requestSaturday, setRequestSaturday] = useState(false);
+  const [saturdayReason, setSaturdayReason] = useState('');
+
   const [psychosocialForm, setPsychosocialForm] = useState({
     fullName: '',
     age: '',
@@ -61,6 +82,28 @@ const Schedule = () => {
     };
   };
 
+  const openTimelineModal = (appointment) => {
+    setTimelineAppointment(appointment);
+    setShowTimelineModal(true);
+  };
+
+  // ✅ FIXED: Weekend Helper Functions
+  const isWeekend = (date) => {
+    if (!date) return false;
+    const day = date.getDay();
+    return day === 0 || day === 6;
+  };
+
+  const isSunday = (date) => {
+    if (!date) return false;
+    return date.getDay() === 0;
+  };
+
+  const isSaturday = (date) => {
+    if (!date) return false;
+    return date.getDay() === 6;
+  };
+
   const fetchClinicSchedule = async () => {
     try {
       const response = await fetch(`${API_URL}/clinic-schedule/active`);
@@ -81,7 +124,6 @@ const Schedule = () => {
     fetchClinicSchedule();
   }, []);
   
-  // Real-time appointment status polling
   useEffect(() => {
     const interval = setInterval(() => {
       if (bookedAppointment) {
@@ -92,7 +134,6 @@ const Schedule = () => {
     return () => clearInterval(interval);
   }, [bookedAppointment]);
 
-  // Real-time calendar slots polling
   useEffect(() => {
     const calendarInterval = setInterval(() => {
       console.log('🔄 Auto-refreshing calendar slots...');
@@ -104,7 +145,6 @@ const Schedule = () => {
     return () => clearInterval(calendarInterval);
   }, []);
 
-  // Refresh when calendar modal opens
   useEffect(() => {
     if (showDateTimeModal) {
       console.log('📅 Calendar opened - refreshing slots');
@@ -179,13 +219,13 @@ const Schedule = () => {
 
   const isDateAvailable = (date) => {
     if (!date) return true;
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatDateToLocal(date); // ✅ Use consistent formatting
     const dayOfWeek = date.getDay();
     
     const closure = clinicSchedule.find(schedule => {
       const start = new Date(schedule.startDate);
       const end = new Date(schedule.endDate);
-      const checkDate = new Date(dateStr);
+      const checkDate = parseDateFromString(dateStr);
       return schedule.type === 'closure' && checkDate >= start && checkDate <= end;
     });
     
@@ -195,7 +235,7 @@ const Schedule = () => {
     }
     
     const specialOpening = clinicSchedule.find(schedule => {
-      const scheduleDate = new Date(schedule.date).toISOString().split('T')[0];
+      const scheduleDate = formatDateToLocal(new Date(schedule.date));
       return schedule.type === 'special_opening' && scheduleDate === dateStr;
     });
     
@@ -212,29 +252,23 @@ const Schedule = () => {
     return true;
   };
 
-  // ✅ UPDATED: Service selection handler
   const handleServiceSelection = (service) => {
     setSelectedService(service);
     setShowServiceModal(false);
     
-    // ✅ NEW: Only show psychosocial form for "Psychosocial support and assistance"
-    if (service === 'Psychosocial support and assistance') {
+    if (service === 'Psychosocial support and assistance' || service === 'Testing and Counseling') {
       setShowPsychosocialFormModal(true);
     } else {
-      // For "Testing and Counseling", go directly to calendar
       setShowDateTimeModal(true);
     }
   };
 
-  // ✅ NEW: Handle psychosocial form submission
   const handlePsychosocialFormSubmit = () => {
-    // Validate all fields
     if (!psychosocialForm.fullName || !psychosocialForm.age || !psychosocialForm.gender || !psychosocialForm.location) {
       alert('Please fill in all fields');
       return;
     }
 
-    // Validate age
     const age = parseInt(psychosocialForm.age);
     if (isNaN(age) || age < 1 || age > 150) {
       alert('Please enter a valid age between 1 and 150');
@@ -242,8 +276,6 @@ const Schedule = () => {
     }
 
     console.log('✅ Psychosocial form completed:', psychosocialForm);
-    
-    // Close form and proceed to calendar
     setShowPsychosocialFormModal(false);
     setShowDateTimeModal(true);
   };
@@ -253,7 +285,9 @@ const Schedule = () => {
     setSelectedDate(null);
     setSelectedTime('');
     setNote('');
-    setPsychosocialForm({ fullName: '', age: '', gender: '', location: '' }); // ✅ Reset form
+    setPsychosocialForm({ fullName: '', age: '', gender: '', location: '' });
+    setRequestSaturday(false);
+    setSaturdayReason('');
     setIsEditing(false);
     setShowServiceModal(true);
   };
@@ -261,13 +295,17 @@ const Schedule = () => {
   const handleEditAppointment = () => {
     if (bookedAppointment) {
       setSelectedService(bookedAppointment.service);
-      setSelectedDate(new Date(bookedAppointment.date));
+      setSelectedDate(parseDateFromString(bookedAppointment.date)); // ✅ Parse correctly
       setSelectedTime(bookedAppointment.time);
       setNote(bookedAppointment.note || '');
       
-      // ✅ Load psychosocial info if available
       if (bookedAppointment.psychosocialInfo) {
         setPsychosocialForm(bookedAppointment.psychosocialInfo);
+      }
+      
+      if (bookedAppointment.requestSaturday) {
+        setRequestSaturday(true);
+        setSaturdayReason(bookedAppointment.saturdayReason || '');
       }
       
       setIsEditing(true);
@@ -277,6 +315,12 @@ const Schedule = () => {
 
   const handleDateSelection = (date) => {
     setSelectedDate(date);
+    setSelectedTime('');
+    
+    if (!isSaturday(date)) {
+      setRequestSaturday(false);
+      setSaturdayReason('');
+    }
   };
 
   const handleTimeSelection = (time) => {
@@ -288,11 +332,29 @@ const Schedule = () => {
       alert('Please select both date and time');
       return;
     }
+
+    // ✅ Validate Sunday
+    if (isSunday(selectedDate)) {
+      alert('❌ Sundays are not available. Please select a weekday.');
+      return;
+    }
+
+    // ✅ Validate Saturday request
+    if (isSaturday(selectedDate)) {
+      if (!requestSaturday) {
+        alert('⚠️ Saturday appointments require a special request. Please enable "Request Saturday" option.');
+        return;
+      }
+      if (!saturdayReason || saturdayReason.trim().length < 10) {
+        alert('Please provide a detailed reason (minimum 10 characters) for Saturday appointment.');
+        return;
+      }
+    }
+
     setShowDateTimeModal(false);
     setShowReviewModal(true);
   };
 
-  // ✅ UPDATED: Book appointment with psychosocial info
   const bookAppointment = async () => {
     setLoading(true);
     setError('');
@@ -300,13 +362,14 @@ const Schedule = () => {
     try {
       const appointmentData = {
         service: selectedService,
-        date: selectedDate.toISOString().split('T')[0],
+        date: formatDateToLocal(selectedDate), // ✅ Use consistent formatting
         time: selectedTime,
-        note: note || ''
+        note: note || '',
+        requestSaturday: requestSaturday,
+        saturdayReason: saturdayReason
       };
 
-      // ✅ NEW: Include psychosocial info if service is "Psychosocial support and assistance"
-      if (selectedService === 'Psychosocial support and assistance') {
+      if (selectedService === 'Psychosocial support and assistance' || selectedService === 'Testing and Counseling') {
         appointmentData.psychosocialInfo = psychosocialForm;
       }
 
@@ -397,7 +460,6 @@ const Schedule = () => {
     }
   };
 
-  // Calendar helper functions
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -424,9 +486,10 @@ const Schedule = () => {
     });
   };
 
+  // ✅ FIXED: Consistent date formatting for slot booking check
   const isSlotBooked = (date, time) => {
     if (!date || !time) return false;
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatDateToLocal(date);
     return bookedSlots.some(slot => slot.date === dateStr && slot.time === time);
   };
 
@@ -462,26 +525,18 @@ const Schedule = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-      {/* 🆕 CPAG HEADER COVER SECTION */}
-      <div className="bg-white shadow-lg">
-        {/* Header Image Banner */}
-        <div className="bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 h-48 md:h-64 relative overflow-hidden">
-          {/* Logo and Branding - Replace src with your actual image path */}
+    <div className="min-h-screen flex flex-col items-center">
+      {/* CPAG HEADER - keeping original */}
+      <div className="bg-white max-w-6xl rounded-lg shadow-lg w-full mb-6">
+        <div className="bg-gradient-to-r from-sky-50 via-cyan-300 to-sky-100 h-48 md:h-64 rounded-lg relative overflow-hidden">
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center px-4">
-              {/* You can replace this with an actual image tag */}
+            <div className="text-center px-5">
               <img 
-                src="/cpag-banner.png" 
+                src="/src/assets/cover-cpag-new.png" 
                 alt="CPAG Region IV-A Banner" 
-                className="w-full max-w-4xl mx-auto h-auto"
-                onError={(e) => {
-                  // Fallback if image doesn't load - shows text instead
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'block';
-                }}
+                className=" rounded-lg w-full max-w-4xl mx-auto h-auto"
+                
               />
-              {/* Fallback text if image fails to load */}
               <div className="hidden">
                 <div className="flex items-center justify-center gap-4 mb-4">
                   <div className="bg-white/90 p-4 rounded-full">
@@ -502,16 +557,13 @@ const Schedule = () => {
           </div>
         </div>
 
-        {/* Contact Information Section */}
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="bg-white rounded-lg shadow-md p-6">
+        
+          <div className="flex flex-col items-center bg-white max-w-6xl mx-auto px-4 py-6 rounded-lg shadow-md p-6">
             <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4 text-center">
               CAVITE POSITIVE ACTION GROUP THE JCH ADVOCACY INC.
             </h2>
             
-            {/* Contact Details Grid */}
             <div className="grid md:grid-cols-2 gap-4 mb-6">
-              {/* Address */}
               <div className="flex items-start gap-3">
                 <MapPin className="w-5 h-5 text-blue-600 flex-shrink-0 mt-1" />
                 <div>
@@ -524,9 +576,7 @@ const Schedule = () => {
                 </div>
               </div>
 
-              {/* Contact Info */}
               <div className="space-y-3">
-                {/* Phone */}
                 <div className="flex items-center gap-3">
                   <Phone className="w-5 h-5 text-blue-600 flex-shrink-0" />
                   <div>
@@ -535,7 +585,6 @@ const Schedule = () => {
                   </div>
                 </div>
 
-                {/* Email */}
                 <div className="flex items-center gap-3">
                   <Mail className="w-5 h-5 text-blue-600 flex-shrink-0" />
                   <div>
@@ -544,7 +593,6 @@ const Schedule = () => {
                   </div>
                 </div>
 
-                {/* Hours */}
                 <div className="flex items-center gap-3">
                   <Clock className="w-5 h-5 text-blue-600 flex-shrink-0" />
                   <div>
@@ -554,30 +602,12 @@ const Schedule = () => {
                 </div>
               </div>
             </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 mt-6">
-              <button
-                onClick={handleCreateAppointment}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-2"
-              >
-                <Calendar className="w-5 h-5" />
-                REQUEST SERVICE
-              </button>
-              <button
-                onClick={() => setShowHistoryModal(true)}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-2"
-              >
-                <History className="w-5 h-5" />
-                VIEW APPOINTMENT HISTORY
-              </button>
-            </div>
           </div>
-        </div>
+        
       </div>
-      {/* END CPAG HEADER COVER SECTION */}
+
       {/* Header */}
-      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+      <div className="bg-white max-w-6xl rounded-lg shadow-lg w-full mb-6 p-6">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center gap-3">
@@ -604,9 +634,9 @@ const Schedule = () => {
         </div>
       </div>
 
-      {/* Current Appointment Card */}
+      {/* Current Appointment or No Appointment sections - keeping original code but won't paste it all here for brevity */}
       {bookedAppointment ? (
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="bg-white max-w-6xl rounded-lg shadow-lg w-full p-6 mb-6">
           <div className="flex justify-between items-start mb-4">
             <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
               <CheckCircle className="w-6 h-6 text-green-600" />
@@ -638,7 +668,7 @@ const Schedule = () => {
                 Date & Time
               </h3>
               <p className="text-gray-700 font-medium">
-                {new Date(bookedAppointment.date).toLocaleDateString('en-US', {
+                {parseDateFromString(bookedAppointment.date).toLocaleDateString('en-US', {
                   month: 'long',
                   day: 'numeric',
                   year: 'numeric'
@@ -682,7 +712,15 @@ const Schedule = () => {
             </div>
           </div>
 
-          {/* Psychosocial Info Display */}
+          {bookedAppointment.requestSaturday && (
+            <div className="mt-4 bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
+              <h3 className="font-semibold text-yellow-800 mb-2 flex items-center gap-2">
+                ⚠️ Saturday Special Request
+              </h3>
+              <p className="text-gray-700 text-sm"><strong>Reason:</strong> {bookedAppointment.saturdayReason}</p>
+            </div>
+          )}
+
           {bookedAppointment.service === 'Psychosocial support and assistance' && bookedAppointment.psychosocialInfo && (
             <div className="mt-4 bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
               <h3 className="font-semibold text-indigo-800 mb-3 flex items-center gap-2">
@@ -710,7 +748,6 @@ const Schedule = () => {
             </div>
           )}
 
-          {/* Action Buttons */}
           <div className="mt-6 flex gap-3">
             {canCancelWithin24Hours() && !bookedAppointment.cancelRequest?.requested && (
               <button
@@ -733,7 +770,7 @@ const Schedule = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-lg p-12 mb-6 text-center">
+        <div className="bg-white max-w-6xl rounded-lg shadow-lg w-full p-12 mb-6 text-center">
           <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-2xl font-bold text-gray-700 mb-2">No Active Appointment</h3>
           <p className="text-gray-600 mb-6">You currently don't have any active appointment</p>
@@ -748,7 +785,7 @@ const Schedule = () => {
       )}
 
       {/* View History Button */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
+      <div className="bg-white max-w-6xl rounded-lg shadow-lg w-full mb-6 p-6">
         <button
           onClick={() => setShowHistoryModal(true)}
           className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200 font-semibold text-lg"
@@ -784,19 +821,21 @@ const Schedule = () => {
         </div>
       )}
 
-      {/* ✅ NEW: Psychosocial Support Form Modal */}
+      {/* Psychosocial Support Form Modal */}
       {showPsychosocialFormModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                 <UserIcon className="w-7 h-7 text-blue-600" />
-                Personal Information
+                {selectedService === 'Testing and Counseling' 
+                  ? 'Patient Information for Testing' 
+                  : 'Personal Information'}
               </h3>
               <button 
                 onClick={() => {
                   setShowPsychosocialFormModal(false);
-                  setShowServiceModal(true); // Go back to service selection
+                  setShowServiceModal(true);
                 }} 
                 className="text-gray-500 hover:text-gray-700"
               >
@@ -861,12 +900,10 @@ const Schedule = () => {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Location <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
+                <CaviteLocationSelect
                   value={psychosocialForm.location}
                   onChange={(e) => setPsychosocialForm({ ...psychosocialForm, location: e.target.value })}
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter your location (e.g., City, Province)"
                   required
                 />
               </div>
@@ -893,7 +930,7 @@ const Schedule = () => {
         </div>
       )}
 
-      {/* Calendar Modal */}
+      {/* ✅ FIXED Calendar Modal */}
       {showDateTimeModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-auto">
           <div className="bg-white rounded-2xl max-w-5xl w-full p-8 max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -907,8 +944,7 @@ const Schedule = () => {
               <button 
                 onClick={() => {
                   setShowDateTimeModal(false);
-                  // ✅ Go back to appropriate modal
-                  if (selectedService === 'Psychosocial support and assistance') {
+                  if (selectedService === 'Psychosocial support and assistance' || selectedService === 'Testing and Counseling') {
                     setShowPsychosocialFormModal(true);
                   } else {
                     setShowServiceModal(true);
@@ -956,27 +992,34 @@ const Schedule = () => {
                   const isTodayDate = isToday(date);
                   const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
                   const available = isDateAvailable(date);
+                  const isSun = isSunday(date);
+                  const isSat = isSaturday(date);
 
                   return (
                     <button
                       key={date.toISOString()}
-                      onClick={() => available && !isPast && handleDateSelection(date)}
-                      disabled={!available || isPast}
+                      onClick={() => available && !isPast && !isSun && handleDateSelection(date)}
+                      disabled={!available || isPast || isSun}
                       className={`
-                        p-3 rounded-lg text-center font-semibold transition-all
+                        p-3 rounded-lg text-center font-semibold transition-all relative
                         ${isSelected ? 'bg-blue-600 text-white ring-4 ring-blue-300' : ''}
                         ${isTodayDate && !isSelected ? 'bg-yellow-100 text-yellow-800 ring-2 ring-yellow-400' : ''}
+                        ${isSun ? 'bg-red-100 text-red-400 cursor-not-allowed' : ''}
+                        ${isSat && !isSelected && available && !isPast ? 'bg-orange-100 text-orange-700 border-2 border-orange-300' : ''}
                         ${!available || isPast ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : ''}
-                        ${available && !isPast && !isSelected && !isTodayDate ? 'bg-white text-gray-700 hover:bg-blue-100 hover:text-blue-700 border-2 border-gray-200' : ''}
+                        ${available && !isPast && !isSelected && !isTodayDate && !isSun && !isSat ? 'bg-white text-gray-700 hover:bg-blue-100 hover:text-blue-700 border-2 border-gray-200' : ''}
                       `}
                     >
                       {date.getDate()}
+                      {isSat && available && !isPast && (
+                        <span className="absolute top-0 right-0 text-xs bg-orange-500 text-white rounded-full w-4 h-4 flex items-center justify-center">!</span>
+                      )}
                     </button>
                   );
                 })}
               </div>
 
-              <div className="mt-4 flex gap-4 text-sm">
+              <div className="mt-4 flex gap-4 text-sm flex-wrap">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-yellow-100 border-2 border-yellow-400 rounded"></div>
                   <span className="text-gray-600">Today</span>
@@ -986,14 +1029,73 @@ const Schedule = () => {
                   <span className="text-gray-600">Selected</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-orange-100 border-2 border-orange-300 rounded"></div>
+                  <span className="text-gray-600">Saturday (Special Request)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-red-100 rounded"></div>
+                  <span className="text-gray-600">Sunday (Closed)</span>
+                </div>
+                <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-gray-200 rounded"></div>
                   <span className="text-gray-600">Not Available</span>
                 </div>
               </div>
             </div>
 
+            {/* Weekend Warning Messages */}
+            {selectedDate && isSunday(selectedDate) && (
+              <div className="mb-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
+                <p className="text-red-700 font-medium flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5" />
+                  ❌ Sundays are not available. Please select a weekday or Saturday.
+                </p>
+              </div>
+            )}
+
+            {/* Saturday Request Section */}
+            {selectedDate && isSaturday(selectedDate) && (
+              <div className="mb-6 bg-yellow-50 border-2 border-yellow-300 rounded-lg p-5">
+                <h4 className="font-bold text-yellow-800 mb-3 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5" />
+                  ⚠️ Saturday Appointment Request
+                </h4>
+                <p className="text-yellow-800 text-sm mb-4">
+                  Saturday appointments require special approval. Please check the box below and provide a reason.
+                </p>
+                
+                <label className="flex items-center gap-2 mb-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={requestSaturday}
+                    onChange={(e) => setRequestSaturday(e.target.checked)}
+                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="font-medium text-gray-700">I request a Saturday appointment</span>
+                </label>
+
+                {requestSaturday && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Reason for Saturday Request <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={saturdayReason}
+                      onChange={(e) => setSaturdayReason(e.target.value)}
+                      rows="3"
+                      placeholder="Please explain why you need a Saturday appointment (minimum 10 characters)"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      {saturdayReason.length}/10 characters minimum
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Time Slots */}
-            {selectedDate && (
+            {selectedDate && !isSunday(selectedDate) && (
               <div className="mb-6">
                 <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                   <Clock className="w-6 h-6 text-blue-600" />
@@ -1025,7 +1127,7 @@ const Schedule = () => {
               </div>
             )}
 
-            {/* Note Section */}
+            {/* Notes Section */}
             <div className="mb-6">
               <label className="block text-lg font-semibold text-gray-800 mb-2">
                 Additional Notes (Optional)
@@ -1044,7 +1146,7 @@ const Schedule = () => {
               <button
                 onClick={() => {
                   setShowDateTimeModal(false);
-                  if (selectedService === 'Psychosocial support and assistance') {
+                  if (selectedService === 'Psychosocial support and assistance' || selectedService === 'Testing and Counseling') {
                     setShowPsychosocialFormModal(true);
                   } else {
                     setShowServiceModal(true);
@@ -1056,7 +1158,7 @@ const Schedule = () => {
               </button>
               <button
                 onClick={handleProceedToReview}
-                disabled={!selectedDate || !selectedTime}
+                disabled={!selectedDate || !selectedTime || isSunday(selectedDate)}
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Review Appointment
@@ -1095,10 +1197,21 @@ const Schedule = () => {
                     year: 'numeric'
                   })} at {selectedTime}
                 </p>
+                {isSaturday(selectedDate) && requestSaturday && (
+                  <span className="inline-block mt-2 px-3 py-1 bg-orange-500 text-white text-sm font-semibold rounded-full">
+                    Saturday Special Request
+                  </span>
+                )}
               </div>
 
-              {/* ✅ Show Psychosocial Info in Review */}
-              {selectedService === 'Psychosocial support and assistance' && (
+              {requestSaturday && saturdayReason && (
+                <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
+                  <h4 className="font-semibold text-yellow-800 mb-2">Saturday Request Reason</h4>
+                  <p className="text-gray-700">{saturdayReason}</p>
+                </div>
+              )}
+
+              {(selectedService === 'Psychosocial support and assistance' || selectedService === 'Testing and Counseling') && (
                 <div className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
                   <h4 className="font-semibold text-indigo-800 mb-3">Personal Information</h4>
                   <div className="grid md:grid-cols-2 gap-2 text-sm">
@@ -1160,7 +1273,7 @@ const Schedule = () => {
             <h3 className="text-3xl font-bold text-gray-800 mb-2">Appointment {isEditing ? 'Updated' : 'Booked'}!</h3>
             <p className="text-gray-600 mb-6">
               Your appointment has been successfully {isEditing ? 'updated' : 'booked'}. 
-              You will receive confirmation soon.
+              {requestSaturday && ' Your Saturday request will be reviewed by admin.'}
             </p>
             <button
               onClick={() => setShowSuccessModal(false)}
@@ -1246,6 +1359,31 @@ const Schedule = () => {
                   {bookedAppointment.time}
                 </p>
               </div>
+
+              {bookedAppointment.requestSaturday && (
+                <div className="bg-yellow-50 rounded-lg p-5 border-2 border-yellow-200">
+                  <h4 className="font-bold text-yellow-800 mb-2 text-lg">⚠️ Saturday Special Request</h4>
+                  <p className="text-gray-700"><strong>Reason:</strong> {bookedAppointment.saturdayReason}</p>
+                </div>
+              )}
+
+              {bookedAppointment.sessionTracking?.sessionNotes?.length > 0 && (
+                <div className="bg-purple-50 rounded-lg p-5 border-2 border-purple-200">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-bold text-purple-800 text-lg">Session History</h4>
+                    <button
+                      onClick={() => openTimelineModal(bookedAppointment)}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-semibold"
+                    >
+                      <FileText className="w-5 h-5" />
+                      View Timeline
+                    </button>
+                  </div>
+                  <p className="text-gray-700">
+                    {bookedAppointment.sessionTracking.sessionNotes.length} session(s) completed
+                  </p>
+                </div>
+              )}
 
               {bookedAppointment.assignedCaseManager && (
                 <div className="bg-purple-50 rounded-lg p-5 border-2 border-purple-200">
@@ -1335,7 +1473,7 @@ const Schedule = () => {
         </div>
       )}
 
-      {/* History Modal - Similar structure, shortened for brevity */}
+      {/* History Modal */}
       {showHistoryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-4xl w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -1374,6 +1512,11 @@ const Schedule = () => {
                             <UserCheck className="w-4 h-4" />
                             Case Manager: {apt.assignedCaseManager.name || apt.assignedCaseManager.username}
                           </p>
+                        )}
+                        {apt.requestSaturday && (
+                          <span className="inline-block mt-2 px-2 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded">
+                            Saturday Request
+                          </span>
                         )}
                       </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -1444,6 +1587,13 @@ const Schedule = () => {
                   })} at {selectedHistoryItem.time}
                 </p>
               </div>
+
+              {selectedHistoryItem.requestSaturday && (
+                <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
+                  <h4 className="font-semibold text-yellow-800 mb-2">⚠️ Saturday Request</h4>
+                  <p className="text-gray-700"><strong>Reason:</strong> {selectedHistoryItem.saturdayReason}</p>
+                </div>
+              )}
 
               {selectedHistoryItem.service === 'Psychosocial support and assistance' && selectedHistoryItem.psychosocialInfo && (
                 <div className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
@@ -1522,6 +1672,16 @@ const Schedule = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {showTimelineModal && timelineAppointment && (
+        <SessionTimelineModal
+          appointment={timelineAppointment}
+          onClose={() => {
+            setShowTimelineModal(false);
+            setTimelineAppointment(null);
+          }}
+        />
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-// routes/adminAppointmentRoutes.js - IMPROVED WITH ENHANCED DEBUGGING
+// routes/adminAppointmentRoutes.js - COMPLETE WITH HIV STATUS FIX
 import express from 'express';
 import mongoose from 'mongoose';
 import Appointment from '../models/appointment.js';
@@ -19,6 +19,7 @@ router.get('/appointments', isAuthenticated, isAdmin, async (req, res) => {
       .populate('assignedCaseManager', 'name username email')
       .populate('assignedBy', 'name username')
       .populate('sessionTracking.sessionNotes.caseManagerId', 'name username')
+      .populate('hivStatus.confirmedBy', 'name username')
       .sort({ createdAt: -1 });
 
     console.log(`✅ Found ${appointments.length} appointments`);
@@ -30,13 +31,12 @@ router.get('/appointments', isAuthenticated, isAdmin, async (req, res) => {
 });
 
 // ============================================
-// 🆕 GET AVAILABLE CASE MANAGERS WITH WORKLOAD - Admin Only
+// GET AVAILABLE CASE MANAGERS WITH WORKLOAD - Admin Only
 // ============================================
 router.get('/appointments/case-managers/available', isAuthenticated, isAdmin, async (req, res) => {
   try {
     console.log('👥 Fetching case managers with workload info');
 
-    // Get all case managers
     const caseManagers = await User.find({ 
       role: 'case_manager',
       isActive: true
@@ -44,24 +44,19 @@ router.get('/appointments/case-managers/available', isAuthenticated, isAdmin, as
 
     console.log(`Found ${caseManagers.length} case managers in database`);
 
-    // Maximum appointments per case manager
     const MAX_APPOINTMENTS = 5;
 
-    // Get appointment counts for each case manager
     const workloadData = await Promise.all(
       caseManagers.map(async (cm) => {
-        // Count ONLY active appointments (confirmed or pending)
         const activeCount = await Appointment.countDocuments({
           assignedCaseManager: cm._id,
           status: { $in: ['pending', 'confirmed'] }
         });
 
-        // Count total appointments ever assigned
         const totalCount = await Appointment.countDocuments({
           assignedCaseManager: cm._id
         });
 
-        // Count completed appointments
         const completedCount = await Appointment.countDocuments({
           assignedCaseManager: cm._id,
           status: 'completed'
@@ -69,7 +64,6 @@ router.get('/appointments/case-managers/available', isAuthenticated, isAdmin, as
 
         console.log(`📊 ${cm.name || cm.username}: Active=${activeCount}, Total=${totalCount}, Completed=${completedCount}`);
 
-        // Calculate availability
         const remainingSlots = MAX_APPOINTMENTS - activeCount;
         const isAvailable = activeCount < MAX_APPOINTMENTS;
 
@@ -78,13 +72,11 @@ router.get('/appointments/case-managers/available', isAuthenticated, isAdmin, as
           name: cm.name,
           username: cm.username,
           email: cm.email,
-          // Frontend expects these properties:
           activeAppointments: activeCount,
           totalAppointments: totalCount,
           completedAppointments: completedCount,
           remainingSlots: remainingSlots,
           isAvailable: isAvailable,
-          // Also include workload object for backward compatibility
           workload: {
             active: activeCount,
             total: totalCount,
@@ -94,7 +86,6 @@ router.get('/appointments/case-managers/available', isAuthenticated, isAdmin, as
       })
     );
 
-    // Sort by active workload (least busy first)
     workloadData.sort((a, b) => a.activeAppointments - b.activeAppointments);
 
     console.log('✅ Case Manager Summary:');
@@ -113,7 +104,7 @@ router.get('/appointments/case-managers/available', isAuthenticated, isAdmin, as
 });
 
 // ============================================
-// 🆕 GET APPOINTMENT STATISTICS - Admin Only
+// GET APPOINTMENT STATISTICS - Admin Only
 // ============================================
 router.get('/appointments/stats/overview', isAuthenticated, isAdmin, async (req, res) => {
   try {
@@ -125,8 +116,11 @@ router.get('/appointments/stats/overview', isAuthenticated, isAdmin, async (req,
       confirmedCount,
       completedCount,
       cancelledCount,
-      assignedCount,
-      unassignedCount,
+      psychosocialAssignedCount,
+      psychosocialUnassignedCount,
+      testingTotalCount,
+      testingPendingCount,
+      testingCompletedCount,
       todayCount
     ] = await Promise.all([
       Appointment.countDocuments(),
@@ -134,8 +128,23 @@ router.get('/appointments/stats/overview', isAuthenticated, isAdmin, async (req,
       Appointment.countDocuments({ status: 'confirmed' }),
       Appointment.countDocuments({ status: 'completed' }),
       Appointment.countDocuments({ status: 'cancelled' }),
-      Appointment.countDocuments({ assignedCaseManager: { $ne: null } }),
-      Appointment.countDocuments({ assignedCaseManager: null }),
+      Appointment.countDocuments({ 
+        service: 'Psychosocial support and assistance',
+        assignedCaseManager: { $ne: null } 
+      }),
+      Appointment.countDocuments({ 
+        service: 'Psychosocial support and assistance',
+        assignedCaseManager: null 
+      }),
+      Appointment.countDocuments({ service: 'Testing and Counseling' }),
+      Appointment.countDocuments({ 
+        service: 'Testing and Counseling',
+        status: 'pending' 
+      }),
+      Appointment.countDocuments({ 
+        service: 'Testing and Counseling',
+        status: 'completed' 
+      }),
       Appointment.countDocuments({
         date: new Date().toISOString().split('T')[0]
       })
@@ -147,8 +156,13 @@ router.get('/appointments/stats/overview', isAuthenticated, isAdmin, async (req,
       confirmed: confirmedCount,
       completed: completedCount,
       cancelled: cancelledCount,
-      assigned: assignedCount,
-      unassigned: unassignedCount,
+      withCaseManager: psychosocialAssignedCount,
+      withoutCaseManager: psychosocialUnassignedCount,
+      testing: {
+        total: testingTotalCount,
+        pending: testingPendingCount,
+        completed: testingCompletedCount
+      },
       today: todayCount
     };
 
@@ -161,7 +175,77 @@ router.get('/appointments/stats/overview', isAuthenticated, isAdmin, async (req,
 });
 
 // ============================================
-// 🆕 CASE MANAGER PLANNER - Get assigned appointments with stats
+// UPDATE HIV STATUS - Admin Only (FIXED ROUTE)
+// ============================================
+router.put('/appointments/:id/hiv-status', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { status, notes } = req.body;
+    const adminId = req.user.id;
+
+    console.log('🔬 Admin updating HIV status:', {
+      appointmentId: req.params.id,
+      status,
+      adminId
+    });
+
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    if (appointment.service !== 'Testing and Counseling') {
+      return res.status(400).json({ 
+        error: 'HIV status can only be set for Testing and Counseling appointments' 
+      });
+    }
+
+    if (!status || !['positive', 'negative'].includes(status)) {
+      return res.status(400).json({ 
+        error: 'Valid status (positive or negative) is required' 
+      });
+    }
+
+    appointment.hivStatus = {
+      status,
+      confirmedBy: adminId,
+      confirmedAt: new Date(),
+      notes: notes || ''
+    };
+
+    // Auto-complete the appointment when HIV status is set
+    if (appointment.status !== 'completed') {
+      appointment.status = 'completed';
+      appointment.completedAt = new Date();
+      appointment.completedBy = adminId;
+    }
+
+    await appointment.save();
+
+    await appointment.populate([
+      { path: 'user', select: 'name email username' },
+      { path: 'hivStatus.confirmedBy', select: 'name username' },
+      { path: 'completedBy', select: 'name username' }
+    ]);
+
+    console.log('✅ HIV status updated successfully');
+
+    res.json({
+      success: true,
+      message: 'HIV status updated and appointment completed',
+      appointment
+    });
+  } catch (error) {
+    console.error('❌ Error updating HIV status:', error);
+    res.status(500).json({ 
+      error: 'Failed to update HIV status',
+      details: error.message
+    });
+  }
+});
+
+// ============================================
+// CASE MANAGER PLANNER - Get assigned appointments with stats
 // ============================================
 router.get('/planner', isAuthenticated, isCaseManager, async (req, res) => {
   try {
@@ -170,19 +254,16 @@ router.get('/planner', isAuthenticated, isCaseManager, async (req, res) => {
 
     console.log(`📅 Fetching planner for case manager: ${caseManagerId}`);
 
-    // Build query
     const query = { assignedCaseManager: caseManagerId };
     if (status) {
       query.status = status;
     }
 
-    // Fetch appointments
     let appointments = await Appointment.find(query)
       .populate('user', 'name email username fullName age gender location')
       .populate('assignedBy', 'name username')
       .populate('sessionTracking.sessionNotes.caseManagerId', 'name username');
 
-    // Sort appointments
     if (sortBy === 'date') {
       appointments.sort((a, b) => new Date(a.date) - new Date(b.date));
     } else if (sortBy === 'status') {
@@ -191,7 +272,6 @@ router.get('/planner', isAuthenticated, isCaseManager, async (req, res) => {
       appointments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
 
-    // Calculate stats
     const stats = {
       total: appointments.length,
       pending: appointments.filter(a => a.status === 'pending').length,
@@ -234,9 +314,8 @@ router.get('/my-assigned', isAuthenticated, isCaseManager, async (req, res) => {
 });
 
 // ============================================
-// 🔥 ASSIGN CASE MANAGER - Admin Only (ENHANCED WITH DEBUGGING)
+// ASSIGN CASE MANAGER - Admin Only
 // ============================================
-// routes/adminAppointmentRoutes.js - FIXED ASSIGN ROUTE
 router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res) => {
   try {
     console.log('═══════════════════════════════════════════════════');
@@ -254,7 +333,6 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     const adminId = req.user.id;
     const appointmentId = req.params.id;
 
-    // ✅ Step 1: Validate case manager ID is provided
     if (!caseManagerId) {
       console.log('❌ FAILED: No case manager ID provided');
       return res.status(400).json({ 
@@ -263,7 +341,6 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     }
     console.log('✅ Step 1: Case manager ID provided:', caseManagerId);
 
-    // ✅ Step 2: Validate ID formats
     if (!mongoose.Types.ObjectId.isValid(caseManagerId)) {
       console.log('❌ FAILED: Invalid case manager ID format');
       return res.status(400).json({ 
@@ -279,7 +356,6 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     }
     console.log('✅ Step 2: ID formats are valid');
 
-    // ✅ Step 3: Verify case manager exists and has correct role
     console.log('🔍 Looking up case manager in database...');
     const caseManager = await User.findOne({ 
       _id: caseManagerId, 
@@ -314,7 +390,6 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     console.log('   Name:', caseManager.name || caseManager.username);
     console.log('   Email:', caseManager.email);
 
-    // ✅ Step 4: Find appointment
     console.log('🔍 Looking up appointment in database...');
     const appointment = await Appointment.findById(appointmentId);
     
@@ -333,14 +408,12 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     console.log('   Current Status:', appointment.status);
     console.log('   Currently Assigned:', appointment.assignedCaseManager || 'None');
 
-    // ✅ Step 5: Check if already assigned
     if (appointment.assignedCaseManager) {
       console.log('⚠️  Appointment already has a case manager assigned');
       console.log('   Current CM:', appointment.assignedCaseManager);
       console.log('   Will reassign to new CM');
     }
 
-    // ✅ Step 6: Perform assignment
     console.log('💾 Updating appointment...');
     const oldStatus = appointment.status;
     
@@ -348,20 +421,16 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     appointment.assignedAt = new Date();
     appointment.assignedBy = adminId;
     
-    // Auto-confirm if currently pending
     if (appointment.status === 'pending') {
       appointment.status = 'confirmed';
       console.log('✅ Status auto-changed: pending → confirmed');
     }
 
-    // Save appointment FIRST before updating user
     await appointment.save();
     console.log('✅ Step 6: Appointment saved to database');
 
-    // ✅ Step 7: Update user's assignedCaseManager field
     console.log('💾 Updating user assignedCaseManager field...');
     try {
-      // Get the user ID (it's just the ObjectId, not populated yet)
       const userId = appointment.user;
       console.log('   User ID to update:', userId);
       
@@ -380,11 +449,8 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
       }
     } catch (userUpdateErr) {
       console.error('⚠️  Error updating user assignedCaseManager (non-critical):', userUpdateErr.message);
-      // Don't fail the whole operation if user update fails
-      // The appointment assignment is what matters most
     }
 
-    // ✅ Step 8: Populate references
     console.log('🔄 Populating referenced documents...');
     await appointment.populate([
       { path: 'user', select: 'name email username fullName age gender location' },
@@ -393,7 +459,6 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     ]);
     console.log('✅ Step 8: References populated');
 
-    // ✅ Success!
     console.log('═══════════════════════════════════════════════════');
     console.log('🎉 ASSIGNMENT SUCCESSFUL!');
     console.log('═══════════════════════════════════════════════════');
@@ -443,7 +508,6 @@ router.put('/appointments/:id/unassign', isAuthenticated, isAdmin, async (req, r
     appointment.assignedAt = null;
     appointment.assignedBy = null;
     
-    // Set back to pending when unassigned
     if (appointment.status === 'confirmed') {
       appointment.status = 'pending';
     }
@@ -479,7 +543,6 @@ router.put('/appointments/:id/status', isAuthenticated, isCaseManager, async (re
       return res.status(404).json({ error: 'Appointment not found' });
     }
 
-    // Case managers can only update appointments assigned to them
     const user = await User.findById(userId);
     if (user.role === 'case_manager') {
       if (!appointment.assignedCaseManager || 
@@ -584,7 +647,6 @@ router.post('/appointments/:id/session-note', isAuthenticated, isCaseManager, as
       return res.status(404).json({ error: 'Appointment not found' });
     }
 
-    // Verify case manager is assigned to this appointment
     const user = await User.findById(caseManagerId);
     if (user.role === 'case_manager') {
       if (!appointment.assignedCaseManager || 
@@ -641,6 +703,138 @@ router.delete('/appointments/:id', isAuthenticated, isAdmin, async (req, res) =>
   } catch (err) {
     console.error('❌ Error deleting appointment:', err);
     res.status(500).json({ error: 'Failed to delete appointment' });
+  }
+});
+
+// ============================================
+// GET SATURDAY REQUESTS (Pending Approval)
+// ============================================
+router.get('/saturday-requests', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    console.log('📅 Fetching Saturday appointment requests');
+
+    const saturdayRequests = await Appointment.find({
+      'saturdayRequest.requested': true,
+      'saturdayRequest.approved': null,
+      status: 'pending'
+    })
+    .populate('user', 'name email username')
+    .sort({ 'saturdayRequest.requestedAt': -1 });
+
+    console.log(`✅ Found ${saturdayRequests.length} Saturday requests`);
+    
+    res.json({
+      success: true,
+      requests: saturdayRequests
+    });
+  } catch (err) {
+    console.error('❌ Error fetching Saturday requests:', err);
+    res.status(500).json({ error: 'Failed to fetch Saturday requests' });
+  }
+});
+
+// ============================================
+// APPROVE/REJECT SATURDAY REQUEST
+// ============================================
+router.post('/saturday-requests/:id/process', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { approved, adminNotes } = req.body;
+    const adminId = req.user.id;
+    const appointmentId = req.params.id;
+
+    console.log(`📅 Processing Saturday request for appointment: ${appointmentId}`);
+    console.log(`Decision: ${approved ? 'APPROVED' : 'REJECTED'}`);
+
+    if (typeof approved !== 'boolean') {
+      return res.status(400).json({
+        error: 'Approved field is required and must be boolean'
+      });
+    }
+
+    const appointment = await Appointment.findById(appointmentId);
+
+    if (!appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    if (!appointment.saturdayRequest?.requested) {
+      return res.status(400).json({
+        error: 'This appointment does not have a Saturday request'
+      });
+    }
+
+    if (appointment.saturdayRequest.approved !== null) {
+      return res.status(400).json({
+        error: 'Saturday request has already been processed'
+      });
+    }
+
+    appointment.saturdayRequest.approved = approved;
+    appointment.saturdayRequest.processedBy = adminId;
+    appointment.saturdayRequest.processedAt = new Date();
+    appointment.saturdayRequest.adminNotes = adminNotes || '';
+
+    if (!approved) {
+      appointment.status = 'cancelled';
+    }
+
+    await appointment.save();
+    await appointment.populate([
+      { path: 'user', select: 'name email username' },
+      { path: 'saturdayRequest.processedBy', select: 'name username' }
+    ]);
+
+    const message = approved 
+      ? '✅ Saturday appointment request approved'
+      : '❌ Saturday appointment request rejected';
+
+    console.log(message);
+
+    res.json({
+      success: true,
+      message,
+      appointment
+    });
+  } catch (err) {
+    console.error('❌ Error processing Saturday request:', err);
+    res.status(500).json({
+      error: 'Failed to process Saturday request',
+      details: err.message
+    });
+  }
+});
+
+// ============================================
+// GET ALL SATURDAY REQUESTS (including processed)
+// ============================================
+router.get('/saturday-requests/all', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    console.log('📅 Fetching all Saturday appointment requests');
+
+    const allRequests = await Appointment.find({
+      'saturdayRequest.requested': true
+    })
+    .populate('user', 'name email username')
+    .populate('saturdayRequest.processedBy', 'name username')
+    .sort({ 'saturdayRequest.requestedAt': -1 });
+
+    const pending = allRequests.filter(r => r.saturdayRequest.approved === null);
+    const approved = allRequests.filter(r => r.saturdayRequest.approved === true);
+    const rejected = allRequests.filter(r => r.saturdayRequest.approved === false);
+
+    res.json({
+      success: true,
+      requests: allRequests,
+      stats: {
+        total: allRequests.length,
+        pending: pending.length,
+        approved: approved.length,
+        rejected: rejected.length
+      }
+    });
+  } catch (err) {
+    console.error('❌ Error fetching all Saturday requests:', err);
+    res.status(500).json({ error: 'Failed to fetch Saturday requests' });
   }
 });
 
