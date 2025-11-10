@@ -1,10 +1,13 @@
+// Profile.jsx - Updated with navigation to Home feature
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../components/ConfirmModal';
+import { Eye, EyeOff } from 'lucide-react';
 
 const Profile = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const { confirm } = useConfirm();
   
@@ -15,6 +18,9 @@ const Profile = () => {
   const [changingPassword, setChangingPassword] = useState(false);
   const [savedPosts, setSavedPosts] = useState([]);
   const [savedLoading, setSavedLoading] = useState(true);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -167,15 +173,32 @@ const Profile = () => {
 
   const handlePasswordToggle = () => {
     setChangingPassword(!changingPassword);
+    // Clear form when toggling
+    if (!changingPassword) {
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    }
   };
 
   const handleSavePassword = async () => {
+    // Validation
+    if (!passwordForm.currentPassword) {
+      toast.error('Please enter your current password');
+      return;
+    }
+    
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       toast.error('New passwords do not match!');
       return;
     }
+    
     if (passwordForm.newPassword.length < 6) {
       toast.error('New password must be at least 6 characters!');
+      return;
+    }
+
+    // Check if new password is same as current
+    if (passwordForm.currentPassword === passwordForm.newPassword) {
+      toast.error('New password must be different from current password');
       return;
     }
 
@@ -188,15 +211,22 @@ const Profile = () => {
         body: JSON.stringify(passwordForm)
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const data = await response.json();
         toast.error('Failed to change password: ' + (data.msg || 'Unknown error'));
         return;
       }
 
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setChangingPassword(false);
-      toast.success('Password changed successfully!');
+      toast.success('Password changed successfully! Please login again for security.');
+      
+      // Optional: Log user out after password change for security
+      setTimeout(() => {
+        localStorage.removeItem('token');
+        navigate('/user/login');
+      }, 2000);
     } catch (err) {
       toast.error('Error changing password: ' + err.message);
     } finally {
@@ -233,6 +263,15 @@ const Profile = () => {
       console.error('Unsave error:', err);
       toast.error(err.message || 'Unsave failed');
     }
+  };
+
+  const handleViewPostOnHome = (postId) => {
+    navigate('/user/home', { 
+      state: { 
+        scrollToPost: postId,
+        fromSavedPosts: true 
+      } 
+    });
   };
 
   if (loading) {
@@ -324,7 +363,7 @@ const Profile = () => {
                 />
               </div>
 
-                            <div className="form-control">
+              <div className="form-control">
                 <label className="label">
                   <span className="label-text text-[#4C8DD8]">Email</span>
                 </label>
@@ -334,6 +373,11 @@ const Profile = () => {
                   className="input input-bordered w-full border-[#4C8DD8]/20"
                   disabled
                 />
+                <label className="label">
+                  <span className="label-text-alt text-[#4C8DD8]/60">
+                    Email cannot be changed
+                  </span>
+                </label>
               </div>
 
               <div className="flex justify-end space-x-2">
@@ -384,42 +428,69 @@ const Profile = () => {
                 <label className="label">
                   <span className="label-text text-[#4C8DD8]">Current Password</span>
                 </label>
-                <input
-                  type="password"
-                  value={passwordForm.currentPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                  className="input input-bordered w-full border-[#4C8DD8]/20 focus:border-[#4C8DD8]"
-                  placeholder="Enter current password"
-                  disabled={loading}
-                />
+                <div className="relative">
+                  <input
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                    className="input input-bordered w-full border-[#4C8DD8]/20 focus:border-[#4C8DD8] pr-12"
+                    placeholder="Enter current password"
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
 
               <div className="form-control">
                 <label className="label">
                   <span className="label-text text-[#4C8DD8]">New Password</span>
                 </label>
-                <input
-                  type="password"
-                  value={passwordForm.newPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                  className="input input-bordered w-full border-[#4C8DD8]/20 focus:border-[#4C8DD8]"
-                  placeholder="Enter new password"
-                  disabled={loading}
-                />
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    className="input input-bordered w-full border-[#4C8DD8]/20 focus:border-[#4C8DD8] pr-12"
+                    placeholder="Enter new password"
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
 
               <div className="form-control">
                 <label className="label">
                   <span className="label-text text-[#4C8DD8]">Confirm New Password</span>
                 </label>
-                <input
-                  type="password"
-                  value={passwordForm.confirmPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                  className="input input-bordered w-full border-[#4C8DD8]/20 focus:border-[#4C8DD8]"
-                  placeholder="Confirm new password"
-                  disabled={loading}
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                    className="input input-bordered w-full border-[#4C8DD8]/20 focus:border-[#4C8DD8] pr-12"
+                    placeholder="Confirm new password"
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
 
               <div className="flex justify-end space-x-2">
@@ -510,6 +581,14 @@ const Profile = () => {
                     </span>
                     <span>{new Date(post.createdAt).toLocaleDateString()}</span>
                   </div>
+                  
+                  {/* ✅ NEW: View on Home button */}
+                  <button
+                    onClick={() => handleViewPostOnHome(post._id)}
+                    className="mt-2 btn btn-sm bg-[#4C8DD8] hover:bg-[#4C8DD8]/90 text-white"
+                  >
+                    View on Home
+                  </button>
                 </div>
 
                 <button

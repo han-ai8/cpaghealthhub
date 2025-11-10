@@ -1,4 +1,5 @@
 import Clinic from '../models/Clinic.js';
+import User from '../models/User.js'; 
 
 // Get all clinics
 export const getAllClinics = async (req, res) => {
@@ -65,7 +66,7 @@ export const getClinicById = async (req, res) => {
   }
 };
 
-// Create new clinic
+
 export const createClinic = async (req, res) => {
   try {
     console.log('📍 POST /api/clinics - Creating new clinic');
@@ -73,9 +74,7 @@ export const createClinic = async (req, res) => {
     
     const { name, municipality, address, contact, hours, lat, lng } = req.body;
 
-    // Validation
     if (!name || !municipality || !address || !contact || !lat || !lng) {
-      console.log('❌ Validation failed - missing required fields');
       return res.status(400).json({
         success: false,
         message: 'Please provide all required fields: name, municipality, address, contact, lat, lng'
@@ -92,6 +91,14 @@ export const createClinic = async (req, res) => {
       lng
     });
 
+    // ✅ ADD THIS: Send notifications to all users
+    const notificationService = req.app.get('notificationService');
+    const allUsers = await User.find({ role: 'user' }).select('_id');
+    const userIds = allUsers.map(u => u._id);
+    
+    await notificationService.notifyNewClinic(clinic, userIds);
+    console.log(`✅ Sent ${userIds.length} notifications for new clinic`);
+
     console.log('✅ Clinic created successfully:', clinic._id);
     res.status(201).json({
       success: true,
@@ -107,6 +114,7 @@ export const createClinic = async (req, res) => {
     });
   }
 };
+
 
 // Update clinic
 export const updateClinic = async (req, res) => {

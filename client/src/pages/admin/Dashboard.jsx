@@ -2,39 +2,74 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../components/ConfirmModal';
-import api from '../../utils/api'; // ✅ Import API client
+import api from '../../utils/api';
+import {
+  User,
+  CheckCircle,
+  XCircle,
+  MessageCircle,
+  RefreshCw,
+  ImageIcon,
+  Edit2,
+  Trash2,
+  ChevronUp,
+  ChevronDown
+} from 'lucide-react';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const toast = useToast();
   const { confirm } = useConfirm();
-  
-  const [users, setUsers] = useState([]);
+
+  // data
+  const [users, setUsers] = useState([]); // still used for stats
   const [announcement, setAnnouncement] = useState(null);
   const [pendingPosts, setPendingPosts] = useState([]);
   const [adminPosts, setAdminPosts] = useState([]);
+  const [allComments, setAllComments] = useState([]);
+
+  // UI + loading
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // announcement / post creation
   const [annTitle, setAnnTitle] = useState('');
   const [annContent, setAnnContent] = useState('');
   const [postContent, setPostContent] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [editingPostId, setEditingPostId] = useState(null);
 
-  const [allComments, setAllComments] = useState([]);
+  // reply controls
   const [replyText, setReplyText] = useState({});
   const [submittingReply, setSubmittingReply] = useState({});
   const [expandedComments, setExpandedComments] = useState({});
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-  // ✅ Removed getAuthHeaders() - api client handles this automatically
+  // --- Sorting / selection / search state for Comments, Pending, Admin ---
+  // Comments
+  const [commentsSortBy, setCommentsSortBy] = useState('createdAt');
+  const [commentsSortAsc, setCommentsSortAsc] = useState(false);
+  const [selectedComments, setSelectedComments] = useState({}); // { commentId: { postId, postType } }
+  const [commentsSearch, setCommentsSearch] = useState('');
+
+  // Pending posts
+  const [pendingSortBy, setPendingSortBy] = useState('createdAt');
+  const [pendingSortAsc, setPendingSortAsc] = useState(false);
+  const [selectedPendingPosts, setSelectedPendingPosts] = useState(() => new Set());
+  const [pendingSearch, setPendingSearch] = useState('');
+
+  // Admin posts
+  const [adminSortBy, setAdminSortBy] = useState('createdAt');
+  const [adminSortAsc, setAdminSortAsc] = useState(false);
+  const [selectedAdminPosts, setSelectedAdminPosts] = useState(() => new Set());
+  const [adminSearch, setAdminSearch] = useState('');
 
   useEffect(() => {
     if (user?.role && ['admin', 'content_moderator', 'case_manager'].includes(user.role)) {
       fetchData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const fetchData = async () => {
@@ -42,12 +77,11 @@ const Dashboard = () => {
       setLoading(true);
       setError(null);
 
-      // ✅ Updated: Use api client instead of fetch
       const userData = await api.get('/auth/users');
       setUsers(userData.users || []);
 
       const annData = await api.get('/announcements');
-      setAnnouncement(annData[0] || null);
+      setAnnouncement((annData && annData.length > 0) ? annData[0] : null);
 
       const postData = await api.get('/posts/all');
       setAdminPosts(postData.adminPosts || []);
@@ -56,8 +90,8 @@ const Dashboard = () => {
       await fetchAllComments();
     } catch (err) {
       console.error('Fetch data error:', err);
-      setError(err.message);
-      toast.error(err.message);
+      setError(err.message || 'Unknown error');
+      toast.error(err.message || 'Failed to load dashboard');
     } finally {
       setLoading(false);
     }
@@ -67,16 +101,15 @@ const Dashboard = () => {
     try {
       const comments = [];
 
-      // ✅ Updated: Use api client
       const announcements = await api.get('/announcements');
-      announcements.forEach(ann => {
+      (announcements || []).forEach(ann => {
         if (ann.comments && ann.comments.length > 0) {
           ann.comments.forEach(comment => {
             comments.push({
               ...comment,
               postId: ann._id,
               postTitle: ann.title,
-              postContent: ann.content.substring(0, 50) + '...',
+              postContent: (ann.content || '').substring(0, 50) + '...',
               postType: 'announcement'
             });
           });
@@ -84,15 +117,15 @@ const Dashboard = () => {
       });
 
       const postData = await api.get('/posts/all');
-      const adminPosts = postData.adminPosts || [];
-      adminPosts.forEach(post => {
+      const adminPostsLocal = postData.adminPosts || [];
+      adminPostsLocal.forEach(post => {
         if (post.comments && post.comments.length > 0) {
           post.comments.forEach(comment => {
             comments.push({
               ...comment,
               postId: post._id,
               postTitle: 'Post',
-              postContent: post.content.substring(0, 50) + '...',
+              postContent: (post.content || '').substring(0, 50) + '...',
               postType: 'post'
             });
           });
@@ -106,6 +139,7 @@ const Dashboard = () => {
     }
   };
 
+  // Reply handling (unchanged)
   const submitReply = async (commentId, postId, postType) => {
     const reply = replyText[commentId];
     if (!reply || !reply.trim()) {
@@ -115,9 +149,8 @@ const Dashboard = () => {
 
     try {
       setSubmittingReply(prev => ({ ...prev, [commentId]: true }));
-      
-      // ✅ Updated: Use api client
-      const endpoint = postType === 'announcement' 
+
+      const endpoint = postType === 'announcement'
         ? `/announcements/${postId}/comments/${commentId}/reply`
         : `/posts/${postId}/comments/${commentId}/reply`;
 
@@ -128,7 +161,7 @@ const Dashboard = () => {
       await fetchAllComments();
     } catch (err) {
       console.error('Reply error:', err);
-      toast.error('Failed to post reply: ' + err.message);
+      toast.error('Failed to post reply: ' + (err.message || ''));
     } finally {
       setSubmittingReply(prev => ({ ...prev, [commentId]: false }));
     }
@@ -145,7 +178,6 @@ const Dashboard = () => {
     if (!confirmed) return;
 
     try {
-      // ✅ Updated: Use api client
       const endpoint = postType === 'announcement'
         ? `/announcements/${postId}/comments/${commentId}`
         : `/posts/${postId}/comments/${commentId}`;
@@ -156,7 +188,7 @@ const Dashboard = () => {
       await fetchAllComments();
     } catch (err) {
       console.error('Delete comment error:', err);
-      toast.error('Failed to delete comment: ' + err.message);
+      toast.error('Failed to delete comment: ' + (err.message || ''));
     }
   };
 
@@ -175,10 +207,9 @@ const Dashboard = () => {
     }
 
     try {
-      // ✅ Updated: Use api client
-      await api.post('/announcements', { 
-        title: annTitle, 
-        content: annContent 
+      await api.post('/announcements', {
+        title: annTitle,
+        content: annContent
       });
 
       setAnnTitle('');
@@ -187,7 +218,7 @@ const Dashboard = () => {
       toast.success('Announcement created!');
     } catch (err) {
       console.error('Create announcement error:', err);
-      toast.error('Create failed: ' + err.message);
+      toast.error('Create failed: ' + (err.message || ''));
     }
   };
 
@@ -204,13 +235,12 @@ const Dashboard = () => {
     if (!confirmed) return;
 
     try {
-      // ✅ Updated: Use api client
       await api.delete(`/announcements/${announcement._id}`);
       setAnnouncement(null);
       toast.success('Announcement deleted');
     } catch (err) {
       console.error('Delete announcement error:', err);
-      toast.error('Delete failed: ' + err.message);
+      toast.error('Delete failed: ' + (err.message || ''));
     }
   };
 
@@ -227,7 +257,6 @@ const Dashboard = () => {
     if (imageFile) formData.append('image', imageFile);
 
     try {
-      // ✅ Updated: Use api client with upload for FormData
       if (editingPostId) {
         await api.upload(`/posts/${editingPostId}`, formData);
         toast.success('Post updated!');
@@ -242,7 +271,7 @@ const Dashboard = () => {
       fetchData();
     } catch (err) {
       console.error('Post submit error:', err);
-      toast.error('Operation failed: ' + err.message);
+      toast.error('Operation failed: ' + (err.message || ''));
     }
   };
 
@@ -264,13 +293,12 @@ const Dashboard = () => {
     if (!confirmed) return;
 
     try {
-      // ✅ Updated: Use api client
       await api.delete(`/posts/${postId}`);
       fetchData();
       toast.success('Post deleted');
     } catch (err) {
       console.error('Delete post error:', err);
-      toast.error('Delete failed: ' + err.message);
+      toast.error('Delete failed: ' + (err.message || ''));
     }
   };
 
@@ -284,43 +312,249 @@ const Dashboard = () => {
     if (!confirmed) return;
 
     try {
-      // ✅ Updated: Use api client
       await api.put(`/posts/${postId}/approve`, { status });
       fetchData();
       toast.success(`${status.charAt(0).toUpperCase() + status.slice(1)} successfully`);
     } catch (err) {
       console.error('Update post status error:', err);
-      toast.error('Update failed: ' + err.message);
+      toast.error('Update failed: ' + (err.message || ''));
     }
   };
 
-  const deleteUser = async (userId) => {
+  // ---------------------------
+  // Sorting & filtering helpers
+  // ---------------------------
+  const sortItems = (items = [], sortBy, asc = true) => {
+    const sorted = [...items].sort((a, b) => {
+      const aVal = a?.[sortBy] ?? '';
+      const bVal = b?.[sortBy] ?? '';
+
+      // try date
+      const aDate = Date.parse(aVal);
+      const bDate = Date.parse(bVal);
+      if (!isNaN(aDate) && !isNaN(bDate)) {
+        return asc ? aDate - bDate : bDate - aDate;
+      }
+
+      // booleans
+      if (typeof aVal === 'boolean' || typeof bVal === 'boolean') {
+        const aa = aVal ? 1 : 0;
+        const bb = bVal ? 1 : 0;
+        return asc ? aa - bb : bb - aa;
+      }
+
+      // numbers
+      if (!isNaN(Number(aVal)) && !isNaN(Number(bVal))) {
+        return asc ? Number(aVal) - Number(bVal) : Number(bVal) - Number(aVal);
+      }
+
+      // fallback string
+      const sa = String(aVal).toLowerCase();
+      const sb = String(bVal).toLowerCase();
+      if (sa < sb) return asc ? -1 : 1;
+      if (sa > sb) return asc ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  };
+
+  // Apply search filters then sort for each list.
+  const filteredComments = allComments.filter(c => {
+    if (!commentsSearch || commentsSearch.trim() === '') return true;
+    const q = commentsSearch.toLowerCase();
+    return (
+      String(c.author || '').toLowerCase().includes(q) ||
+      String(c.body || '').toLowerCase().includes(q) ||
+      String(c.postTitle || '').toLowerCase().includes(q)
+    );
+  });
+
+  const displayedComments = (() => {
+    if (commentsSortBy === 'hasReply') {
+      const arr = [...filteredComments].sort((a, b) => {
+        const aa = a.reply ? 1 : 0;
+        const bb = b.reply ? 1 : 0;
+        return commentsSortAsc ? aa - bb : bb - aa;
+      });
+      return arr;
+    }
+    if (commentsSortBy === 'author') {
+      return sortItems(filteredComments, 'author', commentsSortAsc);
+    }
+    return sortItems(filteredComments, 'createdAt', commentsSortAsc);
+  })();
+
+  const filteredPending = pendingPosts.filter(p => {
+    if (!pendingSearch || pendingSearch.trim() === '') return true;
+    const q = pendingSearch.toLowerCase();
+    return String(p.content || '').toLowerCase().includes(q);
+  });
+
+  const displayedPending = (() => {
+    if (pendingSortBy === 'contentLength') {
+      return [...filteredPending].sort((a, b) => pendingSortAsc ? a.content.length - b.content.length : b.content.length - a.content.length);
+    }
+    return sortItems(filteredPending, pendingSortBy, pendingSortAsc);
+  })();
+
+  const filteredAdmin = adminPosts.filter(p => {
+    if (!adminSearch || adminSearch.trim() === '') return true;
+    const q = adminSearch.toLowerCase();
+    return String(p.content || '').toLowerCase().includes(q);
+  });
+
+  const displayedAdmin = (() => {
+    if (adminSortBy === 'contentLength') {
+      return [...filteredAdmin].sort((a, b) => adminSortAsc ? a.content.length - b.content.length : b.content.length - a.content.length);
+    }
+    return sortItems(filteredAdmin, adminSortBy, adminSortAsc);
+  })();
+
+  // ---------------------------
+  // Selection handlers
+  // ---------------------------
+
+  // Comments selection: store mapping { commentId: { postId, postType } }
+  const toggleCommentSelect = (comment) => {
+    setSelectedComments(prev => {
+      const copy = { ...prev };
+      if (copy[comment._id]) {
+        delete copy[comment._id];
+      } else {
+        copy[comment._id] = { postId: comment.postId, postType: comment.postType };
+      }
+      return copy;
+    });
+  };
+  const toggleSelectAllComments = () => {
+    if (Object.keys(selectedComments).length === displayedComments.length && displayedComments.length > 0) {
+      setSelectedComments({});
+    } else {
+      const map = {};
+      displayedComments.forEach(c => { map[c._id] = { postId: c.postId, postType: c.postType }; });
+      setSelectedComments(map);
+    }
+  };
+
+  // Pending posts selection
+  const togglePendingSelect = (id) => {
+    setSelectedPendingPosts(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAllPending = () => {
+    if (selectedPendingPosts.size === displayedPending.length && displayedPending.length > 0) {
+      setSelectedPendingPosts(new Set());
+    } else {
+      setSelectedPendingPosts(new Set(displayedPending.map(p => p._id)));
+    }
+  };
+
+  // Admin posts selection
+  const toggleAdminSelect = (id) => {
+    setSelectedAdminPosts(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAllAdmin = () => {
+    if (selectedAdminPosts.size === displayedAdmin.length && displayedAdmin.length > 0) {
+      setSelectedAdminPosts(new Set());
+    } else {
+      setSelectedAdminPosts(new Set(displayedAdmin.map(p => p._id)));
+    }
+  };
+
+  // ---------------------------
+  // Bulk actions
+  // ---------------------------
+
+  // Bulk delete comments
+  const bulkDeleteComments = async () => {
+    const keys = Object.keys(selectedComments);
+    if (keys.length === 0) return;
     const confirmed = await confirm({
-      title: 'Delete User',
-      message: 'Delete this user? This action cannot be undone.',
+      title: 'Delete Comments',
+      message: `Delete ${keys.length} selected comment(s)? This cannot be undone.`,
       confirmText: 'Delete',
       type: 'danger'
     });
-
     if (!confirmed) return;
-
     try {
-      // ✅ Updated: Use api client
-      await api.delete(`/auth/users/${userId}`);
-      fetchData();
-      toast.success('User deleted');
+      await Promise.all(keys.map(commentId => {
+        const { postId, postType } = selectedComments[commentId];
+        const endpoint = postType === 'announcement'
+          ? `/announcements/${postId}/comments/${commentId}`
+          : `/posts/${postId}/comments/${commentId}`;
+        return api.delete(endpoint);
+      }));
+      toast.success(`${keys.length} comment(s) deleted`);
+      setSelectedComments({});
+      await fetchAllComments();
     } catch (err) {
-      console.error('Delete user error:', err);
-      toast.error('Delete failed: ' + err.message);
+      console.error('Bulk delete comments error:', err);
+      toast.error('Failed to delete comments: ' + (err.message || ''));
+    }
+  };
+
+  // Bulk approve / reject pending posts
+  const bulkUpdatePendingStatus = async (status) => {
+    if (selectedPendingPosts.size === 0) return;
+    const confirmed = await confirm({
+      title: `${status === 'approved' ? 'Approve' : 'Reject'} Posts`,
+      message: `${status === 'approved' ? 'Approve' : 'Reject'} ${selectedPendingPosts.size} selected post(s)?`,
+      confirmText: status === 'approved' ? 'Approve' : 'Reject',
+      type: status === 'approved' ? 'info' : 'danger'
+    });
+    if (!confirmed) return;
+    try {
+      const ids = Array.from(selectedPendingPosts);
+      await Promise.all(ids.map(id => api.put(`/posts/${id}/approve`, { status })));
+      toast.success(`${ids.length} post(s) ${status === 'approved' ? 'approved' : 'rejected'}`);
+      setSelectedPendingPosts(new Set());
+      fetchData();
+    } catch (err) {
+      console.error('Bulk update pending posts error:', err);
+      toast.error('Failed to update posts: ' + (err.message || ''));
+    }
+  };
+
+  // Bulk delete admin posts
+  const bulkDeleteAdminPosts = async () => {
+    if (selectedAdminPosts.size === 0) return;
+    const confirmed = await confirm({
+      title: 'Delete Posts',
+      message: `Delete ${selectedAdminPosts.size} selected admin post(s)? This cannot be undone.`,
+      confirmText: 'Delete',
+      type: 'danger'
+    });
+    if (!confirmed) return;
+    try {
+      const ids = Array.from(selectedAdminPosts);
+      await Promise.all(ids.map(id => api.delete(`/posts/${id}`)));
+      toast.success(`${ids.length} post(s) deleted`);
+      setSelectedAdminPosts(new Set());
+      fetchData();
+    } catch (err) {
+      console.error('Bulk delete admin posts error:', err);
+      toast.error('Failed to delete posts: ' + (err.message || ''));
     }
   };
 
   if (loading) {
     return (
-      <div className="p-8 flex justify-center items-center min-h-screen">
+      <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
         <div className="text-center">
-          <span className="loading loading-spinner loading-lg"></span>
-          <p className="mt-4">Loading dashboard...</p>
+          <div className="animate-spin inline-block p-4 bg-white rounded-full shadow-md">
+            <RefreshCw className="w-8 h-8 text-blue-600" />
+          </div>
+          <p className="mt-4 text-sm text-slate-600">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -328,378 +562,473 @@ const Dashboard = () => {
 
   if (error) {
     return (
-      <div className="p-8">
-        <div className="alert alert-error max-w-2xl mx-auto">
-          <span>{error}</span>
-          <button onClick={fetchData} className="btn btn-sm">Retry</button>
+      <div className="p-6 max-w-3xl mx-auto">
+        <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded shadow-sm">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="font-semibold text-red-700">Error</p>
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+            <button onClick={fetchData} className="inline-flex items-center gap-2 px-3 py-1 rounded bg-blue-600 text-white text-sm">
+              <RefreshCw className="w-4 h-4" /> Retry
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
+  // Stats still use users (we didn't remove fetching since stats are part of the original layout)
   const activeCount = users.filter(u => u.active !== false).length;
   const inactiveCount = users.length - activeCount;
-  const userSummaries = users.slice(0, 3);
   const unrespondedComments = allComments.filter(c => !c.reply).length;
 
   return (
-    <div className="space-y-6 p-8">
-      {/* Stats Section */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded shadow flex flex-col items-center">
-          <div className="text-lg font-bold text-green-700">{activeCount}</div>
-          <div className="text-gray-600 text-sm">Active Users</div>
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-blue-900">Admin Dashboard</h1>
+          <p className="text-sm text-slate-500">Manage announcements, posts and replies.</p>
         </div>
-        <div className="bg-white p-4 rounded shadow flex flex-col items-center">
-          <div className="text-lg font-bold text-red-700">{inactiveCount}</div>
-          <div className="text-gray-600 text-sm">Inactive Users</div>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="font-semibold mb-2">Pending Posts</div>
-          <p className="text-sm">{pendingPosts.length}</p>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="font-semibold mb-2">Admin Posts</div>
-          <p className="text-sm">{adminPosts.length}</p>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="font-semibold mb-2">Pending Replies</div>
-          <p className="text-sm text-orange-600 font-bold">{unrespondedComments}</p>
-        </div>
-      </div>
-
-      {/* Comment Management Section */}
-      <div className="bg-white p-6 rounded shadow space-y-3">
-        <div className="flex justify-between items-center">
-          <h2 className="font-bold text-lg">User Comments & Replies</h2>
-          <button 
-            className="btn btn-sm btn-primary" 
-            onClick={() => fetchAllComments()}
-          >
-            Refresh Comments
+        <div className="flex items-center gap-3">
+          <button onClick={fetchData} className="inline-flex items-center gap-2 px-3 py-2 rounded bg-blue-600 text-white text-sm shadow-sm">
+            <RefreshCw className="w-4 h-4" /> Refresh
           </button>
-        </div>
-
-        {allComments.length > 0 ? (
-          <div className="space-y-4">
-            {/* ✅ FIXED: Added key prop */}
-            {allComments.map((comment) => (
-              <div key={comment._id} className="border rounded p-4 bg-gray-50">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-blue-900">{comment.author}</span>
-                      <span className={`badge badge-sm ${comment.postType === 'announcement' ? 'badge-primary' : 'badge-secondary'}`}>
-                        {comment.postType}
-                      </span>
-                      {!comment.reply && (
-                        <span className="badge badge-warning badge-sm">Needs Reply</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 mb-1">
-                      {new Date(comment.createdAt).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-gray-600 italic">
-                      On: {comment.postTitle} - {comment.postContent}
-                    </p>
-                  </div>
-                  <button
-                    className="btn btn-xs btn-error"
-                    onClick={() => deleteComment(comment._id, comment.postId, comment.postType)}
-                  >
-                    Delete
-                  </button>
-                </div>
-
-                <div className="bg-white p-3 rounded mb-3">
-                  <p className="text-gray-800">{comment.body}</p>
-                </div>
-
-                {comment.reply && (
-                  <div className="bg-blue-50 p-3 rounded border-l-4 border-blue-500 mb-3">
-                    <p className="font-semibold text-sm text-blue-800">{comment.reply.author}</p>
-                    <p className="text-xs text-gray-500 mb-1">
-                      {new Date(comment.reply.createdAt).toLocaleString()}
-                    </p>
-                    <p className="text-gray-700">{comment.reply.body}</p>
-                  </div>
-                )}
-
-                {(!comment.reply || expandedComments[comment._id]) && (
-                  <div className="mt-3">
-                    {comment.reply && (
-                      <button
-                        className="btn btn-xs btn-ghost mb-2"
-                        onClick={() => toggleCommentExpansion(comment._id)}
-                      >
-                        {expandedComments[comment._id] ? 'Cancel Edit Reply' : 'Edit Reply'}
-                      </button>
-                    )}
-                    <textarea
-                      className="textarea textarea-bordered w-full mb-2"
-                      placeholder={comment.reply ? "Edit your reply..." : "Write your reply..."}
-                      rows="2"
-                      value={replyText[comment._id] || ''}
-                      onChange={(e) => setReplyText(prev => ({
-                        ...prev,
-                        [comment._id]: e.target.value
-                      }))}
-                    />
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={() => submitReply(comment._id, comment.postId, comment.postType)}
-                      disabled={submittingReply[comment._id]}
-                    >
-                      {submittingReply[comment._id] 
-                        ? 'Submitting...' 
-                        : comment.reply ? 'Update Reply' : 'Post Reply'
-                      }
-                    </button>
-                  </div>
-                )}
-
-                {comment.reply && !expandedComments[comment._id] && (
-                  <button
-                    className="btn btn-xs btn-ghost mt-2"
-                    onClick={() => toggleCommentExpansion(comment._id)}
-                  >
-                    Edit Reply
-                  </button>
-                )}
-              </div>
-            ))}
+          <div className="hidden md:flex items-center gap-2 text-sm text-slate-600">
+             Signed in as <span className="ml-2 font-medium">{user?.name || user?.email}</span>
           </div>
-        ) : (
-          <p className="text-gray-500">No comments yet.</p>
-        )}
-      </div>
-
-      {/* Announcement Management */}
-      <div className="bg-white p-6 rounded shadow space-y-3">
-        <div className="flex justify-between items-center">
-          <h2 className="font-bold text-lg">Announcement</h2>
-          <button className="btn btn-sm btn-primary" onClick={() => fetchData()}>
-            Refresh
-          </button>
         </div>
+      </header>
 
-        {announcement ? (
-          <>
-            <p className="font-bold">{announcement.title}</p>
-            <p>{announcement.content}</p>
-            {announcement.image && (
-              <img 
-                src={`${API_URL.replace('/api', '')}${announcement.image}`} 
-                alt="Announcement" 
-                className="max-w-xs mt-2" 
-              />
-            )}
-            <button 
-              onClick={deleteAnnouncement} 
-              className="btn btn-sm btn-error"
-            >
-              Delete
-            </button>
-          </>
-        ) : (
-          <p className="text-gray-500">No announcement yet.</p>
-        )}
-
-        <form onSubmit={createAnnouncement} className="space-y-2">
-          <input
-            type="text"
-            placeholder="Title"
-            value={annTitle}
-            onChange={(e) => setAnnTitle(e.target.value)}
-            className="input input-bordered w-full"
-            required
-          />
-          <textarea
-            placeholder="Content"
-            value={annContent}
-            onChange={(e) => setAnnContent(e.target.value)}
-            className="textarea textarea-bordered w-full"
-            rows={3}
-            required
-          />
-          <button type="submit" className="btn btn-primary">
-            Create Announcement
-          </button>
-        </form>
-      </div>
-
-      {/* Create Post Section */}
-      <div className="bg-white p-6 rounded shadow space-y-3">
-        <div className="flex justify-between items-center">
-          <h2 className="font-bold text-lg">Create Post</h2>
-          <button className="btn btn-sm btn-primary" onClick={() => fetchData()}>
-            Refresh
-          </button>
-        </div>
-
-        <form onSubmit={handlePostSubmit} className="space-y-2">
-          <textarea
-            placeholder={editingPostId ? "Edit post content" : "Post content (will be directly approved)"}
-            value={postContent}
-            onChange={(e) => setPostContent(e.target.value)}
-            className="textarea textarea-bordered w-full"
-            rows={3}
-            required
-          />
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setImageFile(e.target.files[0])}
-            className="file-input file-input-bordered w-full"
-          />
-          <div className="flex gap-2">
-            <button type="submit" className={`btn ${editingPostId ? 'btn-warning' : 'btn-success'}`}>
-              {editingPostId ? 'Update Post' : 'Create & Post'}
-            </button>
-            {editingPostId && (
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => {
-                  setPostContent('');
-                  setImageFile(null);
-                  setEditingPostId(null);
-                  toast.info('Edit cancelled');
-                }}
-              >
-                Cancel Edit
-              </button>
-            )}
+      {/* Stats */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <article className="bg-white p-4 rounded-lg shadow-sm flex items-center gap-4">
+          <div className="p-2 rounded-md bg-green-50">
+            <User className="w-6 h-6 text-green-600" />
           </div>
-        </form>
-
-        {adminPosts.length > 0 && (
-          <div className="mt-4">
-            <h3 className="font-semibold mb-2">Your Admin Posts</h3>
-            {/* ✅ FIXED: Added key prop */}
-            {adminPosts.map((post) => (
-              <div key={post._id} className="border p-3 rounded mb-2">
-                <p className="font-semibold mb-1">{post.content.substring(0, 100)}...</p>
-                {post.image && (
-                  <img 
-                    src={`${API_URL.replace('/api', '')}${post.image}`} 
-                    alt="Post" 
-                    className="max-w-xs mt-2" 
-                  />
-                )}
-                <p className="text-xs text-gray-500 mb-2">
-                  {new Date(post.createdAt).toLocaleString()}
-                </p>
-                <div className="flex space-x-2">
-                  <button
-                    className="btn btn-xs btn-warning"
-                    onClick={() => editPost(post)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="btn btn-xs btn-error"
-                    onClick={() => deleteAdminPost(post._id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div>
+            <p className="text-xs text-slate-500">Active Users</p>
+            <p className="text-xl font-semibold text-green-700">{activeCount}</p>
           </div>
-        )}
-      </div>
+        </article>
 
-      {/* Community Post Management */}
-      <div className="bg-white p-6 rounded shadow space-y-3">
-        <div className="flex justify-between items-center">
-          <h2 className="font-bold text-lg">Community Posts (Pending)</h2>
-          <button className="btn btn-sm btn-primary" onClick={() => fetchData()}>
-            Refresh
-          </button>
-        </div>
+        <article className="bg-white p-4 rounded-lg shadow-sm flex items-center gap-4">
+          <div className="p-2 rounded-md bg-red-50">
+            <XCircle className="w-6 h-6 text-red-600" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Inactive Users</p>
+            <p className="text-xl font-semibold text-red-700">{inactiveCount}</p>
+          </div>
+        </article>
 
-        {pendingPosts.length > 0 ? (
-          /* ✅ FIXED: Added key prop */
-          pendingPosts.map((post) => (
-            <div key={post._id} className="border p-3 rounded mb-2">
-              <p className="font-semibold">{post.content}</p>
-              {post.image && (
-                <img 
-                  src={`${API_URL.replace('/api', '')}${post.image}`} 
-                  alt="Post" 
-                  className="max-w-xs mt-2" 
+        <article className="bg-white p-4 rounded-lg shadow-sm flex items-center gap-4">
+          <div className="p-2 rounded-md bg-blue-50">
+            <MessageCircle className="w-6 h-6 text-blue-600" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Pending Posts</p>
+            <p className="text-xl font-semibold text-slate-800">{pendingPosts.length}</p>
+          </div>
+        </article>
+
+        <article className="bg-white p-4 rounded-lg shadow-sm flex items-center gap-4">
+          <div className="p-2 rounded-md bg-amber-50">
+            <CheckCircle className="w-6 h-6 text-amber-600" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Pending Replies</p>
+            <p className="text-xl font-semibold text-amber-700">{unrespondedComments}</p>
+          </div>
+        </article>
+      </section>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column: Comments */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="bg-white p-4 rounded-lg shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-medium text-slate-800">Comments & Replies</h2>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Search comments (author, body, post)..."
+                  value={commentsSearch}
+                  onChange={(e) => setCommentsSearch(e.target.value)}
+                  className="text-sm p-1 border rounded"
                 />
-              )}
-              <p className="text-xs text-gray-500">
-                {new Date(post.createdAt).toLocaleString()}
-              </p>
-              <div className="flex space-x-2 mt-2">
-                <button
-                  className="btn btn-xs btn-success"
-                  onClick={() => updatePostStatus(post._id, 'approved')}
-                >
-                  Approve
+                <select value={commentsSortBy} onChange={(e) => setCommentsSortBy(e.target.value)} className="text-sm p-1 border rounded">
+                  <option value="createdAt">Sort: Date</option>
+                  <option value="author">Sort: Author</option>
+                  <option value="hasReply">Sort: Has Reply</option>
+                </select>
+                <button onClick={() => setCommentsSortAsc(prev => !prev)} className="p-1 rounded border text-sm inline-flex items-center gap-1">
+                  {commentsSortAsc ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  {commentsSortAsc ? 'Asc' : 'Desc'}
                 </button>
-                <button
-                  className="btn btn-xs btn-error"
-                  onClick={() => updatePostStatus(post._id, 'rejected')}
-                >
-                  Reject
+                <button onClick={() => fetchAllComments()} className="text-sm inline-flex items-center gap-2 px-2 py-1 rounded bg-blue-100 text-blue-700">
+                  <RefreshCw className="w-4 h-4" /> Refresh
                 </button>
               </div>
             </div>
-          ))
-        ) : (
-          <p className="text-gray-500">No pending community posts.</p>
-        )}
-      </div>
 
-      {/* User Management */}
-      <div className="bg-white p-6 rounded shadow">
-        <h2 className="font-bold text-lg mb-4">User Management</h2>
-        <div className="overflow-x-auto">
-          <table className="table w-full">
-            <thead>
-              <tr className="bg-green-200">
-                <th>User</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Active</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* ✅ FIXED: Added key prop */}
-              {userSummaries.map((u) => (
-                <tr key={u._id}>
-                  <td>{u.name}</td>
-                  <td>{u.email}</td>
-                  <td>
-                    <span className={`badge ${u.role === 'admin' ? 'badge-primary' : 'badge-secondary'}`}>
-                      {u.role}
-                    </span>
-                  </td>
-                  <td>
-                    {u.active !== false ? (
-                      <span className="badge badge-success">Active</span>
-                    ) : (
-                      <span className="badge badge-error">Inactive</span>
-                    )}
-                  </td>
-                  <td>
-                    <button
-                      className="btn btn-sm btn-error"
-                      onClick={() => deleteUser(u._id)}
-                    >
-                      Delete
+            {/* Select All + Bulk Actions */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={Object.keys(selectedComments).length > 0 && Object.keys(selectedComments).length === displayedComments.length && displayedComments.length > 0}
+                    onChange={toggleSelectAllComments}
+                  />
+                  <span>Select All</span>
+                </label>
+                {Object.keys(selectedComments).length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <button onClick={bulkDeleteComments} className="inline-flex items-center gap-2 px-2 py-1 rounded bg-red-600 text-white text-sm">
+                      <Trash2 className="w-4 h-4" /> Delete Selected ({Object.keys(selectedComments).length})
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                )}
+              </div>
+              <div className="text-sm text-slate-500">{allComments.length} total</div>
+            </div>
+
+            {displayedComments.length === 0 ? (
+              <p className="text-sm text-slate-500">No comments yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {displayedComments.map(comment => (
+                  <li key={comment._id} className="border rounded p-3 bg-slate-50">
+                    <div className="flex justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <label className="inline-flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={!!selectedComments[comment._id]}
+                              onChange={() => toggleCommentSelect(comment)}
+                            />
+                          </label>
+                          <p className="font-medium text-slate-800">{comment.author}</p>
+                          <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">{comment.postType}</span>
+                          {!comment.reply && <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">Needs Reply</span>}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">{new Date(comment.createdAt).toLocaleString()}</p>
+                        <p className="text-sm text-slate-600 italic mt-1">On: {comment.postTitle} — {comment.postContent}</p>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="flex gap-2">
+                          <button onClick={() => deleteComment(comment._id, comment.postId, comment.postType)} className="inline-flex items-center gap-2 px-2 py-1 rounded bg-red-600 text-white text-xs">
+                            <Trash2 className="w-3 h-3" /> Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 bg-white rounded p-3 border">
+                      <p className="text-sm text-slate-700">{comment.body}</p>
+                    </div>
+
+                    {comment.reply && !expandedComments[comment._id] && (
+                      <div className="mt-3 bg-blue-50 p-3 rounded border-l-4 border-blue-400">
+                        <p className="text-sm font-semibold text-blue-800">{comment.reply.author}</p>
+                        <p className="text-xs text-slate-500">{new Date(comment.reply.createdAt).toLocaleString()}</p>
+                        <p className="text-sm text-slate-700 mt-1">{comment.reply.body}</p>
+                        <div className="mt-2">
+                          <button onClick={() => toggleCommentExpansion(comment._id)} className="text-sm text-blue-700">Edit Reply</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {(expandedComments[comment._id] || !comment.reply) && (
+                      <div className="mt-3">
+                        <label className="sr-only">Reply</label>
+                        <textarea
+                          rows={3}
+                          value={replyText[comment._id] || ''}
+                          onChange={(e) => setReplyText(prev => ({ ...prev, [comment._id]: e.target.value }))}
+                          placeholder={comment.reply ? 'Edit your reply...' : 'Write your reply...'}
+                          className="w-full border rounded p-2 text-sm"
+                        />
+                        <div className="flex items-center gap-2 mt-2">
+                          <button onClick={() => submitReply(comment._id, comment.postId, comment.postType)} disabled={submittingReply[comment._id]} className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-green-600 text-white text-sm">
+                            {submittingReply[comment._id] ? 'Submitting...' : (comment.reply ? 'Update Reply' : 'Post Reply')}
+                          </button>
+                          {comment.reply && (
+                            <button onClick={() => toggleCommentExpansion(comment._id)} className="text-sm text-slate-600">Cancel</button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
         </div>
+
+        {/* Right column: Announcement + Create Post + Posts lists */}
+        <aside className="space-y-4">
+          <div className="bg-white p-4 rounded-lg shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-medium">Announcement</h3>
+              {announcement ? (
+                <button onClick={deleteAnnouncement} className="inline-flex items-center gap-2 px-2 py-1 rounded bg-red-600 text-white text-sm">Delete</button>
+              ) : null}
+            </div>
+
+            {announcement ? (
+              <div className="space-y-2">
+                <p className="font-semibold text-slate-800">{announcement.title}</p>
+                <p className="text-sm text-slate-700">{announcement.content}</p>
+                {announcement.image && (
+                  <img src={`${API_URL.replace('/api', '')}${announcement.image}`} alt="Announcement" className="w-full mt-2 rounded" />
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No announcement yet.</p>
+            )}
+
+            <form onSubmit={createAnnouncement} className="mt-3 space-y-2">
+              <input type="text" value={annTitle} onChange={(e) => setAnnTitle(e.target.value)} placeholder="Title" className="w-full p-2 border rounded text-sm" required />
+              <textarea value={annContent} onChange={(e) => setAnnContent(e.target.value)} rows={3} placeholder="Content" className="w-full p-2 border rounded text-sm" required />
+              <div className="flex gap-2">
+                <button type="submit" className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-blue-600 text-white text-sm">Create Announcement</button>
+                <button type="button" onClick={() => { setAnnTitle(''); setAnnContent(''); toast.info('Cleared'); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-slate-100 text-slate-700 text-sm">Clear</button>
+              </div>
+            </form>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow-sm">
+            <h3 className="text-lg font-medium mb-3">Create Post</h3>
+            <form onSubmit={handlePostSubmit} className="space-y-2">
+              <textarea value={postContent} onChange={(e) => setPostContent(e.target.value)} rows={4} placeholder={editingPostId ? 'Edit post content' : 'Post content (will be directly approved)'} className="w-full p-2 border rounded text-sm" required />
+              <label className="flex items-center gap-2 text-sm">
+                <ImageIcon className="w-4 h-4" />
+                <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="text-sm" />
+              </label>
+              <div className="flex gap-2">
+                <button type="submit" className={`inline-flex items-center gap-2 px-3 py-1.5 rounded text-white text-sm ${editingPostId ? 'bg-amber-500' : 'bg-green-600'}`}>
+                  {editingPostId ? 'Update Post' : 'Create & Post'}
+                </button>
+                {editingPostId && (
+                  <button type="button" onClick={() => { setPostContent(''); setImageFile(null); setEditingPostId(null); toast.info('Edit cancelled'); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-slate-100 text-slate-700 text-sm">Cancel</button>
+                )}
+              </div>
+            </form>
+          </div>
+
+          {/* Pending Posts list - MOBILE RESPONSIVE */}
+          <div className="bg-white p-4 rounded-lg shadow-sm">
+            <div className="mb-3">
+              <h2 className="text-lg font-medium text-slate-800 mb-3">Pending Posts</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={pendingSearch}
+                  onChange={(e) => setPendingSearch(e.target.value)}
+                  className="text-sm p-2 border rounded w-full sm:flex-1"
+                />
+                <div className="flex items-center gap-2">
+                  <select 
+                    value={pendingSortBy} 
+                    onChange={(e) => setPendingSortBy(e.target.value)} 
+                    className="text-sm p-2 border rounded flex-1 sm:flex-none"
+                  >
+                    <option value="createdAt">Date</option>
+                    <option value="contentLength">Length</option>
+                  </select>
+                  <button 
+                    onClick={() => setPendingSortAsc(prev => !prev)} 
+                    className="p-2 rounded border text-sm inline-flex items-center gap-1 whitespace-nowrap"
+                    aria-label={pendingSortAsc ? 'Sort ascending' : 'Sort descending'}
+                  >
+                    {pendingSortAsc ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    <span className="hidden sm:inline">{pendingSortAsc ? 'Asc' : 'Desc'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedPendingPosts.size > 0 && selectedPendingPosts.size === displayedPending.length && displayedPending.length > 0}
+                    onChange={toggleSelectAllPending}
+                  />
+                  <span>Select All</span>
+                </label>
+                {selectedPendingPosts.size > 0 && (
+                  <>
+                    <button 
+                      onClick={() => bulkUpdatePendingStatus('approved')} 
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-600 text-white text-xs sm:text-sm"
+                    >
+                      Approve ({selectedPendingPosts.size})
+                    </button>
+                    <button 
+                      onClick={() => bulkUpdatePendingStatus('rejected')} 
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-600 text-white text-xs sm:text-sm"
+                    >
+                      Reject ({selectedPendingPosts.size})
+                    </button>
+                  </>
+                )}
+              </div>
+              <div className="text-sm text-slate-500">{pendingPosts.length} total</div>
+            </div>
+
+            {displayedPending.length === 0 ? (
+              <p className="text-sm text-slate-500">No pending posts.</p>
+            ) : (
+              <ul className="space-y-3">
+                {displayedPending.map(post => (
+                  <li key={post._id} className="border rounded p-3 bg-slate-50">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
+                      <div className="flex-1">
+                        <div className="flex items-start gap-2">
+                          <label className="inline-flex items-center gap-2 mt-1">
+                            <input
+                              type="checkbox"
+                              checked={selectedPendingPosts.has(post._id)}
+                              onChange={() => togglePendingSelect(post._id)}
+                            />
+                          </label>
+                          <div className="flex-1">
+                            <p className="font-medium text-slate-800 text-sm">{(post.content || '').substring(0, 120)}{(post.content || '').length > 120 ? '...' : ''}</p>
+                            <p className="text-xs text-slate-500 mt-1">{new Date(post.createdAt).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 sm:flex-col sm:items-end">
+                        <button 
+                          onClick={() => updatePostStatus(post._id, 'approved')} 
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-600 text-white text-xs flex-1 sm:flex-none justify-center"
+                        >
+                          Approve
+                        </button>
+                        <button 
+                          onClick={() => updatePostStatus(post._id, 'rejected')} 
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-600 text-white text-xs flex-1 sm:flex-none justify-center"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Admin Posts list - MOBILE RESPONSIVE */}
+          <div className="bg-white p-4 rounded-lg shadow-sm">
+            <div className="mb-3">
+              <h2 className="text-lg font-medium text-slate-800 mb-3">Admin Posts</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={adminSearch}
+                  onChange={(e) => setAdminSearch(e.target.value)}
+                  className="text-sm p-2 border rounded w-full sm:flex-1"
+                />
+                <div className="flex items-center gap-2">
+                  <select 
+                    value={adminSortBy} 
+                    onChange={(e) => setAdminSortBy(e.target.value)} 
+                    className="text-sm p-2 border rounded flex-1 sm:flex-none"
+                  >
+                    <option value="createdAt">Date</option>
+                    <option value="contentLength">Length</option>
+                  </select>
+                  <button 
+                    onClick={() => setAdminSortAsc(prev => !prev)} 
+                    className="p-2 rounded border text-sm inline-flex items-center gap-1 whitespace-nowrap"
+                    aria-label={adminSortAsc ? 'Sort ascending' : 'Sort descending'}
+                  >
+                    {adminSortAsc ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    <span className="hidden sm:inline">{adminSortAsc ? 'Asc' : 'Desc'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedAdminPosts.size > 0 && selectedAdminPosts.size === displayedAdmin.length && displayedAdmin.length > 0}
+                    onChange={toggleSelectAllAdmin}
+                  />
+                  <span>Select All</span>
+                </label>
+                {selectedAdminPosts.size > 0 && (
+                  <button 
+                    onClick={bulkDeleteAdminPosts} 
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-600 text-white text-xs sm:text-sm"
+                  >
+                    <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" /> 
+                    Delete ({selectedAdminPosts.size})
+                  </button>
+                )}
+              </div>
+              <div className="text-sm text-slate-500">{adminPosts.length} total</div>
+            </div>
+
+            {displayedAdmin.length === 0 ? (
+              <p className="text-sm text-slate-500">You have no admin posts yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {displayedAdmin.map(post => (
+                  <li key={post._id} className="border rounded p-3 bg-slate-50">
+                    <div className="flex items-start gap-2 mb-2">
+                      <label className="inline-flex items-center gap-2 mt-1">
+                        <input
+                          type="checkbox"
+                          checked={selectedAdminPosts.has(post._id)}
+                          onChange={() => toggleAdminSelect(post._id)}
+                        />
+                      </label>
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-800 text-sm">
+                          {(post.content || '').substring(0, 120)}{(post.content || '').length > 120 ? '...' : ''}
+                        </p>
+                      </div>
+                    </div>
+                    {post.image && (
+                      <img src={`${API_URL.replace('/api', '')}${post.image}`} alt="post" className="max-w-xs mb-2 rounded" />
+                    )}
+                    <p className="text-xs text-slate-500 mb-2">{new Date(post.createdAt).toLocaleString()}</p>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => editPost(post)} 
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-500 text-white text-xs flex-1 sm:flex-none justify-center"
+                      >
+                        <Edit2 className="w-3 h-3" /> Edit
+                      </button>
+                      <button 
+                        onClick={() => deleteAdminPost(post._id)} 
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-600 text-white text-xs flex-1 sm:flex-none justify-center"
+                      >
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </aside>
       </div>
     </div>
   );

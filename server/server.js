@@ -8,16 +8,18 @@ import connectDB from './configs/db.js';
 import authRoutes from './routes/auth.js';
 import apiRoutes from './routes/api.js';
 import appointmentRoutes from './routes/appointments.js';
-import adminAppointmentRoutes from './routes/adminAppointments.js';
+import adminAppointmentRoutes from './routes/adminAppointmentRoutes.js';
 import clinicRoutes from './routes/clinicRoutes.js';
 import articleRoutes from './routes/articleRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js'; 
 import { initializeSocket } from './socket/socket.js';
 import clinicScheduleRoutes from './routes/clinicSchedule.js';
-
 import sessionRoutes from './routes/sessionManagement.js';
 import hivAnalyticsRoutes from './routes/hivAnalytics.js';
+import NotificationService from './services/notificationService.js'; 
+import adminManagementRoutes from './routes/adminManagement.js';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,33 +28,27 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-
 const server = http.createServer(app);
 const io = initializeSocket(server);
+
+// ✅ NEW: Create notification service instance
+const notificationService = new NotificationService(io);
+
+// ✅ NEW: Make io and notificationService available in routes
 app.set('io', io);
+app.set('notificationService', notificationService);
 
-
-// Connect to MongoDB
 await connectDB();
 
-// Serve static uploads folder for images
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ✅ FIXED CORS configuration - return the origin instead of just 'true'
 app.use(cors({
   origin: function (origin, callback) {
     const allowedOrigins = ['http://localhost:5173', 'http://localhost:5000'];
-    
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
-    console.log('Request origin:', origin);
-    
     if (allowedOrigins.indexOf(origin) !== -1) {
-      // Return the origin that made the request
       return callback(null, origin);
     } else {
-      console.warn('CORS blocked origin:', origin);
       return callback(new Error('Not allowed by CORS'));
     }
   },
@@ -61,12 +57,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin']
 }));
 
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/api/users', userRoutes);
-app.use('/api/clinic-schedule', clinicScheduleRoutes);
-app.use('/api/hiv', hivAnalyticsRoutes);
 
 app.use((req, res, next) => {
   const isAdminRoute = req.path.startsWith('/api/admin') || 
@@ -81,7 +73,7 @@ app.use((req, res, next) => {
       collectionName: isAdminRoute ? 'admin_sessions' : 'user_sessions'
     }),
     cookie: {
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+      maxAge: 1000 * 60 * 60 * 24 * 7,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax'
@@ -92,26 +84,30 @@ app.use((req, res, next) => {
   session(sessionConfig)(req, res, next);
 });
 
-// Debug middleware
 app.use((req, res, next) => {
-  console.log('Request to:', req.method, req.path, 'Session ID:', req.sessionID, 'User ID:', req.session?.userId, 'Role:', req.session?.role);
+  console.log('Request to:', req.method, req.path);
   next();
 });
 
-// Health check
 app.get('/', (req, res) => res.send('Server is running'));
 
-// ✅ Routes mounting
+// Routes mounting
 app.use('/api/auth', authRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/admin', adminAppointmentRoutes);
 app.use('/api/clinics', clinicRoutes);
-app.use('/api', apiRoutes);
+
 app.use('/api/articles', articleRoutes);
 app.use('/api/messages', messageRoutes);
-// ADD this route mounting (after other routes)
 app.use('/api/sessions', sessionRoutes);
-// Error handling middleware
+app.use('/api/users', userRoutes);
+app.use('/api/clinic-schedule', clinicScheduleRoutes);
+app.use('/api/hiv', hivAnalyticsRoutes);
+app.use('/api/admin', adminManagementRoutes);
+
+app.use('/api', apiRoutes);
+
 app.use((err, req, res, next) => {
   console.error('Error:', err.message);
   
@@ -125,7 +121,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
@@ -135,11 +130,10 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 Socket.io initialized and ready`);
+  console.log(`🔔 Notification service initialized`); // ✅ NEW
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
-  console.error('❌ Unhandled Rejection:', err);
   server.close(() => process.exit(1));
 });

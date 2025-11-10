@@ -3,16 +3,18 @@ import { User, Flag, Shield, Lock, Send, MessageCircle, Reply } from 'lucide-rea
 import axios from 'axios';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { useLocation } from 'react-router-dom';
 
 const Community = () => {
   const toast = useToast();
   const { user } = useAuth();
+  const location = useLocation();
   
   const [posts, setPosts] = useState([]);
   const [filteredPosts, setFilteredPosts] = useState([]);
   const [newPost, setNewPost] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('General Support');
-  const [activeFilter, setActiveFilter] = useState('all'); // 'all' or specific category
+  const [activeFilter, setActiveFilter] = useState('all');
   const [loading, setLoading] = useState(false);
   const [expandedPost, setExpandedPost] = useState(null);
   const [commentText, setCommentText] = useState({});
@@ -37,7 +39,6 @@ const Community = () => {
   const generateAnonymousName = (userId) => {
     if (!userId) return 'Anonymous User';
     
-    // Convert userId to string and create a hash
     const idStr = userId.toString();
     let hash = 0;
     
@@ -47,7 +48,6 @@ const Community = () => {
       hash = hash & hash;
     }
     
-    // Use absolute value and generate a unique 5-digit number (10000-99999)
     const absHash = Math.abs(hash);
     const uniqueNumber = (absHash % 90000) + 10000;
     
@@ -61,18 +61,58 @@ const Community = () => {
     };
   };
 
+  // Fetch posts on mount
   useEffect(() => {
     fetchPosts();
   }, []);
 
+  // Filter posts based on active category
   useEffect(() => {
-    // Filter posts based on active category
     if (activeFilter === 'all') {
       setFilteredPosts(posts);
     } else {
       setFilteredPosts(posts.filter(post => post.category === activeFilter));
     }
   }, [posts, activeFilter]);
+
+  // Handle scroll to highlighted element from notifications
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const highlight = params.get('highlight');
+    const commentId = params.get('comment');
+
+    if (highlight && posts.length > 0) {
+      setTimeout(() => {
+        // Extract post ID from highlight parameter
+        const postId = highlight.replace('post-', '').replace('comment-', '');
+        
+        // Find and expand the post
+        const post = posts.find(p => p._id === postId);
+        if (post) {
+          setExpandedPost(post._id);
+          
+          // Scroll to element after a short delay to ensure DOM is ready
+          setTimeout(() => {
+            let elementId = highlight;
+            if (commentId) {
+              elementId = `comment-${commentId}`;
+            }
+            
+            const element = document.getElementById(elementId);
+            if (element) {
+              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              element.classList.add('highlight-flash');
+              
+              // Remove highlight after animation
+              setTimeout(() => {
+                element.classList.remove('highlight-flash');
+              }, 3000);
+            }
+          }, 300);
+        }
+      }, 500);
+    }
+  }, [location.search, posts]);
 
   const fetchPosts = async () => {
     try {
@@ -218,6 +258,20 @@ const Community = () => {
 
   return (
     <div className="min-h-screen bg-blue-200 sm:px-6 lg:px-8">
+      {/* CSS for highlight animation */}
+      <style>{`
+        @keyframes highlight-pulse {
+          0%, 100% { background-color: transparent; }
+          50% { background-color: rgba(59, 130, 246, 0.3); }
+        }
+        
+        .highlight-flash {
+          animation: highlight-pulse 1s ease-in-out 3;
+          border: 2px solid #3b82f6 !important;
+          border-radius: 0.5rem;
+        }
+      `}</style>
+
       {/* Page Header */}
       <div className="max-w-6xl mx-auto bg-white rounded-md p-6 md:p-8 mb-6 shadow-sm text-center">
         <h1 className="text-2xl md:text-3xl font-bold mb-2">Community Forum</h1>
@@ -342,7 +396,11 @@ const Community = () => {
               </div>
             ) : (
               filteredPosts.map(post => (
-                <article key={post._id} className="relative bg-white rounded-md shadow p-5 border border-gray-200">
+                <article 
+                  key={post._id} 
+                  id={`post-${post._id}`}
+                  className="relative bg-white rounded-md shadow p-5 border border-gray-200"
+                >
                   {/* Report button */}
                   <button
                     onClick={() => setReportingPost(post._id)}
@@ -405,7 +463,8 @@ const Community = () => {
                           
                           return (
                             <div 
-                              key={comment._id} 
+                              key={comment._id}
+                              id={`comment-${comment._id}`}
                               className={`rounded-md p-3 ${
                                 isMyCommentFlag 
                                   ? 'bg-blue-50 border-2 border-blue-300' 

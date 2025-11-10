@@ -1,6 +1,6 @@
 // controllers/articleController.js
 import Article from '../models/Article.js';
-
+import User from '../models/User.js'; 
 // Get all articles (for users - only published)
 export const getArticles = async (req, res) => {
   try {
@@ -39,7 +39,11 @@ export const getAllArticlesAdmin = async (req, res) => {
   }
 };
 
-// Admin: Create new article
+
+
+// Keep your other functions...
+
+// Admin: Create new article (UPDATE THIS)
 export const createArticle = async (req, res) => {
   try {
     const { title, content, excerpt, category, author, published } = req.body;
@@ -54,11 +58,24 @@ export const createArticle = async (req, res) => {
     });
     
     const savedArticle = await article.save();
+
+    // ✅ ADD THIS: Send notifications if published
+    if (published) {
+      const notificationService = req.app.get('notificationService');
+      const allUsers = await User.find({ role: 'user' }).select('_id');
+      const userIds = allUsers.map(u => u._id);
+      
+      await notificationService.notifyNewArticle(savedArticle, userIds);
+      console.log(`✅ Sent ${userIds.length} notifications for new article`);
+    }
+
     res.status(201).json(savedArticle);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 };
+
+// Keep all your other functions the same...
 
 // Admin: Update article
 export const updateArticle = async (req, res) => {

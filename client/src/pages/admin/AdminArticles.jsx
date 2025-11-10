@@ -116,11 +116,11 @@ const AdminArticles = () => {
   }
 
   return (
-    <div className="p-6 bg-base-200 min-h-screen">
+    <div className="border rounded-lg p-6 bg-base-200 min-h-screen">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">Manage Articles</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-blue-900 mb-2">Manage Articles</h1>
             <p className="text-gray-600">Create, edit, and manage your articles</p>
           </div>
           <button className="btn btn-primary gap-2 shadow-lg" onClick={handleCreate}>

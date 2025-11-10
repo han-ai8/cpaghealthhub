@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, MessageCircle, Shield, Clock, AlertCircle } from 'lucide-react';
+import { Send, X, MessageCircle, Shield, Clock, AlertCircle, ChevronDown, CircleDot } from 'lucide-react';
 import { io } from 'socket.io-client';
 import axios from 'axios';
 
+// NOTE: expects TailwindCSS in the project
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const SOCKET_URL = 'http://localhost:5000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
-const ChatWidget = ({ user }) => {
+export default function ChatWidget({ user }) {
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -16,35 +18,22 @@ const ChatWidget = ({ user }) => {
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const inputRef = useRef(null);
+  const assignedCaseManagerId = user?.assignedCaseManager?._id || user?.assignedCaseManager;
+ 
 
   const getToken = () => localStorage.getItem('token');
 
-  // Debug: Log user data
+  // --- Debug logs (kept but quiet) ---
   useEffect(() => {
-    console.log('═══════════════════════════════════');
-    console.log('💬 ChatWidget DEBUG INFO:');
-    console.log('User prop received:', user);
-    console.log('User._id:', user?._id);
-    console.log('User.id:', user?.id);
-    console.log('User.assignedCaseManager:', user?.assignedCaseManager);
-    console.log('Type of assignedCaseManager:', typeof user?.assignedCaseManager);
-    console.log('Has case manager?', !!user?.assignedCaseManager);
-    console.log('Token exists?', !!getToken());
-    console.log('API_URL:', API_URL);
-    console.log('SOCKET_URL:', SOCKET_URL);
-    console.log('═══════════════════════════════════');
+    console.log('ChatWidget initialized', { user });
   }, [user]);
 
-  // Initialize socket connection
+  // --- Socket initialization ---
   useEffect(() => {
-    if (!user?._id && !user?.id) {
-      console.log('❌ ChatWidget - No user ID, skipping socket connection');
-      return;
-    }
+    const userId = user?._id || user?.id;
+    if (!userId) return;
 
-    const userId = user._id || user.id;
-    console.log('🔌 ChatWidget - Initializing socket connection for user:', userId);
-    
     socketRef.current = io(SOCKET_URL, {
       withCredentials: true,
       transports: ['websocket', 'polling']
@@ -53,123 +42,87 @@ const ChatWidget = ({ user }) => {
     socketRef.current.emit('join', userId);
 
     socketRef.current.on('newMessage', ({ message }) => {
-      console.log('📩 ChatWidget - New message received:', message);
       setMessages(prev => [...prev, message]);
-      if (!isChatOpen) {
-        setUnreadCount(prev => prev + 1);
-      }
+      if (!isChatOpen || isMinimized) setUnreadCount(prev => prev + 1);
     });
 
     socketRef.current.on('userTyping', ({ isTyping: typing }) => {
-      console.log('⌨️ ChatWidget - Typing status:', typing);
       setIsTyping(typing);
     });
 
-    socketRef.current.on('connect', () => {
-      console.log('✅ ChatWidget - Socket connected');
-    });
-
-    socketRef.current.on('disconnect', () => {
-      console.log('❌ ChatWidget - Socket disconnected');
-    });
-
-    socketRef.current.on('connect_error', (error) => {
-      console.error('❌ ChatWidget - Socket connection error:', error);
-    });
+    socketRef.current.on('connect_error', (err) => console.error('Socket error', err));
 
     return () => {
-      if (socketRef.current) {
-        console.log('🔌 ChatWidget - Disconnecting socket');
-        socketRef.current.disconnect();
-      }
+      socketRef.current?.disconnect();
     };
-  }, [user?._id, user?.id, isChatOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?._id, user?.id]);
 
-  // Fetch messages when chat opens
+  // Fetch messages when chat opened
   useEffect(() => {
     if (isChatOpen && user?.assignedCaseManager) {
-      console.log('📥 ChatWidget - Fetching messages');
       fetchMessages();
       setUnreadCount(0);
     }
-  }, [isChatOpen, user?.assignedCaseManager]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isChatOpen, isMinimized, user?.assignedCaseManager]);
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isTyping]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
+  // --- API calls ---
   const fetchMessages = async () => {
+    if (noCaseManager) {
+      console.log('❌ No case manager assigned');
+      return;
+    }
+
     try {
       setLoading(true);
-      console.log('📡 ChatWidget - Fetching messages from:', `${API_URL}/messages/conversation`);
-      
-      const response = await axios.get(`${API_URL}/messages/conversation`, {
+      const res = await axios.get(`${API_URL}/messages/conversation`, {
         headers: { Authorization: `Bearer ${getToken()}` }
       });
 
-      console.log('✅ ChatWidget - Messages response:', response.data);
-
-      if (response.data.success) {
-        setMessages(response.data.messages || []);
+      if (res.data?.success) {
+        setMessages(res.data.messages || []);
         markAsRead();
-      }
-    } catch (error) {
-      console.error('❌ ChatWidget - Error fetching messages:', error);
-      console.error('Error details:', error.response?.data);
-      console.error('Error status:', error.response?.status);
-      
-      if (error.response?.status === 404) {
-        console.log('ℹ️ ChatWidget - No conversation found, starting fresh');
+      } else {
         setMessages([]);
       }
+    } catch (err) {
+      console.warn('Failed to fetch messages', err?.response?.data || err.message);
+      setMessages([]);
     } finally {
       setLoading(false);
     }
   };
 
+  // Update sendMessage to use the correct ID
   const sendMessage = async () => {
-    if (!newMessage.trim()) {
-      console.log('⚠️ ChatWidget - Cannot send: empty message');
-      return;
-    }
-    
-    if (!user?.assignedCaseManager) {
-      console.log('⚠️ ChatWidget - Cannot send: no case manager assigned');
-      alert('You need to have a case manager assigned to send messages.');
+    if (!newMessage.trim()) return;
+    if (noCaseManager) {
+      alert('You need a case manager assigned to send messages.');
       return;
     }
 
-    const messageText = newMessage;
+    const text = newMessage;
     setNewMessage('');
 
     try {
-      console.log('📤 ChatWidget - Sending message:', {
-        receiverId: user.assignedCaseManager,
-        text: messageText
-      });
-
-      const response = await axios.post(
+      const res = await axios.post(
         `${API_URL}/messages/send`,
-        {
-          receiverId: user.assignedCaseManager,
-          text: messageText
-        },
+        { receiverId: assignedCaseManagerId, text },
         { headers: { Authorization: `Bearer ${getToken()}` } }
       );
 
-      console.log('✅ ChatWidget - Message sent:', response.data);
-
-      if (response.data.success) {
-        setMessages(prev => [...prev, response.data.message]);
+      if (res.data?.success) {
+        setMessages(prev => [...prev, res.data.message]);
       }
-    } catch (error) {
-      console.error('❌ ChatWidget - Error sending message:', error.response?.data || error.message);
-      setNewMessage(messageText);
+    } catch (err) {
+      console.error('Send failed', err);
+      setNewMessage(text);
       alert('Failed to send message. Please try again.');
     }
   };
@@ -180,41 +133,35 @@ const ChatWidget = ({ user }) => {
 
     try {
       const conversationId = [userId, user.assignedCaseManager].sort().join('_');
-      
       await axios.put(
         `${API_URL}/messages/read`,
         { conversationId },
         { headers: { Authorization: `Bearer ${getToken()}` } }
       );
-    } catch (error) {
-      console.error('❌ ChatWidget - Error marking as read:', error);
+    } catch (err) {
+      console.warn('Mark as read failed', err);
     }
+  };
+
+  // Typing indicator emit
+  const emitTyping = (typing) => {
+    const userId = user?._id || user?.id;
+    if (!socketRef.current || !user?.assignedCaseManager || !userId) return;
+
+    socketRef.current.emit('typing', {
+      conversationId: [userId, user.assignedCaseManager].sort().join('_'),
+      userId: userId,
+      isTyping: typing
+    });
   };
 
   const handleTyping = () => {
-    const userId = user?._id || user?.id;
-    if (socketRef.current && user?.assignedCaseManager) {
-      socketRef.current.emit('typing', {
-        conversationId: [userId, user.assignedCaseManager].sort().join('_'),
-        userId: userId,
-        isTyping: true
-      });
-
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-
-      typingTimeoutRef.current = setTimeout(() => {
-        socketRef.current.emit('typing', {
-          conversationId: [userId, user.assignedCaseManager].sort().join('_'),
-          userId: userId,
-          isTyping: false
-        });
-      }, 1000);
-    }
+    emitTyping(true);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => emitTyping(false), 800);
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
@@ -224,205 +171,225 @@ const ChatWidget = ({ user }) => {
   };
 
   const formatTime = (date) => {
-    return new Date(date).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    try {
+      return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return '';
+    }
   };
 
-  // Don't render if no user
-  if (!user) {
-    console.log('❌ ChatWidget - No user provided');
-    return null;
-  }
+  if (!user) return null;
 
   const noCaseManager = !user.assignedCaseManager;
 
-  console.log('✅ ChatWidget - Rendering. Has case manager:', !noCaseManager);
-
+  // --- UI ---
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      {/* Chat Toggle Button */}
+      {/* Floating button */}
       {!isChatOpen && (
         <button
-          onClick={() => {
-            console.log('🔵 ChatWidget - Opening chat');
-            setIsChatOpen(true);
-          }}
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition-all duration-200 hover:scale-105 relative"
+          aria-label="Open support chat"
+          onClick={() => { setIsChatOpen(true); setIsMinimized(false); }}
+          className="group relative bg-gradient-to-br from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-full p-4 shadow-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 transition-transform transform hover:scale-105"
         >
           <MessageCircle className="w-6 h-6" />
-          {noCaseManager && (
-            <span className="absolute -top-1 -right-1 bg-yellow-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
-              !
-            </span>
-          )}
-          {!noCaseManager && unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
-              {unreadCount}
-            </span>
+
+          {/* badge */}
+          {noCaseManager ? (
+            <span className="absolute -top-1 -right-1 bg-yellow-500 text-white text-xs font-semibold rounded-full h-6 w-6 flex items-center justify-center">!</span>
+          ) : (
+            unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-semibold rounded-full h-6 w-6 flex items-center justify-center">{unreadCount}</span>
+            )
           )}
         </button>
       )}
 
-      {/* Chat Window */}
+      {/* Chat panel */}
       {isChatOpen && (
-        <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm md:w-96 h-[500px] md:h-[600px] flex flex-col border">
-          {/* Header */}
-          <div className="bg-blue-600 text-white p-4 rounded-t-lg flex items-center justify-between">
+        <div className="w-[92vw] max-w-sm md:max-w-md lg:max-w-lg h-[84vh] md:h-[72vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+          {/* HEADER */}
+          <div className="flex items-center justify-between px-4 md:px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center">
-                <Shield className="w-4 h-4" />
+              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                <Shield className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-semibold text-sm">Case Manager Chat</h3>
-                <p className="text-xs text-blue-200">
-                  {noCaseManager ? 'Setup Required' : 'Support Chat'}
-                </p>
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-sm font-semibold">Case Manager Chat</h3>
+                  {!noCaseManager && (
+                    <span className="flex items-center text-xs bg-white/10 px-2 py-0.5 rounded-full">Support</span>
+                  )}
+                </div>
+                <p className="text-[11px] opacity-90 mt-0.5">{noCaseManager ? 'Setup required' : 'Secure & confidential'}</p>
               </div>
             </div>
-            <button
-              onClick={() => {
-                console.log('❌ ChatWidget - Closing chat');
-                setIsChatOpen(false);
-              }}
-              className="p-1 hover:bg-blue-700 rounded transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+
+            <div className="flex items-center space-x-2">
+              <button
+                aria-label={isMinimized ? 'Restore' : 'Minimize'}
+                onClick={() => setIsMinimized(v => !v)}
+                className="p-1 rounded-md bg-white/10 hover:bg-white/20 transition-colors"
+              >
+                <ChevronDown className={`w-4 h-4 transition-transform ${isMinimized ? 'rotate-180' : ''}`} />
+              </button>
+
+              <button
+                aria-label="Close chat"
+                onClick={() => setIsChatOpen(false)}
+                className="p-1 rounded-md bg-white/10 hover:bg-white/20 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-            {/* Warning if no case manager */}
-            {noCaseManager && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-semibold text-yellow-800 text-sm">No Case Manager Assigned</h4>
-                    <p className="text-xs text-yellow-700 mt-1">
-                      You need to have a case manager assigned to use this chat.
-                    </p>
-                    <p className="text-xs text-yellow-600 mt-2 font-mono bg-yellow-100 p-2 rounded">
-                      Debug Info:<br/>
-                      User ID: {user._id || user.id || 'undefined'}<br/>
-                      Case Manager: {user.assignedCaseManager || 'not assigned'}
-                    </p>
-                    <p className="text-xs text-yellow-700 mt-2">
-                      Contact an administrator to assign you a case manager.
-                    </p>
-                  </div>
+          {/* MINIMIZED PREVIEW */}
+          {isMinimized ? (
+            <div className="p-4 flex items-center justify-between bg-white/50">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center">
+                  <CircleDot className="w-4 h-4 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Conversation preview</p>
+                  <p className="text-xs text-gray-500">Tap to expand and continue</p>
                 </div>
               </div>
-            )}
-
-            {/* Show messages if case manager exists */}
-            {!noCaseManager && (
-              <>
-                {loading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-gray-500">Loading messages...</div>
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center text-gray-500">
-                      <Shield className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">Start a conversation with your case manager</p>
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setIsMinimized(false); inputRef.current?.focus(); }} className="px-3 py-1 rounded-md bg-blue-600 text-white text-sm">Open</button>
+              </div>
+            </div>
+          ) : (
+            /* CHAT CONTENT */
+            <>
+              <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-gradient-to-b from-white to-slate-50">
+                {noCaseManager && (
+                  <div className="rounded-lg border border-yellow-100 bg-yellow-50 p-4 mb-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-yellow-600 mt-1" />
+                      <div>
+                        <h4 className="text-sm font-semibold text-yellow-800">No Case Manager Assigned</h4>
+                        <p className="text-xs text-yellow-700 mt-1">You need a case manager to begin the secure chat.</p>
+                        <div className="mt-2 text-xs text-yellow-700 font-mono bg-yellow-100 p-2 rounded">User ID: {user._id || user.id || 'undefined'}</div>
+                      </div>
                     </div>
                   </div>
-                ) : (
-                  messages.map((message) => (
-                    <div
-                      key={message._id}
-                      className={`flex ${message.isFromCaseManager ? 'justify-start' : 'justify-end'}`}
-                    >
-                      <div
-                        className={`max-w-xs lg:max-w-sm px-4 py-2 rounded-lg ${
-                          message.isFromCaseManager
-                            ? 'bg-white text-gray-800 shadow-sm border'
-                            : 'bg-blue-600 text-white'
-                        }`}
-                      >
-                        {message.isFromCaseManager && (
-                          <div className="flex items-center space-x-1 mb-1">
+                )}
+
+                {!noCaseManager && (
+                  <div className="space-y-4">
+                    {loading && (
+                      <div className="text-center text-gray-500 py-6">Loading messages...</div>
+                    )}
+
+                    {!loading && messages.length === 0 && (
+                      <div className="text-center text-gray-500 py-6">
+                        <Shield className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                        <p className="text-sm">Say hi to your case manager — your messages are private.</p>
+                      </div>
+                    )}
+
+                    {messages.map((m) => (
+                      <div key={m._id} className={`flex ${m.isFromCaseManager ? 'justify-start' : 'justify-end'}`}>
+                        <div className={`max-w-[82%] px-4 py-2 rounded-xl break-words ${m.isFromCaseManager ? 'bg-white border border-gray-100 text-gray-800 shadow-sm' : 'bg-blue-600 text-white'}`}>
+                          {m.isFromCaseManager && (
+                            <div className="flex items-center gap-2 mb-1">
+                              <Shield className="w-3.5 h-3.5 text-blue-600" />
+                              <span className="text-xs font-medium text-blue-600">Case Manager</span>
+                            </div>
+                          )}
+                          <div className="text-sm leading-relaxed">{m.text}</div>
+                          <div className={`flex items-center text-[11px] mt-2 ${m.isFromCaseManager ? 'justify-start' : 'justify-end'} opacity-60`}> 
+                            <Clock className="w-3 h-3 mr-1" />
+                            <span>{formatTime(m.createdAt)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {isTyping && (
+                      <div className="flex justify-start">
+                        <div className="bg-white border border-gray-100 px-3 py-2 rounded-xl">
+                          <div className="flex items-center gap-2 mb-1">
                             <Shield className="w-3 h-3 text-blue-600" />
                             <span className="text-xs font-medium text-blue-600">Case Manager</span>
                           </div>
-                        )}
-                        <p className="text-sm leading-relaxed">{message.text}</p>
-                        <div className={`flex items-center space-x-1 mt-1 ${
-                          message.isFromCaseManager ? 'justify-start' : 'justify-end'
-                        }`}>
-                          <Clock className="w-3 h-3 opacity-60" />
-                          <span className="text-xs opacity-60">
-                            {formatTime(message.createdAt)}
-                          </span>
+                          <div className="flex gap-1 items-center">
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-75" />
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150" />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
-                )}
-                
-                {isTyping && (
-                  <div className="flex justify-start">
-                    <div className="bg-white text-gray-800 shadow-sm border px-4 py-2 rounded-lg max-w-xs">
-                      <div className="flex items-center space-x-1 mb-1">
-                        <Shield className="w-3 h-3 text-blue-600" />
-                        <span className="text-xs font-medium text-blue-600">Case Manager</span>
-                      </div>
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                      </div>
-                    </div>
+                    )}
+
+                    <div ref={messagesEndRef} />
                   </div>
                 )}
-              </>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+              </div>
 
-          {/* Message Input */}
-          <div className="p-4 border-t bg-white rounded-b-lg">
-            <div className="flex space-x-2">
-              <textarea
-                value={newMessage}
-                onChange={(e) => {
-                  setNewMessage(e.target.value);
-                  handleTyping();
-                }}
-                onKeyPress={handleKeyPress}
-                placeholder={noCaseManager ? "Case manager required..." : "Type your message..."}
-                disabled={noCaseManager}
-                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent max-h-20 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                rows="1"
-              />
-              <button
-                onClick={sendMessage}
-                disabled={!newMessage.trim() || noCaseManager}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              {noCaseManager ? 'Contact admin to assign case manager' : 'Your identity remains anonymous'}
-            </p>
-          </div>
+              {/* INPUT AREA */}
+              <div className="px-4 md:px-6 py-3 bg-white border-t">
+                <form
+                  onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
+                  className="flex items-end gap-3"
+                >
+                  <textarea
+                    ref={inputRef}
+                    value={newMessage}
+                    onChange={(e) => { setNewMessage(e.target.value); handleTyping(); }}
+                    onKeyDown={handleKeyDown}
+                    placeholder={noCaseManager ? 'Case manager required to send messages...' : 'Type a message — press Enter to send'}
+                    disabled={noCaseManager}
+                    aria-label="Message input"
+                    rows={1}
+                    className="flex-1 min-h-[44px] max-h-40 px-3 py-2 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-transparent disabled:bg-gray-100"
+                  />
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // quick template actions
+                        if (!noCaseManager) {
+                          setNewMessage(prev => (prev ? prev + "\n" : '') + 'Hello, I need assistance with...');
+                          inputRef.current?.focus();
+                        }
+                      }}
+                      className="hidden md:inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 text-sm text-gray-600 hover:bg-gray-50"
+                    >
+                      Template
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={!newMessage.trim() || noCaseManager}
+                      className="flex items-center justify-center w-11 h-11 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      aria-label="Send message"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </div>
+                </form>
+
+                <div className="mt-2 text-xs text-gray-500 flex items-center justify-between">
+                  <div>{noCaseManager ? 'Contact admin to assign case manager' : 'Messages are private and encrypted'}</div>
+                  <div className="hidden sm:flex items-center gap-3 text-[11px]">
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" /> Blue: You</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-white border" /> White: Case Manager</span>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
-      {/* Mobile Overlay */}
+      {/* Mobile backdrop to close chat when tapping outside */}
       {isChatOpen && (
-        <div 
-          className="md:hidden fixed inset-0 bg-black bg-opacity-25 -z-10" 
-          onClick={() => setIsChatOpen(false)} 
-        />
+        <div className="md:hidden fixed inset-0 bg-black/30" onClick={() => setIsChatOpen(false)} />
       )}
     </div>
   );
-};
-
-export default ChatWidget;
+}

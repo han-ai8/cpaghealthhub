@@ -218,39 +218,83 @@ const Schedule = () => {
   };
 
   const isDateAvailable = (date) => {
-    if (!date) return true;
-    const dateStr = formatDateToLocal(date); // ✅ Use consistent formatting
-    const dayOfWeek = date.getDay();
+  if (!date) return true;
+  const dateStr = formatDateToLocal(date);
+  const dayOfWeek = date.getDay();
+  
+  // Check for clinic closures/holidays
+  const closure = clinicSchedule.find(schedule => {
+    const start = new Date(schedule.startDate);
+    const end = new Date(schedule.endDate);
+    const checkDate = parseDateFromString(dateStr);
     
-    const closure = clinicSchedule.find(schedule => {
-      const start = new Date(schedule.startDate);
-      const end = new Date(schedule.endDate);
-      const checkDate = parseDateFromString(dateStr);
-      return schedule.type === 'closure' && checkDate >= start && checkDate <= end;
-    });
+    // Set hours to 0 for date comparison
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    checkDate.setHours(0, 0, 0, 0);
     
-    if (closure) {
-      console.log(`❌ Date ${dateStr} is closed: ${closure.title}`);
-      return false;
-    }
-    
-    const specialOpening = clinicSchedule.find(schedule => {
-      const scheduleDate = formatDateToLocal(new Date(schedule.date));
-      return schedule.type === 'special_opening' && scheduleDate === dateStr;
-    });
-    
-    if (specialOpening) {
-      console.log(`✅ Date ${dateStr} is special opening: ${specialOpening.title}`);
-      return true;
-    }
-    
-    if (dayOfWeek === 0) {
-      console.log(`❌ Date ${dateStr} is Sunday - closed`);
-      return false;
-    }
-    
+    return (schedule.type === 'closure' || schedule.type === 'holiday') && 
+           schedule.isActive &&
+           checkDate >= start && 
+           checkDate <= end;
+  });
+  
+  if (closure) {
+    console.log(`❌ Date ${dateStr} is closed: ${closure.title}`);
+    return false;
+  }
+  
+  // Check for special opening (overrides Sunday closure)
+  const specialOpening = clinicSchedule.find(schedule => {
+    const scheduleDate = formatDateToLocal(new Date(schedule.date || schedule.startDate));
+    return schedule.type === 'special_opening' && 
+           schedule.isActive &&
+           scheduleDate === dateStr;
+  });
+  
+  if (specialOpening) {
+    console.log(`✅ Date ${dateStr} is special opening: ${specialOpening.title}`);
     return true;
-  };
+  }
+  
+  // Sunday is closed by default
+  if (dayOfWeek === 0) {
+    console.log(`❌ Date ${dateStr} is Sunday - closed`);
+    return false;
+  }
+  
+  return true;
+};
+
+const isTimeSlotAvailable = (date, time) => {
+  if (!date || !time) return true;
+  
+  // Check if date itself is available first
+  if (!isDateAvailable(date)) return false;
+  
+  const dateStr = formatDateToLocal(date);
+  
+  // Check if slot is already booked
+  if (isSlotBooked(date, time)) return false;
+  
+  // Check for partial day closures (if implemented in future)
+  const partialClosure = clinicSchedule.find(schedule => {
+    const scheduleDate = formatDateToLocal(new Date(schedule.date || schedule.startDate));
+    return schedule.type === 'closure' && 
+           schedule.isActive &&
+           scheduleDate === dateStr &&
+           schedule.affectedTimeSlots && 
+           schedule.affectedTimeSlots.includes(time);
+  });
+  
+  if (partialClosure) {
+    console.log(`❌ Time ${time} on ${dateStr} is closed: ${partialClosure.title}`);
+    return false;
+  }
+  
+  return true;
+};
+
 
   const handleServiceSelection = (service) => {
     setSelectedService(service);
@@ -1104,22 +1148,24 @@ const Schedule = () => {
                 <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
                   {timeSlots.map((time) => {
                     const booked = isSlotBooked(selectedDate, time);
+                    const available = isTimeSlotAvailable(selectedDate, time); // ✅ NEW: Check clinic schedule too
                     const selected = selectedTime === time;
 
                     return (
                       <button
                         key={time}
-                        onClick={() => !booked && handleTimeSelection(time)}
-                        disabled={booked}
+                        onClick={() => available && !booked && handleTimeSelection(time)}
+                        disabled={booked || !available} // ✅ UPDATED: Disable if not available
                         className={`
                           p-3 rounded-lg font-semibold transition-all
                           ${selected ? 'bg-blue-600 text-white ring-4 ring-blue-300' : ''}
-                          ${booked ? 'bg-gray-200 text-gray-400 cursor-not-allowed line-through' : ''}
-                          ${!booked && !selected ? 'bg-white text-gray-700 hover:bg-blue-100 hover:text-blue-700 border-2 border-gray-200' : ''}
+                          ${booked || !available ? 'bg-gray-200 text-gray-400 cursor-not-allowed line-through' : ''} // ✅ UPDATED
+                          ${!booked && available && !selected ? 'bg-white text-gray-700 hover:bg-blue-100 hover:text-blue-700 border-2 border-gray-200' : ''}
                         `}
                       >
                         {time}
                         {booked && <span className="block text-xs mt-1">Booked</span>}
+                        {!booked && !available && <span className="block text-xs mt-1">Closed</span>} {/* ✅ NEW */}
                       </button>
                     );
                   })}
@@ -1528,7 +1574,7 @@ const Schedule = () => {
                       </span>
                     </div>
                     
-                    {apt.sessionTracking?.sessionNumber && (
+                    {apt.sessionTracking?.sessionNumber && apt.service !== 'Testing and Counseling' && (
                       <p className="text-sm text-gray-500 mt-2">
                         Session #{apt.sessionTracking.sessionNumber}
                       </p>

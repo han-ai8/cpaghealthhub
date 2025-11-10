@@ -1,19 +1,18 @@
-// CaseManagerPlanner.jsx - COMPLETE VERSION with Edit, Duplicate Detection & Comprehensive Report
+// CaseManagerPlanner.jsx - COMPLETE VERSION with Clinic Schedule Integration
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, User, Filter, Search, X, TrendingUp, Activity, Users, Eye, FileText, ChevronLeft, ChevronRight, RefreshCw, Plus, CheckCircle, AlertCircle, Edit, Printer, Save, Ban } from 'lucide-react';
 import SessionTimelineModal from '../../components/SessionTimelineModal';
 import UnifiedSessionHistoryModal from '../../components/UnifiedSessionHistoryModal';
 import { useAuth } from '../../context/AuthContext';
 import PrintableCompletionReport from '../../components/PrintableCompletionReport';
-
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
 
 const parseDate = (dateString) => {
   if (!dateString) return null;
   const [year, month, day] = dateString.split('-').map(Number);
   return new Date(year, month - 1, day);
 };
+
 const formatDateString = (date) => {
   if (!date) return '';
   const d = new Date(date);
@@ -45,11 +44,13 @@ const CaseManagerPlanner = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState('calendar');
   const [bookedSlots, setBookedSlots] = useState([]);
+  const [clinicSchedule, setClinicSchedule] = useState([]); // ✅ NEW: Clinic schedule state
   const [programReport, setProgramReport] = useState(null);
   const [allPatientsReport, setAllPatientsReport] = useState(null);
   const [showTimelineModal, setShowTimelineModal] = useState(false);
   const [showUnifiedHistoryModal, setShowUnifiedHistoryModal] = useState(false);
   const [selectedPatientForHistory, setSelectedPatientForHistory] = useState(null);
+  
   const [nextSessionForm, setNextSessionForm] = useState({
     date: '',
     time: '',
@@ -90,12 +91,14 @@ const CaseManagerPlanner = () => {
 
   useEffect(() => {
     fetchPlanner();
+    fetchClinicSchedule(); // ✅ NEW: Fetch clinic schedule on mount
   }, [sortBy, statusFilter]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       console.log('🔄 Auto-refreshing case manager planner...');
       fetchPlanner();
+      fetchClinicSchedule(); // ✅ NEW: Include in auto-refresh
     }, 30000);
     return () => clearInterval(interval);
   }, [sortBy, statusFilter]);
@@ -141,7 +144,71 @@ const CaseManagerPlanner = () => {
     }
   };
 
-  // ✅ NEW: Check if slot is available (excluding current appointment when editing)
+  // ✅ NEW: Fetch clinic schedule
+  const fetchClinicSchedule = async () => {
+    try {
+      console.log('📅 Fetching clinic schedule for case manager...');
+      const response = await fetch(`${API_URL}/clinic-schedule/active`);
+      if (response.ok) {
+        const data = await response.json();
+        setClinicSchedule(data);
+        console.log('✅ Clinic schedule loaded:', data.length, 'entries');
+      }
+    } catch (err) {
+      console.error('❌ Error fetching clinic schedule:', err);
+    }
+  };
+
+  // ✅ NEW: Check if date is available based on clinic schedule
+  const isDateAvailable = (date) => {
+    if (!date) return true;
+    const dateStr = formatDateString(date);
+    const dayOfWeek = date.getDay();
+    
+    // Check for clinic closures/holidays
+    const closure = clinicSchedule.find(schedule => {
+      const start = new Date(schedule.startDate);
+      const end = new Date(schedule.endDate);
+      const checkDate = new Date(dateStr);
+      
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+      checkDate.setHours(0, 0, 0, 0);
+      
+      return (schedule.type === 'closure' || schedule.type === 'holiday') && 
+             schedule.isActive &&
+             checkDate >= start && 
+             checkDate <= end;
+    });
+    
+    if (closure) {
+      console.log(`❌ Date ${dateStr} is closed: ${closure.title}`);
+      return false;
+    }
+    
+    // Check for special opening (overrides Sunday closure)
+    const specialOpening = clinicSchedule.find(schedule => {
+      const scheduleDate = formatDateString(new Date(schedule.date || schedule.startDate));
+      return schedule.type === 'special_opening' && 
+             schedule.isActive &&
+             scheduleDate === dateStr;
+    });
+    
+    if (specialOpening) {
+      console.log(`✅ Date ${dateStr} is special opening: ${specialOpening.title}`);
+      return true;
+    }
+    
+    // Sunday is closed by default
+    if (dayOfWeek === 0) {
+      console.log(`❌ Date ${dateStr} is Sunday - closed`);
+      return false;
+    }
+    
+    return true;
+  };
+
+  // Check if slot is available (excluding current appointment when editing)
   const isSlotAvailable = (date, time, excludeAppointmentId = null) => {
     return !bookedSlots.some(slot => 
       slot.date === date && 
@@ -150,7 +217,7 @@ const CaseManagerPlanner = () => {
     );
   };
 
-  // ✅ NEW: Get conflicting appointments for a time slot
+  // Get conflicting appointments for a time slot
   const getConflictingAppointments = (date, time, excludeAppointmentId = null) => {
     return bookedSlots.filter(slot => 
       slot.date === date && 
@@ -185,7 +252,6 @@ const CaseManagerPlanner = () => {
     setShowPatientModal(true);
   };
 
-  // ✅ NEW: Open edit appointment modal
   const openEditModal = () => {
     setEditAppointmentForm({
       date: selectedPatient.date,
@@ -197,63 +263,68 @@ const CaseManagerPlanner = () => {
     fetchBookedSlots();
   };
 
-  // ✅ NEW: Handle edit appointment
-const handleEditAppointment = async () => {
-  if (!editAppointmentForm.date || !editAppointmentForm.time) {
-    alert('Please select both date and time');
-    return;
-  }
-
-  // ✅ Format date consistently
-  const formattedDate = formatDateString(new Date(editAppointmentForm.date));
-
-  // Check for conflicts
-  const conflicts = getConflictingAppointments(
-    formattedDate, 
-    editAppointmentForm.time,
-    selectedPatient._id
-  );
-
-  if (conflicts.length > 0) {
-    const conflictNames = conflicts.map(c => c.userName).join(', ');
-    if (!confirm(`⚠️ This time slot is already booked by: ${conflictNames}\n\nDo you want to continue anyway?`)) {
+  // ✅ UPDATED: Handle edit appointment with clinic schedule validation
+  const handleEditAppointment = async () => {
+    if (!editAppointmentForm.date || !editAppointmentForm.time) {
+      alert('Please select both date and time');
       return;
     }
-  }
 
-  try {
-    setLoading(true);
-    const response = await fetch(
-      `${API_URL}/appointments/${selectedPatient._id}/reschedule`,
-      {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          date: formattedDate, // ✅ Use formatted date
-          time: editAppointmentForm.time,
-          note: editAppointmentForm.note
-        })
-      }
+    const formattedDate = formatDateString(new Date(editAppointmentForm.date));
+
+    // ✅ NEW: Check if date is available (not a holiday/closure)
+    if (!isDateAvailable(new Date(editAppointmentForm.date))) {
+      alert('❌ The selected date is not available (holiday/closure). Please select another date.');
+      return;
+    }
+
+    // Check for conflicts
+    const conflicts = getConflictingAppointments(
+      formattedDate, 
+      editAppointmentForm.time,
+      selectedPatient._id
     );
 
-    const data = await response.json();
-
-    if (response.ok && data.success) {
-      alert('✅ Appointment updated successfully!');
-      setShowEditModal(false);
-      setEditAppointmentForm({ date: '', time: '', note: '' });
-      fetchPlanner();
-      fetchBookedSlots(); // ✅ Refresh booked slots
-    } else {
-      alert(`❌ Error: ${data.error || 'Failed to update appointment'}`);
+    if (conflicts.length > 0) {
+      const conflictNames = conflicts.map(c => c.userName).join(', ');
+      if (!confirm(`⚠️ This time slot is already booked by: ${conflictNames}\n\nDo you want to continue anyway?`)) {
+        return;
+      }
     }
-  } catch (error) {
-    console.error('Error updating appointment:', error);
-    alert('Failed to update appointment. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
+
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${API_URL}/admin/appointments/${selectedPatient._id}/reschedule`,
+        {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            date: formattedDate,
+            time: editAppointmentForm.time,
+            note: editAppointmentForm.note
+          })
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert('✅ Appointment updated successfully!');
+        setShowEditModal(false);
+        setEditAppointmentForm({ date: '', time: '', note: '' });
+        fetchPlanner();
+        fetchBookedSlots();
+      } else {
+        alert(`❌ Error: ${data.error || 'Failed to update appointment'}`);
+      }
+    } catch (error) {
+      console.error('Error updating appointment:', error);
+      alert('Failed to update appointment. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const openNextSessionModal = () => {
     if (!canSetNewSession(selectedPatient)) {
@@ -351,84 +422,62 @@ const handleEditAppointment = async () => {
     }
   };
 
-  // ✅ NEW: Generate comprehensive report for all patients
-  const generateAllPatientsReport = async () => {
+  // ✅ UPDATED: Handle set next session with clinic schedule validation
+  const handleSetNextSession = async () => {
+    if (!nextSessionForm.date || !nextSessionForm.time) {
+      alert('Please select both date and time');
+      return;
+    }
+
+    const formattedDate = formatDateString(new Date(nextSessionForm.date));
+
+    // ✅ NEW: Check if date is available (not a holiday/closure)
+    if (!isDateAvailable(new Date(nextSessionForm.date))) {
+      alert('❌ The selected date is not available (holiday/closure). Please select another date.');
+      return;
+    }
+
+    // Check for conflicts using the formatted date
+    const conflicts = getConflictingAppointments(formattedDate, nextSessionForm.time);
+    if (conflicts.length > 0) {
+      const conflictNames = conflicts.map(c => c.userName).join(', ');
+      alert(`⚠️ This time slot is already booked by: ${conflictNames}\n\nPlease select another time.`);
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch(
-        `${API_URL}/sessions/comprehensive-report`,
+        `${API_URL}/sessions/appointments/${selectedPatient._id}/next-session`,
         {
-          headers: getAuthHeaders()
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            date: formattedDate,
+            time: nextSessionForm.time,
+            note: nextSessionForm.note
+          })
         }
       );
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setAllPatientsReport(data.report);
-          setShowAllPatientsReportModal(true);
-        }
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert(`✅ ${data.message}`);
+        setShowNextSessionModal(false);
+        setNextSessionForm({ date: '', time: '', note: '' });
+        fetchPlanner();
+        fetchBookedSlots();
       } else {
-        alert('Failed to generate comprehensive report');
+        alert(`❌ Error: ${data.error || 'Failed to create session'}`);
       }
     } catch (error) {
-      console.error('Error generating comprehensive report:', error);
-      alert('Failed to generate comprehensive report');
+      console.error('Error creating next session:', error);
+      alert('Failed to create next session. Please try again.');
     } finally {
       setLoading(false);
     }
   };
-
-  const handleSetNextSession = async () => {
-  if (!nextSessionForm.date || !nextSessionForm.time) {
-    alert('Please select both date and time');
-    return;
-  }
-
-  // ✅ Format date consistently
-  const formattedDate = formatDateString(new Date(nextSessionForm.date));
-
-  // Check for conflicts using the formatted date
-  const conflicts = getConflictingAppointments(formattedDate, nextSessionForm.time);
-  if (conflicts.length > 0) {
-    const conflictNames = conflicts.map(c => c.userName).join(', ');
-    alert(`⚠️ This time slot is already booked by: ${conflictNames}\n\nPlease select another time.`);
-    return;
-  }
-
-  try {
-    setLoading(true);
-    const response = await fetch(
-      `${API_URL}/sessions/appointments/${selectedPatient._id}/next-session`,
-      {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          date: formattedDate, // ✅ Use formatted date
-          time: nextSessionForm.time,
-          note: nextSessionForm.note
-        })
-      }
-    );
-
-    const data = await response.json();
-
-    if (response.ok && data.success) {
-      alert(`✅ ${data.message}`);
-      setShowNextSessionModal(false);
-      setNextSessionForm({ date: '', time: '', note: '' });
-      fetchPlanner();
-      fetchBookedSlots(); // ✅ Refresh booked slots
-    } else {
-      alert(`❌ Error: ${data.error || 'Failed to create session'}`);
-    }
-  } catch (error) {
-    console.error('Error creating next session:', error);
-    alert('Failed to create next session. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
 
   const handleAddSessionSummary = async () => {
     if (!sessionSummaryForm.notes) {
@@ -588,14 +637,6 @@ const handleEditAppointment = async () => {
               </p>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={generateAllPatientsReport}
-                disabled={loading}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold px-6 py-3 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200 disabled:opacity-50"
-              >
-                <FileText className="w-5 h-5" />
-                Generate Full Report
-              </button>
               <button
                 onClick={fetchPlanner}
                 className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold px-6 py-3 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200"
@@ -775,10 +816,14 @@ const handleEditAppointment = async () => {
                   >
                     {date && (
                       <>
-                        <div className={`text-sm font-semibold mb-1 ${
+                        <div className={`text-sm font-semibold mb-1 flex items-center gap-1 ${
                           isCurrentDay ? 'text-blue-600' : 'text-gray-700'
                         }`}>
                           {date.getDate()}
+                          {/* ✅ NEW: Show closure indicator */}
+                          {!isDateAvailable(date) && (
+                            <span className="text-xs text-red-600">🚫</span>
+                          )}
                         </div>
                         <div className="space-y-1">
                           {dayAppointments.slice(0, 2).map((apt, idx) => (
@@ -897,7 +942,7 @@ const handleEditAppointment = async () => {
               </div>
 
               <div className="grid md:grid-cols-2 gap-6 mb-6">
-                {/* ✅ FIXED: Basic Information - Now properly shows psychosocialInfo data */}
+                {/* Basic Information */}
                 <div className="bg-blue-50 rounded-lg p-5 border-2 border-blue-200">
                   <h3 className="font-bold text-blue-800 mb-4 text-lg">Basic Information</h3>
                   <div className="space-y-3 text-sm">
@@ -1026,7 +1071,7 @@ const handleEditAppointment = async () => {
                 </p>
                 
                 {selectedPatient.sessionTracking?.sessionNotes?.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-3 mt-4">
                     {selectedPatient.sessionTracking.sessionNotes.map((note, idx) => (
                       <div key={idx} className="bg-white rounded-lg p-4 border border-purple-200">
                         <div className="flex justify-between items-start mb-2">
@@ -1117,7 +1162,7 @@ const handleEditAppointment = async () => {
           </div>
         )}
 
-        {/* ✅ NEW: Edit Appointment Modal */}
+        {/* Edit Appointment Modal */}
         {showEditModal && selectedPatient && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -1156,20 +1201,22 @@ const handleEditAppointment = async () => {
                     <option value="">Select time</option>
                     {timeSlots.map(slot => {
                       const available = isSlotAvailable(editAppointmentForm.date, slot, selectedPatient._id);
+                      const dateAvailable = editAppointmentForm.date ? isDateAvailable(new Date(editAppointmentForm.date)) : true;
+                      const slotEnabled = available && dateAvailable;
                       
                       return (
                         <option 
                           key={slot} 
                           value={slot}
-                          className={!available ? 'text-red-600' : ''}
+                          className={!slotEnabled ? 'text-red-600' : ''}
                         >
-                          {slot} {!available ? `(Booked by other users )` : ''}
+                          {slot} {!available ? '(Booked by other users)' : !dateAvailable ? '(Clinic Closed)' : ''}
                         </option>
                       );
                     })}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    🔴 Red times are booked - you can still select but will get a confirmation
+                    🔴 Red times are booked or closed - you can still select but will get a confirmation
                   </p>
                 </div>
 
@@ -1244,20 +1291,23 @@ const handleEditAppointment = async () => {
                     {timeSlots.map(slot => {
                       const conflicts = getConflictingAppointments(nextSessionForm.date, slot);
                       const available = conflicts.length === 0;
+                      const dateAvailable = nextSessionForm.date ? isDateAvailable(new Date(nextSessionForm.date)) : true;
+                      const slotEnabled = available && dateAvailable;
+                      
                       return (
                         <option 
                           key={slot} 
                           value={slot}
-                          disabled={!available}
-                          className={!available ? 'text-red-600' : ''}
+                          disabled={!slotEnabled}
+                          className={!slotEnabled ? 'text-red-600' : ''}
                         >
-                          {slot} {!available ? `(Booked by: ${conflicts.map(c => c.userName).join(', ')})` : ''}
+                          {slot} {!available ? `(Booked by: ${conflicts.map(c => c.userName).join(', ')})` : !dateAvailable ? '(Clinic Closed)' : ''}
                         </option>
                       );
                     })}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    🔴 Booked slots show who has that time
+                    🔴 Booked slots show who has that time. 🚫 Closed times are due to holidays/closures.
                   </p>
                 </div>
 
@@ -1598,7 +1648,7 @@ const handleEditAppointment = async () => {
           </div>
         )}
 
-        {/* ✅ NEW: All Patients Report Modal */}
+        {/* All Patients Report Modal */}
         {showAllPatientsReportModal && allPatientsReport && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl max-w-4xl w-full p-8 shadow-2xl">
@@ -1633,6 +1683,7 @@ const handleEditAppointment = async () => {
           </div>
         )}
       </div>
+
       {showTimelineModal && selectedPatient && (
         <SessionTimelineModal
           appointment={selectedPatient}
@@ -1640,7 +1691,6 @@ const handleEditAppointment = async () => {
         />
       )}
 
-      {/* ✅ FIXED VERSION */}
       {showUnifiedHistoryModal && selectedPatientForHistory && (
         <UnifiedSessionHistoryModal
           patientId={selectedPatientForHistory.user._id}
@@ -1656,16 +1706,10 @@ const handleEditAppointment = async () => {
         />
       )}
     </div>
-    
   );
 };
 
-// ✅ COMPLETE FIXED PrintableCompletionReport Component
-// Replace this entire component in your CaseManagerPlanner.jsx
-
-
-
-// ✅ NEW: Comprehensive All Patients Report Component
+// Comprehensive All Patients Report Component
 const ComprehensiveReport = ({ report }) => {
   if (!report) return null;
 
@@ -1805,12 +1849,7 @@ const ComprehensiveReport = ({ report }) => {
         </div>
       </div>
     </div>
-
-    
-
   );
-  
 };
-
 
 export default CaseManagerPlanner;

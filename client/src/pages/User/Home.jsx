@@ -1,18 +1,22 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useLocation } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../components/ConfirmModal';
 import { useAuth } from '../../context/AuthContext';
 
 const Home = () => {
+  const location = useLocation();
   const toast = useToast();
   const { confirm } = useConfirm();
-  const { user } = useAuth(); // Get current logged-in user
+  const { user } = useAuth();
+  
+  // ✅ NEW: Refs for scrolling to posts
+  const postRefs = useRef({});
   
   // Anonymous name generator function
   const generateAnonymousName = (userId) => {
     if (!userId) return 'Anonymous User';
     
-    // Convert userId to string and create a hash
     const idStr = userId.toString();
     let hash = 0;
     
@@ -22,49 +26,29 @@ const Home = () => {
       hash = hash & hash;
     }
     
-    // Use absolute value and generate a unique 5-digit number (10000-99999)
     const absHash = Math.abs(hash);
     const uniqueNumber = (absHash % 90000) + 10000;
     
     return `Anonymous #${uniqueNumber}`;
   };
   
-  // Check if a comment is from the current user
-  // ✅ FIXED: Works with both user IDs and usernames
   const isMyComment = (commentAuthor) => {
     if (!user || !commentAuthor) {
       return false;
     }
     
-    // Debug logging (remove after testing)
-    console.log('Checking comment:', {
-      commentAuthor,
-      userId: user.id,
-      userName: user.name,
-      userUsername: user.username
-    });
-    
-    // Try multiple comparisons to handle different backend structures
-    
-    // If backend stores user ID (correct way)
     if (user.id && commentAuthor.toString() === user.id.toString()) {
-      console.log('✅ Matched by user ID');
       return true;
     }
     
-    // If backend stores username (temporary compatibility)
     if (user.username && commentAuthor === user.username) {
-      console.log('✅ Matched by username');
       return true;
     }
     
-    // If backend stores name (temporary compatibility)
     if (user.name && commentAuthor === user.name) {
-      console.log('✅ Matched by name');
       return true;
     }
     
-    console.log('❌ No match found');
     return false;
   };
   
@@ -85,7 +69,6 @@ const Home = () => {
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   
-  // Get auth headers with token
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
     return {
@@ -101,32 +84,38 @@ const Home = () => {
     fetchLikedStatus();
   }, []);
 
-  // 🔍 DEBUG: Log user info (remove after blue highlighting works)
+  // ✅ NEW: Handle scroll to post from saved posts
   useEffect(() => {
-    if (user) {
-      console.log('=== USER DEBUG INFO ===');
-      console.log('User object:', user);
-      console.log('User ID:', user.id);
-      console.log('User name:', user.name);
-      console.log('User username:', user.username);
-      console.log('======================');
+    if (location.state?.scrollToPost && posts.length > 0) {
+      const postId = location.state.scrollToPost;
+      
+      // Wait for DOM to render
+      setTimeout(() => {
+        const postElement = postRefs.current[postId];
+        if (postElement) {
+          postElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+          
+          // Add highlight effect
+          postElement.style.transition = 'background-color 0.3s ease';
+          postElement.style.backgroundColor = '#E3F2FD';
+          
+          setTimeout(() => {
+            postElement.style.backgroundColor = 'transparent';
+          }, 2000);
+          
+          toast.success('Scrolled to saved post');
+        } else {
+          toast.warning('Post not found on current page');
+        }
+      }, 300);
+      
+      // Clear the state to prevent re-scrolling
+      window.history.replaceState({}, document.title);
     }
-  }, [user]);
-
-  // 🔍 DEBUG: Log comments when they load (remove after blue highlighting works)
-  useEffect(() => {
-    if (announcementComments.length > 0) {
-      console.log('=== ANNOUNCEMENT COMMENTS DEBUG ===');
-      announcementComments.forEach((comment, idx) => {
-        console.log(`Comment ${idx}:`, {
-          author: comment.author,
-          authorType: typeof comment.author,
-          body: comment.body.substring(0, 30) + '...'
-        });
-      });
-      console.log('===================================');
-    }
-  }, [announcementComments]);
+  }, [location.state, posts]);
 
   const fetchData = async () => {
     try {
@@ -597,7 +586,11 @@ const Home = () => {
           const comments = postComments[post._id] || [];
           
           return (
-            <div key={post._id} className="card bg-[#FFFFFF] shadow-lg border border-[#4C8DD8]/20 max-w-6xl mx-auto">
+            <div 
+              key={post._id} 
+              ref={(el) => postRefs.current[post._id] = el}
+              className="card bg-[#FFFFFF] shadow-lg border border-[#4C8DD8]/20 max-w-6xl mx-auto"
+            >
               <div className="card-body">
                 <div className="flex items-center mb-4">
                   <div className="avatar">

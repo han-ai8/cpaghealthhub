@@ -55,17 +55,17 @@ export const ToastProvider = ({ children }) => {
       {children}
       
       {/* Toast Container */}
-      <div className="fixed top-4 right-4 z-[9999] space-y-2 max-w-md">
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] space-y-2 w-full max-w-md px-4">
         {toasts.map((toast) => (
           <div
             key={toast.id}
             className={`flex items-center gap-3 p-4 rounded-lg border-2 shadow-lg animate-slide-in ${getColorClasses(toast.type)}`}
           >
             {getIcon(toast.type)}
-            <p className="flex-1 font-medium text-sm">{toast.message}</p>
+            <p className="flex-1 font-medium text-sm break-words">{toast.message}</p>
             <button
               onClick={() => removeToast(toast.id)}
-              className="hover:opacity-70 transition"
+              className="hover:opacity-70 transition flex-shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
@@ -76,11 +76,11 @@ export const ToastProvider = ({ children }) => {
       <style>{`
         @keyframes slide-in {
           from {
-            transform: translateX(100%);
+            transform: translateY(-100%);
             opacity: 0;
           }
           to {
-            transform: translateX(0);
+            transform: translateY(0);
             opacity: 1;
           }
         }

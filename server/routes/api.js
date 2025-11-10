@@ -6,7 +6,7 @@ import Post from '../models/Post.js';
 import User from '../models/User.js';
 import CommunityPost from '../models/CommunityPost.js';
 import Appointment from '../models/appointment.js';
-import { isAuthenticated, isAdminRole, isUserRole } from '../middleware/auth.js';
+import { isAuthenticated, isAdminRole, isUserRole, isContentModerator } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -47,6 +47,15 @@ router.post('/announcements', isAuthenticated, isAdminRole, upload.single('image
     const image = req.file ? `/uploads/${req.file.filename}` : null;
     const announcement = new Announcement({ title, content, image });
     await announcement.save();
+
+    // ✅ ADD THIS: Send notifications to all users
+    const notificationService = req.app.get('notificationService');
+    const allUsers = await User.find({ role: 'user' }).select('_id');
+    const userIds = allUsers.map(u => u._id);
+    
+    await notificationService.notifyNewAnnouncement(announcement, userIds);
+    console.log(`✅ Sent ${userIds.length} notifications for new announcement`);
+
     res.json(announcement);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -72,6 +81,30 @@ router.get('/posts', async (req, res) => {
   }
 });
 
+// Add this NEW route right after your existing PUT route (around line 85)
+// This handles POST requests for updates (compatible with file uploads)
+router.post('/posts/:id', isAuthenticated, isAdminRole, upload.single('image'), async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content) return res.status(400).json({ error: 'Content required' });
+    
+    const post = await Post.findById(req.params.id);
+    if (!post || post.author !== 'CPAG') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    
+    post.content = content;
+    if (req.file) {
+      post.image = `/uploads/${req.file.filename}`;
+    }
+    
+    await post.save();
+    res.json(post);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/posts/all', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const posts = await Post.find().sort({ createdAt: -1 });
@@ -91,6 +124,17 @@ router.post('/posts', isAuthenticated, isAdminRole, upload.single('image'), asyn
     const image = req.file ? `/uploads/${req.file.filename}` : null;
     const post = new Post({ content, image, status: postStatus, author: 'CPAG' });
     await post.save();
+
+    // ✅ ADD THIS: Send notifications if approved
+    if (postStatus === 'approved') {
+      const notificationService = req.app.get('notificationService');
+      const allUsers = await User.find({ role: 'user' }).select('_id');
+      const userIds = allUsers.map(u => u._id);
+      
+      await notificationService.notifyNewPost(post, userIds);
+      console.log(`✅ Sent ${userIds.length} notifications for new post`);
+    }
+
     res.json(post);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -223,6 +267,25 @@ router.get('/posts/saved', isAuthenticated, isUserRole, async (req, res) => {
     res.json(savedPosts);
   } catch (err) {
     console.error('Saved posts route error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/posts/liked-status', isAuthenticated, isUserRole, async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    const userId = req.user.id;
+    const likedPosts = await Post.find({ likedBy: userId, status: 'approved' }).select('_id');
+    const likedAnnouncements = await Announcement.find({ likedBy: userId }).select('_id');
+
+    res.json({
+      likedPosts: likedPosts.map(p => p._id.toString()),
+      likedAnnouncements: likedAnnouncements.map(a => a._id.toString())
+    });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
@@ -369,6 +432,8 @@ router.delete('/posts/:id/comments/:commentId', isAuthenticated, isAdminRole, as
   }
 });
 
+// For Announcement comments - around line 433
+// Update the announcement reply route
 router.put('/announcements/:id/comments/:commentId/reply', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const { reply } = req.body;
@@ -393,7 +458,22 @@ router.put('/announcements/:id/comments/:commentId/reply', isAuthenticated, isAd
     };
 
     await announcement.save();
-    console.log('Reply added to announcement comment:', req.params.commentId);
+
+    const notificationService = req.app.get('notificationService');
+    const commentAuthor = await User.findOne({ 
+      $or: [{ name: comment.author }, { username: comment.author }] 
+    });
+    
+    if (commentAuthor) {
+      await notificationService.notifyAdminReply(
+        commentAuthor._id,
+        announcement,
+        comment.body,
+        req.params.commentId, // ✅ Pass comment ID
+        'Announcement'
+      );
+    }
+
     res.json({ message: 'Reply added', announcement });
   } catch (err) {
     console.error('Reply to announcement comment error:', err);
@@ -401,6 +481,7 @@ router.put('/announcements/:id/comments/:commentId/reply', isAuthenticated, isAd
   }
 });
 
+// Update the post reply route
 router.put('/posts/:id/comments/:commentId/reply', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const { reply } = req.body;
@@ -425,10 +506,80 @@ router.put('/posts/:id/comments/:commentId/reply', isAuthenticated, isAdminRole,
     };
 
     await post.save();
-    console.log('Reply added to post comment:', req.params.commentId);
+
+    const notificationService = req.app.get('notificationService');
+    const commentAuthor = await User.findOne({ 
+      $or: [{ name: comment.author }, { username: comment.author }] 
+    });
+    
+    if (commentAuthor) {
+      await notificationService.notifyAdminReply(
+        commentAuthor._id,
+        post,
+        comment.body,
+        req.params.commentId, // ✅ Pass comment ID
+        'Post'
+      );
+    }
+
     res.json({ message: 'Reply added', post });
   } catch (err) {
     console.error('Reply to post comment error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update community comment route
+router.post('/community/posts/:id/comments', isAuthenticated, isUserRole, async (req, res) => {
+  try {
+    const { body } = req.body;
+    if (!body || !body.trim()) {
+      return res.status(400).json({ error: 'Comment body required' });
+    }
+
+    const post = await CommunityPost.findById(req.params.id).populate('author', 'name username');
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const comment = {
+      body: body.trim(),
+      author: req.user.id,
+      createdAt: new Date()
+    };
+
+    post.comments.push(comment);
+    await post.save();
+
+    // Get the newly added comment ID
+    const addedComment = post.comments[post.comments.length - 1];
+
+    try {
+      if (post.author && post.author._id && post.author._id.toString() !== req.user.id.toString()) {
+        const notificationService = req.app.get('notificationService');
+        if (notificationService) {
+          const commenter = await User.findById(req.user.id).select('name username');
+          if (commenter) {
+            const commenterName = commenter.name || commenter.username || 'Someone';
+            await notificationService.notifyNewComment(
+              post.author._id,
+              commenterName,
+              post,
+              addedComment._id.toString() // ✅ Pass comment ID
+            );
+            console.log('✅ Comment notification sent');
+          }
+        }
+      }
+    } catch (notifError) {
+      console.error('⚠️ Notification failed (non-critical):', notifError);
+    }
+
+    const populatedPost = await CommunityPost.findById(post._id).populate('author', 'name username');
+    
+    res.json({ message: 'Comment added', post: populatedPost });
+  } catch (err) {
+    console.error('Add community comment error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -633,22 +784,46 @@ router.post('/community/posts/:id/comments', isAuthenticated, isUserRole, async 
       return res.status(400).json({ error: 'Comment body required' });
     }
 
-    const post = await CommunityPost.findById(req.params.id);
+    const post = await CommunityPost.findById(req.params.id).populate('author', 'name username');
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
     const comment = {
       body: body.trim(),
-      author: req.user.id, // Store actual user ID
+      author: req.user.id,
       createdAt: new Date()
     };
 
     post.comments.push(comment);
     await post.save();
 
-    console.log('Comment added to community post:', req.params.id);
-    res.json({ message: 'Comment added', post });
+    // ✅ FIXED: Wrap notification in try-catch to prevent failure
+    try {
+      if (post.author && post.author._id && post.author._id.toString() !== req.user.id.toString()) {
+        const notificationService = req.app.get('notificationService');
+        if (notificationService) {
+          const commenter = await User.findById(req.user.id).select('name username');
+          if (commenter) {
+            const commenterName = commenter.name || commenter.username || 'Someone';
+            await notificationService.notifyNewComment(
+              post.author._id,
+              commenterName,
+              post
+            );
+            console.log('✅ Comment notification sent');
+          }
+        }
+      }
+    } catch (notifError) {
+      // Log notification error but don't fail the request
+      console.error('⚠️ Notification failed (non-critical):', notifError);
+    }
+
+    // Populate comment author for response
+    const populatedPost = await CommunityPost.findById(post._id).populate('author', 'name username');
+    
+    res.json({ message: 'Comment added', post: populatedPost });
   } catch (err) {
     console.error('Add community comment error:', err);
     res.status(500).json({ error: err.message });
@@ -675,17 +850,21 @@ router.post('/community/posts/:id/comments/:commentId/replies', isAuthenticated,
 
     const reply = {
       body: body.trim(),
-      author: req.user.id, // Store actual user ID
+      author: req.user.id,
       createdAt: new Date()
     };
 
     comment.replies.push(reply);
     await post.save();
 
-    console.log('Reply added to comment:', req.params.commentId);
-    res.json({ message: 'Reply added', post });
+    console.log('✅ Reply added to comment:', req.params.commentId);
+    
+    // Populate for response
+    const populatedPost = await CommunityPost.findById(post._id).populate('author', 'name username');
+    
+    res.json({ message: 'Reply added', post: populatedPost });
   } catch (err) {
-    console.error('Add reply error:', err);
+    console.error('❌ Add reply error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -731,9 +910,18 @@ router.post('/community/posts/:id/report', isAuthenticated, isUserRole, async (r
 
 // === ADMIN COMMUNITY ROUTES ===
 
-// GET: Admin - Fetch all community posts (all statuses)
-router.get('/admin/community/posts', isAuthenticated, isAdminRole, async (req, res) => {
+// ============================================
+// === ADMIN COMMUNITY ROUTES (UPDATED) ===
+// ============================================
+
+// ✅ IMPORT: Make sure isContentModerator is imported at the top
+// import { isAuthenticated, isAdminRole, isUserRole, isContentModerator } from '../middleware/auth.js';
+
+// GET: Admin/Content Moderator - Fetch all community posts (all statuses)
+router.get('/admin/community/posts', isAuthenticated, isContentModerator, async (req, res) => {
   try {
+    console.log('📋 Fetching community posts for:', req.user.role);
+    
     const posts = await CommunityPost.find()
       .populate('author', 'name email')
       .populate('reports.reportedBy', 'name email')
@@ -744,6 +932,13 @@ router.get('/admin/community/posts', isAuthenticated, isAdminRole, async (req, r
     const rejectedPosts = posts.filter(p => p.status === 'rejected');
     const reportedPosts = posts.filter(p => p.reports.some(r => r.status === 'pending'));
 
+    console.log('✅ Community posts fetched:', {
+      pending: pendingPosts.length,
+      approved: approvedPosts.length,
+      rejected: rejectedPosts.length,
+      reported: reportedPosts.length
+    });
+
     res.json({ 
       pendingPosts, 
       approvedPosts, 
@@ -752,13 +947,13 @@ router.get('/admin/community/posts', isAuthenticated, isAdminRole, async (req, r
       allPosts: posts 
     });
   } catch (err) {
-    console.error('Admin fetch community posts error:', err);
+    console.error('❌ Admin fetch community posts error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// PUT: Admin - Approve/Reject post
-router.put('/admin/community/posts/:id/status', isAuthenticated, isAdminRole, async (req, res) => {
+// PUT: Admin/Content Moderator - Approve/Reject post
+router.put('/admin/community/posts/:id/status', isAuthenticated, isContentModerator, async (req, res) => {
   try {
     const { status } = req.body;
     if (!['approved', 'rejected'].includes(status)) {
@@ -773,32 +968,33 @@ router.put('/admin/community/posts/:id/status', isAuthenticated, isAdminRole, as
     post.status = status;
     await post.save();
 
-    console.log(`Admin ${status} community post:`, req.params.id);
+    console.log(`✅ ${req.user.role} ${status} community post:`, req.params.id);
     res.json({ message: `Post ${status}`, post });
   } catch (err) {
-    console.error('Admin update post status error:', err);
+    console.error('❌ Update post status error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// DELETE: Admin - Delete post
-router.delete('/admin/community/posts/:id', isAuthenticated, isAdminRole, async (req, res) => {
+// DELETE: Admin/Content Moderator - Delete post
+router.delete('/admin/community/posts/:id', isAuthenticated, isContentModerator, async (req, res) => {
   try {
     const post = await CommunityPost.findByIdAndDelete(req.params.id);
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    console.log('Admin deleted community post:', req.params.id);
+    console.log('✅ Community post deleted by:', req.user.role, req.params.id);
     res.json({ message: 'Post deleted' });
   } catch (err) {
-    console.error('Admin delete post error:', err);
+    console.error('❌ Delete post error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// PUT: Admin - Resolve/Reject report
-router.put('/admin/community/posts/:id/reports/:reportId', isAuthenticated, isAdminRole, async (req, res) => {
+// PUT: Admin/Content Moderator - Resolve/Reject report
+// PUT: Admin/Content Moderator - Resolve/Reject report
+router.put('/admin/community/posts/:id/reports/:reportId', isAuthenticated, isContentModerator, async (req, res) => {
   try {
     const { status, deletePost } = req.body;
     if (!['resolved', 'rejected'].includes(status)) {
@@ -815,25 +1011,34 @@ router.put('/admin/community/posts/:id/reports/:reportId', isAuthenticated, isAd
       return res.status(404).json({ error: 'Report not found' });
     }
 
-    report.status = status;
-
-    if (status === 'resolved' && deletePost) {
+    // ✅ FIX: Handle different actions
+    if (deletePost) {
+      // Action: Delete Post - Remove the post entirely
       await CommunityPost.findByIdAndDelete(req.params.id);
-      console.log('Admin deleted reported post:', req.params.id);
-      return res.json({ message: 'Report resolved and post deleted' });
+      console.log('✅ Reported post deleted by:', req.user.role, req.params.id);
+      return res.json({ message: 'Post deleted successfully' });
+    } else if (status === 'rejected') {
+      // Action: Reject Report - Mark the report as rejected (post is fine, keep it)
+      report.status = 'rejected';
+      await post.save();
+      console.log(`✅ Report rejected by:`, req.user.role, req.params.reportId);
+      return res.json({ message: 'Report rejected', post });
+    } else {
+      // Action: Reject Post - Mark the report as resolved AND the post as rejected
+      report.status = 'resolved';
+      post.status = 'rejected'; // ✅ This is the key fix!
+      await post.save();
+      console.log(`✅ Post rejected based on report by:`, req.user.role, req.params.id);
+      return res.json({ message: 'Post rejected', post });
     }
-
-    await post.save();
-    console.log(`Admin ${status} report:`, req.params.reportId);
-    res.json({ message: `Report ${status}`, post });
   } catch (err) {
-    console.error('Admin handle report error:', err);
+    console.error('❌ Handle report error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// DELETE: Admin - Delete comment from community post
-router.delete('/admin/community/posts/:id/comments/:commentId', isAuthenticated, isAdminRole, async (req, res) => {
+// DELETE: Admin/Content Moderator - Delete comment from community post
+router.delete('/admin/community/posts/:id/comments/:commentId', isAuthenticated, isContentModerator, async (req, res) => {
   try {
     const post = await CommunityPost.findById(req.params.id);
     if (!post) {
@@ -845,10 +1050,10 @@ router.delete('/admin/community/posts/:id/comments/:commentId', isAuthenticated,
     );
 
     await post.save();
-    console.log('Admin deleted comment from community post:', req.params.id);
+    console.log('✅ Comment deleted from community post by:', req.user.role, req.params.id);
     res.json({ message: 'Comment deleted', post });
   } catch (err) {
-    console.error('Admin delete comment error:', err);
+    console.error('❌ Delete comment error:', err);
     res.status(500).json({ error: err.message });
   }
 });

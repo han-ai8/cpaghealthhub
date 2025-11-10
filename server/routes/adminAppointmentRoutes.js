@@ -104,6 +104,116 @@ router.get('/appointments/case-managers/available', isAuthenticated, isAdmin, as
 });
 
 // ============================================
+// RESCHEDULE APPOINTMENT - Case Manager/Admin
+// ============================================
+router.put('/appointments/:id/reschedule', isAuthenticated, isCaseManager, async (req, res) => {
+  try {
+    const { date, time, note } = req.body;
+    const userId = req.user.id;
+    const appointmentId = req.params.id;
+
+    console.log(`📅 Rescheduling appointment ${appointmentId}`);
+    console.log(`New date: ${date}, New time: ${time}`);
+
+    // Validate required fields
+    if (!date || !time) {
+      return res.status(400).json({ 
+        error: 'Date and time are required' 
+      });
+    }
+
+    // Find the appointment
+    const appointment = await Appointment.findById(appointmentId);
+
+    if (!appointment) {
+      return res.status(404).json({ 
+        error: 'Appointment not found' 
+      });
+    }
+
+    // Check permissions - case manager can only edit their own assignments
+    const user = await User.findById(userId);
+    if (user.role === 'case_manager') {
+      if (!appointment.assignedCaseManager || 
+          appointment.assignedCaseManager.toString() !== userId) {
+        return res.status(403).json({ 
+          error: 'You can only reschedule appointments assigned to you' 
+        });
+      }
+    }
+
+    // Check if appointment can be rescheduled
+    if (appointment.programCompleted) {
+      return res.status(400).json({ 
+        error: 'Cannot reschedule completed programs' 
+      });
+    }
+
+    // Check for time slot conflicts (excluding current appointment)
+    const conflict = await Appointment.findOne({
+      _id: { $ne: appointmentId }, // Exclude current appointment
+      date,
+      time,
+      status: { $in: ['pending', 'confirmed', 'completed'] }
+    }).populate('user', 'name username');
+
+    if (conflict) {
+      const conflictUser = conflict.user?.name || conflict.user?.username || 'Another user';
+      console.log(`⚠️ Time slot conflict with ${conflictUser}`);
+      return res.status(400).json({ 
+        error: `This time slot is already booked by ${conflictUser}`,
+        conflict: true,
+        bookedBy: conflictUser
+      });
+    }
+
+    // Validate date is not in the past
+    const appointmentDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    appointmentDate.setHours(0, 0, 0, 0);
+
+    if (appointmentDate < today) {
+      return res.status(400).json({ 
+        error: 'Cannot reschedule to a past date' 
+      });
+    }
+
+    // Update appointment
+    appointment.date = date;
+    appointment.time = time;
+    if (note !== undefined) {
+      appointment.note = note;
+    }
+
+    await appointment.save();
+
+    // Populate references
+    await appointment.populate([
+      { path: 'user', select: 'name email username fullName age gender location' },
+      { path: 'assignedCaseManager', select: 'name username email' },
+      { path: 'assignedBy', select: 'name username' },
+      { path: 'sessionTracking.sessionNotes.caseManagerId', select: 'name username' }
+    ]);
+
+    console.log(`✅ Appointment ${appointmentId} rescheduled successfully`);
+
+    res.json({
+      success: true,
+      message: 'Appointment rescheduled successfully',
+      appointment
+    });
+
+  } catch (error) {
+    console.error('❌ Error rescheduling appointment:', error);
+    res.status(500).json({ 
+      error: 'Failed to reschedule appointment',
+      details: error.message
+    });
+  }
+});
+
+// ============================================
 // GET APPOINTMENT STATISTICS - Admin Only
 // ============================================
 router.get('/appointments/stats/overview', isAuthenticated, isAdmin, async (req, res) => {
@@ -243,6 +353,8 @@ router.put('/appointments/:id/hiv-status', isAuthenticated, isAdmin, async (req,
     });
   }
 });
+
+
 
 // ============================================
 // CASE MANAGER PLANNER - Get assigned appointments with stats
@@ -531,14 +643,12 @@ router.put('/appointments/:id/status', isAuthenticated, isCaseManager, async (re
     const { status } = req.body;
     const userId = req.user.id;
 
-    console.log(`📝 User ${userId} updating appointment ${req.params.id} status to ${status}`);
-
     const validStatuses = ['pending', 'confirmed', 'cancelled', 'completed'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    const appointment = await Appointment.findById(req.params.id);
+    const appointment = await Appointment.findById(req.params.id).populate('user');
     if (!appointment) {
       return res.status(404).json({ error: 'Appointment not found' });
     }
@@ -555,10 +665,21 @@ router.put('/appointments/:id/status', isAuthenticated, isCaseManager, async (re
 
     appointment.status = status;
 
+    const notificationService = req.app.get('notificationService');
+
     if (status === 'confirmed') {
       appointment.confirmedAt = new Date();
+      await notificationService.notifyAppointmentConfirmed(
+        appointment.user._id,
+        appointment
+      );
     } else if (status === 'cancelled') {
       appointment.cancelledAt = new Date();
+      await notificationService.notifyAppointmentCancelled(
+        appointment.user._id,
+        appointment,
+        'Your appointment has been cancelled by the administrator'
+      );
     } else if (status === 'completed') {
       appointment.completedAt = new Date();
       appointment.completedBy = userId;
@@ -571,7 +692,7 @@ router.put('/appointments/:id/status', isAuthenticated, isCaseManager, async (re
       { path: 'completedBy', select: 'name username' }
     ]);
 
-    console.log(`✅ Appointment ${req.params.id} status updated to ${status}`);
+    console.log(`✅ Appointment status updated and notification sent`);
     res.json(appointment);
   } catch (err) {
     console.error('❌ Error updating appointment status:', err);
@@ -634,15 +755,11 @@ router.post('/appointments/:id/session-note', isAuthenticated, isCaseManager, as
     const { notes, progress } = req.body;
     const caseManagerId = req.user.id;
 
-    console.log(`📝 Case manager ${caseManagerId} adding session note to appointment ${req.params.id}`);
-
     if (!notes) {
-      return res.status(400).json({ 
-        error: 'Notes are required' 
-      });
+      return res.status(400).json({ error: 'Notes are required' });
     }
 
-    const appointment = await Appointment.findById(req.params.id);
+    const appointment = await Appointment.findById(req.params.id).populate('user');
     if (!appointment) {
       return res.status(404).json({ error: 'Appointment not found' });
     }
@@ -672,12 +789,20 @@ router.post('/appointments/:id/session-note', isAuthenticated, isCaseManager, as
     appointment.sessionTracking.lastSessionDate = new Date();
 
     await appointment.save();
+
+    const notificationService = req.app.get('notificationService');
+    await notificationService.notifySessionScheduled(
+      appointment.user._id,
+      appointment,
+      sessionNote
+    );
+
     await appointment.populate([
       { path: 'user', select: 'name email username' },
       { path: 'sessionTracking.sessionNotes.caseManagerId', select: 'name username' }
     ]);
 
-    console.log(`✅ Session note added to appointment ${req.params.id}`);
+    console.log(`✅ Session note added and notification sent`);
     res.json(appointment);
   } catch (err) {
     console.error('❌ Error adding session note:', err);

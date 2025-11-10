@@ -3,13 +3,14 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, User } from 'lucide-react';
 import { HiMenu } from 'react-icons/hi';
 import { useAuth } from '../context/AuthContext.jsx';
-
-const Header = ({ toggleSidebar }) => {
+import { useToast } from '../context/ToastContext.jsx';
+const Header = ({ toggleSidebar, unreadCount }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user: contextUser, logout, checkSession } = useAuth();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const toast = useToast();
 
   // Fetch current user data
   const fetchUser = async () => {
@@ -90,7 +91,7 @@ const Header = ({ toggleSidebar }) => {
 
   // FIXED: Logout handler with proper redirect
   const onLogout = async () => {
-    if (window.confirm('Are you sure you want to logout?')) {
+    if (toast.warning('Are you sure you want to logout?')) {
       try {
         // Use the logout from context which handles redirect
         await logout(navigate);
@@ -100,7 +101,7 @@ const Header = ({ toggleSidebar }) => {
         
         // No need for manual redirect - logout function handles it
       } catch (err) {
-        console.error('Logout failed:', err);
+        toast.error('Logout failed:', err);
         // Fallback redirect if logout fails
         localStorage.removeItem('token');
         setUser(null);
@@ -175,7 +176,14 @@ const Header = ({ toggleSidebar }) => {
                   : 'btn-ghost text-[#4C8DD8] hover:bg-[#4C8DD8]/10 hover:text-[#2E7D32]'
               }`}
             >
-              Notifications
+              <div className="indicator">
+                Notifications
+                {unreadCount > 0 && (
+                  <span className="absolute -top-3 -right-5 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </div>
             </Link>
           </li>
         </ul>
@@ -194,8 +202,12 @@ const Header = ({ toggleSidebar }) => {
             }`}
           >
             <div className="indicator">
-              <Bell className="w-5 h-5" />
-              <span className="badge badge-xs bg-[#2E7D32] indicator-item text-[#FFFFFF]"></span>
+             <Bell className="w-6 h-6" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </div>
           </Link>
 
@@ -241,9 +253,6 @@ const Header = ({ toggleSidebar }) => {
                   </li>
                   <li className={`${location.pathname === '/user/profile' ? 'bg-[#4C8DD8]/10' : ''}`}>
                     <Link to="/user/profile" className="text-[#4C8DD8] hover:bg-[#4C8DD8]/10 hover:text-[#2E7D32] transition-colors duration-200">Profile</Link>
-                  </li>
-                  <li className={`${location.pathname === '/user/settings' ? 'bg-[#4C8DD8]/10' : ''}`}>
-                    <Link to="/user/settings" className="text-[#4C8DD8] hover:bg-[#4C8DD8]/10 hover:text-[#2E7D32] transition-colors duration-200">Settings</Link>
                   </li>
                   <li className={`md:hidden ${location.pathname === '/user/articles' ? 'bg-[#4C8DD8]/10' : ''}`}>
                     <Link to="/user/articles" className="text-[#4C8DD8] hover:bg-[#4C8DD8]/10 hover:text-[#2E7D32] transition-colors duration-200">Articles</Link>

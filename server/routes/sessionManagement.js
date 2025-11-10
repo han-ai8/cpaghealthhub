@@ -707,7 +707,6 @@ router.get('/patients/:userId/unified-history', isAuthenticated, isCaseManager, 
 
     console.log('📚 Fetching unified session history for user:', userId);
 
-    // Get ALL appointments for this user with this case manager
     const appointments = await Appointment.find({
       user: userId,
       assignedCaseManager: caseManagerId
@@ -782,13 +781,28 @@ router.get('/patients/:userId/unified-history', isAuthenticated, isCaseManager, 
 
     // Get patient info from first appointment
     const patientInfo = {
-      name: appointments[0].user?.fullName || appointments[0].user?.name || appointments[0].user?.username,
+      // Prioritize psychosocialInfo.fullName over user.fullName
+      name: appointments[0].psychosocialInfo?.fullName || 
+            appointments[0].user?.fullName || 
+            appointments[0].user?.name || 
+            appointments[0].user?.username,
       email: appointments[0].user?.email,
-      age: appointments[0].user?.age,
-      gender: appointments[0].user?.gender,
-      location: appointments[0].user?.location,
+      
+      // ✅ CRITICAL: Check psychosocialInfo FIRST for age, gender, location
+      age: appointments[0].psychosocialInfo?.age || appointments[0].user?.age,
+      gender: appointments[0].psychosocialInfo?.gender || appointments[0].user?.gender,
+      location: appointments[0].psychosocialInfo?.location || appointments[0].user?.location,
+      
+      // Keep psychosocialInfo for reference
       psychosocialInfo: appointments[0].psychosocialInfo
     };
+
+    console.log(`👤 Patient info extracted:`, {
+      age: patientInfo.age,
+      gender: patientInfo.gender,
+      location: patientInfo.location,
+      source: appointments[0].psychosocialInfo ? 'psychosocialInfo' : 'user object'
+    });
 
     // Get case manager info
     const caseManagerInfo = {
