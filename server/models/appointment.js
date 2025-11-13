@@ -1,4 +1,4 @@
-// models/appointment.js - COMPLETE MODEL with Session Tracking
+// models/appointment.js - UPDATED WITH CONTACT NUMBER
 import { Schema, model } from 'mongoose';
 
 const appointmentSchema = new Schema({
@@ -13,11 +13,11 @@ const appointmentSchema = new Schema({
     required: true
   },
   date: {
-    type: String,  // Format: YYYY-MM-DD
+    type: String,
     required: true
   },
   time: {
-    type: String,  // Format: HH:MM AM/PM
+    type: String,
     required: true
   },
   note: {
@@ -30,31 +30,17 @@ const appointmentSchema = new Schema({
     default: 'pending'
   },
 
-  // ✅ NEW: HIV Status Tracking (only for Testing and Counseling)
-  hivStatus: {
-    status: {
-      type: String,
-      enum: ['pending', 'positive', 'negative'],
-      default: 'pending'
-    },
-    confirmedBy: {
-      type: Schema.Types.ObjectId,
-      ref: 'User'
-    },
-    confirmedAt: Date,
-    notes: String
-  },
-   // ✅ NEW: Testing Demographics (for Testing and Counseling)
+  // ✅ REMOVED HIV Status Tracking
+  
+  // ✅ UPDATED: Testing Demographics (for Testing and Counseling)
   testingInfo: {
     fullName: String,
     age: Number,
-    gender: {
-      type: String,
-      enum: ['Male', 'Female', 'Other', 'Prefer not to say']
-    },
-    location: String
+    gender: String, // ✅ Now supports 72 gender identities
+    location: String,
+    contactNumber: String // ✅ NEW
   },
-  // ✅ Case Manager Assignment
+  
   assignedCaseManager: {
     type: Schema.Types.ObjectId,
     ref: 'User',
@@ -70,7 +56,6 @@ const appointmentSchema = new Schema({
     default: null
   },
   
-  // ✅ Session Tracking
   sessionTracking: {
     sessionNumber: {
       type: Number,
@@ -110,7 +95,6 @@ const appointmentSchema = new Schema({
     }
   },
   
-  // ✅ Program Completion
   programCompleted: {
     type: Boolean,
     default: false
@@ -129,18 +113,16 @@ const appointmentSchema = new Schema({
     default: null
   },
   
-  // Psychosocial Info (for Psychosocial support service)
+  // ✅ UPDATED: Psychosocial Info (for Psychosocial support service)
   psychosocialInfo: {
     fullName: String,
     age: Number,
-    gender: {
-      type: String,
-      enum: ['Male', 'Female', 'Other', 'Prefer not to say']
-    },
-    location: String
+    gender: String, // ✅ Now supports 72 gender identities
+    location: String,
+    contactNumber: String // ✅ NEW
   },
   
-  // Saturday Request
+  // ✅ UPDATED: Saturday Request with admin response
   saturdayRequest: {
     requested: {
       type: Boolean,
@@ -157,10 +139,10 @@ const appointmentSchema = new Schema({
     },
     processedAt: Date,
     adminNotes: String,
+    adminResponse: String, // ✅ NEW: Admin's response to user
     requestedAt: Date
   },
   
-  // Cancel Request
   cancelRequest: {
     requested: {
       type: Boolean,
@@ -194,7 +176,6 @@ const appointmentSchema = new Schema({
   }
 });
 
-// Update the updatedAt timestamp before saving
 appointmentSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
   next();

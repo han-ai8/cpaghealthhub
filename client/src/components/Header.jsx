@@ -91,7 +91,7 @@ const Header = ({ toggleSidebar, unreadCount }) => {
 
   // FIXED: Logout handler with proper redirect
   const onLogout = async () => {
-    if (toast.warning('Are you sure you want to logout?')) {
+    if (confirm('Are you sure you want to logout?')) {
       try {
         // Use the logout from context which handles redirect
         await logout(navigate);

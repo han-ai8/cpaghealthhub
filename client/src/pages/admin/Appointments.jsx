@@ -1,9 +1,9 @@
-// src/pages/admin/Appointments.jsx - COMPLETE WITH testingInfo DISPLAY
+// src/pages/admin/Appointments.jsx - COMPLETE VERSION WITH SATURDAY ADMIN RESPONSE INPUT
 import React, { useState, useEffect } from 'react';
 import { 
   Eye, X, Calendar, Clock, User as UserIcon, AlertCircle, 
   CheckCircle, XCircle, RefreshCw, UserCheck, Trash2, 
-  FileText, Award, TrendingUp, Activity, Users 
+  FileText, Award, TrendingUp, Activity, Users, MessageCircle 
 } from 'lucide-react';
 import SessionTimelineModal from '../../components/SessionTimelineModal';
 
@@ -23,11 +23,13 @@ const Appointments = () => {
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [showTimelineModal, setShowTimelineModal] = useState(false);
   const [timelineAppointment, setTimelineAppointment] = useState(null);
-  const [showHIVStatusModal, setShowHIVStatusModal] = useState(false);
-  const [hivStatusForm, setHivStatusForm] = useState({
-    status: '',
-    notes: ''
-  });
+  
+  // Saturday request modal states
+  const [showSaturdayModal, setShowSaturdayModal] = useState(false);
+  const [saturdayAppointment, setSaturdayAppointment] = useState(null);
+  const [saturdayDecision, setSaturdayDecision] = useState(null); // 'approve' or 'deny'
+  const [adminResponse, setAdminResponse] = useState('');
+  const [adminNotes, setAdminNotes] = useState('');
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
@@ -106,37 +108,64 @@ const Appointments = () => {
     }
   };
 
-  const handleUpdateHIVStatus = async () => {
-    if (!hivStatusForm.status) {
-      alert('Please select HIV status');
+  // Open Saturday request modal
+  const openSaturdayModal = (appointment) => {
+    setSaturdayAppointment(appointment);
+    setSaturdayDecision(null);
+    setAdminResponse('');
+    setAdminNotes('');
+    setShowSaturdayModal(true);
+  };
+
+  // Handle Saturday request processing
+  const handleProcessSaturdayRequest = async () => {
+    if (!saturdayDecision) {
+      alert('Please select Approve or Deny');
+      return;
+    }
+
+    if (!adminResponse.trim()) {
+      alert('Please provide a response message for the user');
+      return;
+    }
+
+    if (adminResponse.trim().length < 10) {
+      alert('Please provide a more detailed response (minimum 10 characters)');
       return;
     }
 
     try {
       setLoading(true);
+
       const response = await fetch(
-        `${API_URL}/admin/appointments/${selectedAppointment._id}/hiv-status`,
+        `${API_URL}/admin/saturday-requests/${saturdayAppointment._id}/process`,
         {
-          method: 'PUT',
+          method: 'POST',
           headers: getAuthHeaders(),
-          body: JSON.stringify(hivStatusForm)
+          body: JSON.stringify({
+            approved: saturdayDecision === 'approve',
+            adminResponse: adminResponse.trim(),
+            adminNotes: adminNotes.trim() || ''
+          })
         }
       );
 
+      const data = await response.json();
+
       if (response.ok) {
-        alert('HIV status updated successfully and appointment completed');
-        setShowHIVStatusModal(false);
-        setShowDetailsModal(false);
-        setHivStatusForm({ status: '', notes: '' });
-        fetchAppointments();
-        fetchStats();
+        alert(data.message || 'Saturday request processed successfully!');
+        setShowSaturdayModal(false);
+        setSaturdayAppointment(null);
+        setSaturdayDecision(null);
+        setAdminResponse('');
+        setAdminNotes('');
+        await fetchAppointments();
+        await fetchStats();
       } else {
-        const errorData = await response.json();
-        alert(errorData.error || 'Failed to update HIV status');
+        alert(data.error || 'Failed to process Saturday request');
       }
-    } catch (error) {
-      console.error('Error updating HIV status:', error);
-      alert('Failed to update HIV status');
+    } catch (err) {
+      alert(`Error: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -440,6 +469,24 @@ const Appointments = () => {
                           CANCEL REQUESTED
                         </span>
                       )}
+
+                      {/* Saturday Request Badge with Action Button */}
+                      {apt.saturdayRequest?.requested && (
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          apt.saturdayRequest.approved === null 
+                            ? 'bg-purple-600 text-white' 
+                            : apt.saturdayRequest.approved 
+                              ? 'bg-green-600 text-white'
+                              : 'bg-red-600 text-white'
+                        }`}>
+                          {apt.saturdayRequest.approved === null 
+                            ? 'SATURDAY REQUEST' 
+                            : apt.saturdayRequest.approved 
+                              ? 'SATURDAY APPROVED'
+                              : 'SATURDAY DENIED'
+                          }
+                        </span>
+                      )}
                     </div>
 
                     <div className="grid md:grid-cols-3 gap-3 text-sm mb-3">
@@ -463,6 +510,58 @@ const Appointments = () => {
                       </div>
                     </div>
 
+                    {/* Saturday Request Display with Process Button */}
+                    {apt.saturdayRequest?.requested && (
+                      <div className="bg-purple-50 rounded-lg p-3 mb-3 border border-purple-200">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="text-xs font-semibold text-purple-800 mb-2 flex items-center gap-1">
+                              <Calendar className="w-4 h-4" />
+                              Saturday Appointment Request
+                            </p>
+                            <div className="mb-2">
+                              <span className="text-xs text-gray-600 font-medium">User's Reason:</span>
+                              <p className="text-sm text-gray-800 mt-1 pl-2 border-l-2 border-purple-300">
+                                {apt.saturdayRequest.reason}
+                              </p>
+                            </div>
+                            
+                            {/* Show admin response if processed */}
+                            {apt.saturdayRequest.approved !== null && apt.saturdayRequest.adminResponse && (
+                              <div className="mt-2 bg-white rounded p-2 border border-purple-200">
+                                <span className="text-xs text-gray-600 font-medium">Your Response:</span>
+                                <p className="text-sm text-gray-700 mt-1 italic">
+                                  "{apt.saturdayRequest.adminResponse}"
+                                </p>
+                              </div>
+                            )}
+                            
+                            {apt.saturdayRequest.approved === null ? (
+                              <p className="text-xs text-orange-600 font-medium mt-2">
+                                ⏳ Awaiting your decision
+                              </p>
+                            ) : (
+                              <p className="text-xs text-gray-600 mt-2">
+                                {apt.saturdayRequest.approved ? '✅ Approved' : '❌ Denied'} on{' '}
+                                {new Date(apt.saturdayRequest.processedAt).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                          
+                          {/* Process Button - Only show if not yet processed */}
+                          {apt.saturdayRequest.approved === null && (
+                            <button
+                              onClick={() => openSaturdayModal(apt)}
+                              className="ml-3 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition font-semibold flex items-center gap-1"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              Process Request
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Testing Demographics - LIST VIEW */}
                     {apt.service === 'Testing and Counseling' && apt.testingInfo && (
                       <div className="bg-teal-50 rounded-lg p-3 mb-3 border border-teal-200">
@@ -484,6 +583,12 @@ const Appointments = () => {
                             <span className="text-gray-600">Location:</span>
                             <p className="font-medium text-gray-800">{apt.testingInfo.location}</p>
                           </div>
+                          {apt.testingInfo.contactNumber && (
+                            <div>
+                              <span className="text-gray-600">Contact:</span>
+                              <p className="font-medium text-gray-800">{apt.testingInfo.contactNumber}</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -509,6 +614,12 @@ const Appointments = () => {
                             <span className="text-gray-600">Location:</span>
                             <p className="font-medium text-gray-800">{apt.psychosocialInfo.location}</p>
                           </div>
+                          {apt.psychosocialInfo.contactNumber && (
+                            <div>
+                              <span className="text-gray-600">Contact:</span>
+                              <p className="font-medium text-gray-800">{apt.psychosocialInfo.contactNumber}</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -576,26 +687,15 @@ const Appointments = () => {
                           )}
                           {apt.status === 'confirmed' && (
                             <button
-                              onClick={() => {
-                                setSelectedAppointment(apt);
-                                setHivStatusForm({
-                                  status: apt.hivStatus?.status === 'pending' ? '' : apt.hivStatus?.status || '',
-                                  notes: apt.hivStatus?.notes || ''
-                                });
-                                setShowHIVStatusModal(true);
-                              }}
+                              onClick={() => handleUpdateStatus(apt._id, 'completed')}
                               className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition font-semibold"
                             >
-                              Set HIV Result & Complete
+                              Mark as Completed
                             </button>
                           )}
-                          {apt.status === 'completed' && apt.hivStatus?.status && apt.hivStatus.status !== 'pending' && (
-                            <span className={`px-4 py-2 rounded-lg font-semibold ${
-                              apt.hivStatus.status === 'positive' 
-                                ? 'bg-red-600 text-white' 
-                                : 'bg-green-600 text-white'
-                            }`}>
-                              Completed - {apt.hivStatus.status.toUpperCase()}
+                          {apt.status === 'completed' && (
+                            <span className="px-4 py-2 rounded-lg font-semibold bg-green-600 text-white">
+                              ✅ Completed
                             </span>
                           )}
                         </div>
@@ -652,6 +752,154 @@ const Appointments = () => {
           </div>
         )}
       </div>
+
+      {/* Saturday Request Processing Modal */}
+      {showSaturdayModal && saturdayAppointment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <Calendar className="w-7 h-7 text-purple-600" />
+                Process Saturday Request
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowSaturdayModal(false);
+                  setSaturdayAppointment(null);
+                  setSaturdayDecision(null);
+                  setAdminResponse('');
+                  setAdminNotes('');
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-7 h-7" />
+              </button>
+            </div>
+
+            {/* User's Request */}
+            <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200 mb-6">
+              <h4 className="font-semibold text-purple-800 mb-3">User Information</h4>
+              <div className="space-y-2 text-sm">
+                <p><span className="font-medium">Name:</span> {saturdayAppointment.user?.name || saturdayAppointment.user?.username}</p>
+                <p><span className="font-medium">Service:</span> {saturdayAppointment.service}</p>
+                <p><span className="font-medium">Requested Date:</span> {new Date(saturdayAppointment.date).toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric'
+                })} at {saturdayAppointment.time}</p>
+              </div>
+            </div>
+
+            <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200 mb-6">
+              <h4 className="font-semibold text-yellow-800 mb-2">User's Reason for Saturday Request:</h4>
+              <p className="text-gray-800 pl-3 border-l-4 border-yellow-400">
+                {saturdayAppointment.saturdayRequest.reason}
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Requested on: {new Date(saturdayAppointment.saturdayRequest.requestedAt).toLocaleString()}
+              </p>
+            </div>
+
+            {/* Decision Selection */}
+            <div className="mb-6">
+              <label className="block text-lg font-semibold text-gray-800 mb-3">
+                Your Decision <span className="text-red-500">*</span>
+              </label>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setSaturdayDecision('approve')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl border-2 transition-all ${
+                    saturdayDecision === 'approve'
+                      ? 'bg-green-600 border-green-600 text-white shadow-lg'
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-green-500'
+                  }`}
+                >
+                  <CheckCircle className="w-6 h-6" />
+                  <span className="font-semibold text-lg">Approve</span>
+                </button>
+                <button
+                  onClick={() => setSaturdayDecision('deny')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl border-2 transition-all ${
+                    saturdayDecision === 'deny'
+                      ? 'bg-red-600 border-red-600 text-white shadow-lg'
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-red-500'
+                  }`}
+                >
+                  <XCircle className="w-6 h-6" />
+                  <span className="font-semibold text-lg">Deny</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Admin Response - Required */}
+            <div className="mb-6">
+              <label className="block text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-blue-600" />
+                Your Response to User <span className="text-red-500">*</span>
+              </label>
+              <p className="text-sm text-gray-600 mb-3">
+                This message will be shown to the user. Please be clear and professional.
+              </p>
+              <textarea
+                value={adminResponse}
+                onChange={(e) => setAdminResponse(e.target.value)}
+                rows="4"
+                placeholder={saturdayDecision === 'approve' 
+                  ? "Example: Your Saturday appointment has been approved. We look forward to seeing you on that day."
+                  : saturdayDecision === 'deny'
+                  ? "Example: Unfortunately, we cannot accommodate Saturday appointments at this time due to limited staffing. Please select a weekday slot."
+                  : "Select Approve or Deny first, then write your message to the user..."
+                }
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {adminResponse.length} characters (minimum 10 required)
+              </p>
+            </div>
+
+            {/* Admin Notes - Optional */}
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Internal Notes (Optional)
+              </label>
+              <p className="text-xs text-gray-600 mb-2">
+                For internal reference only - not visible to user
+              </p>
+              <textarea
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                rows="2"
+                placeholder="Internal notes for staff reference..."
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowSaturdayModal(false);
+                  setSaturdayAppointment(null);
+                  setSaturdayDecision(null);
+                  setAdminResponse('');
+                  setAdminNotes('');
+                }}
+                className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleProcessSaturdayRequest}
+                disabled={!saturdayDecision || !adminResponse.trim() || adminResponse.trim().length < 10 || loading}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-lg transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Processing...' : `Submit ${saturdayDecision === 'approve' ? 'Approval' : saturdayDecision === 'deny' ? 'Denial' : 'Decision'}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Assign Case Manager Modal */}
       {showAssignModal && (
@@ -778,7 +1026,7 @@ const Appointments = () => {
         </div>
       )}
 
-      {/* Details Modal */}
+      {/* Details Modal - WITH SATURDAY REASON */}
       {showDetailsModal && selectedAppointment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -809,6 +1057,62 @@ const Appointments = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Saturday Request Display in Details Modal */}
+              {selectedAppointment.saturdayRequest?.requested && (
+                <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
+                  <h4 className="font-bold text-purple-800 mb-3 text-lg flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    Saturday Appointment Request
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700 mb-1">User's Reason:</p>
+                      <div className="bg-white rounded p-3 border border-purple-200">
+                        <p className="text-gray-800">{selectedAppointment.saturdayRequest.reason}</p>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700 mb-1">Status:</p>
+                      {selectedAppointment.saturdayRequest.approved === null ? (
+                        <span className="inline-block px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-semibold">
+                          ⏳ Pending Admin Decision
+                        </span>
+                      ) : selectedAppointment.saturdayRequest.approved ? (
+                        <span className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-semibold">
+                          ✅ Approved
+                        </span>
+                      ) : (
+                        <span className="inline-block px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-semibold">
+                          ❌ Denied
+                        </span>
+                      )}
+                    </div>
+
+                    {selectedAppointment.saturdayRequest.requestedAt && (
+                      <p className="text-xs text-gray-500">
+                        Requested: {new Date(selectedAppointment.saturdayRequest.requestedAt).toLocaleString()}
+                      </p>
+                    )}
+
+                    {selectedAppointment.saturdayRequest.processedAt && (
+                      <p className="text-xs text-gray-500">
+                        Processed: {new Date(selectedAppointment.saturdayRequest.processedAt).toLocaleString()}
+                      </p>
+                    )}
+
+                    {selectedAppointment.saturdayRequest.adminResponse && (
+                      <div className="mt-3">
+                        <p className="text-sm font-semibold text-gray-700 mb-1">Admin Response:</p>
+                        <div className="bg-white rounded p-3 border border-purple-200">
+                          <p className="text-gray-800">{selectedAppointment.saturdayRequest.adminResponse}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Testing Demographics - DETAILS MODAL */}
               {selectedAppointment.service === 'Testing and Counseling' && 
@@ -843,57 +1147,15 @@ const Appointments = () => {
                         {selectedAppointment.testingInfo.location}
                       </p>
                     </div>
-                  </div>
-                </div>
-              )}
-
-              {/* HIV Test Status - ONLY for Testing and Counseling */}
-              {selectedAppointment.service === 'Testing and Counseling' && (
-                <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
-                  <h4 className="font-bold text-purple-800 mb-3 text-lg">HIV Test Status</h4>
-                  
-                  {selectedAppointment.hivStatus?.status && 
-                   selectedAppointment.hivStatus.status !== 'pending' ? (
-                    <div>
-                      <div className={`inline-block px-4 py-2 rounded-full font-semibold ${
-                        selectedAppointment.hivStatus.status === 'positive' 
-                          ? 'bg-red-600 text-white' 
-                          : 'bg-green-600 text-white'
-                      }`}>
-                        Status: {selectedAppointment.hivStatus.status.toUpperCase()}
+                    {selectedAppointment.testingInfo.contactNumber && (
+                      <div>
+                        <span className="text-gray-600">Contact Number:</span>
+                        <p className="font-medium text-gray-800">
+                          {selectedAppointment.testingInfo.contactNumber}
+                        </p>
                       </div>
-                      {selectedAppointment.hivStatus.notes && (
-                        <p className="text-sm text-gray-700 mt-2">
-                          <strong>Notes:</strong> {selectedAppointment.hivStatus.notes}
-                        </p>
-                      )}
-                      {selectedAppointment.hivStatus.confirmedAt && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          Confirmed on {new Date(selectedAppointment.hivStatus.confirmedAt).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-gray-600 text-sm mb-3">Status not yet set</p>
-                  )}
-                  
-                  <button
-                    onClick={() => {
-                      setHivStatusForm({
-                        status: selectedAppointment.hivStatus?.status === 'pending' 
-                          ? '' 
-                          : selectedAppointment.hivStatus?.status || '',
-                        notes: selectedAppointment.hivStatus?.notes || ''
-                      });
-                      setShowHIVStatusModal(true);
-                    }}
-                    className="mt-3 w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-semibold"
-                  >
-                    {selectedAppointment.hivStatus?.status && 
-                     selectedAppointment.hivStatus.status !== 'pending'
-                      ? 'Update HIV Status' 
-                      : 'Set HIV Status & Complete'}
-                  </button>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -930,6 +1192,14 @@ const Appointments = () => {
                         {selectedAppointment.psychosocialInfo.location}
                       </p>
                     </div>
+                    {selectedAppointment.psychosocialInfo.contactNumber && (
+                      <div>
+                        <span className="text-gray-600">Contact Number:</span>
+                        <p className="font-medium text-gray-800">
+                          {selectedAppointment.psychosocialInfo.contactNumber}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1052,88 +1322,6 @@ const Appointments = () => {
             >
               Close
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* HIV Status Modal - STANDALONE */}
-      {showHIVStatusModal && selectedAppointment && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-800">Set HIV Test Result</h3>
-              <button 
-                onClick={() => {
-                  setShowHIVStatusModal(false);
-                  setHivStatusForm({ status: '', notes: '' });
-                }}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  Test Result <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setHivStatusForm({ ...hivStatusForm, status: 'positive' })}
-                    className={`px-6 py-4 rounded-lg font-semibold transition-all ${
-                      hivStatusForm.status === 'positive'
-                        ? 'bg-red-600 text-white ring-4 ring-red-300'
-                        : 'bg-gray-200 text-gray-700 hover:bg-red-100'
-                    }`}
-                  >
-                    ❌ HIV Positive
-                  </button>
-                  <button
-                    onClick={() => setHivStatusForm({ ...hivStatusForm, status: 'negative' })}
-                    className={`px-6 py-4 rounded-lg font-semibold transition-all ${
-                      hivStatusForm.status === 'negative'
-                        ? 'bg-green-600 text-white ring-4 ring-green-300'
-                        : 'bg-gray-200 text-gray-700 hover:bg-green-100'
-                    }`}
-                  >
-                    ✅ HIV Negative
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Additional Notes (Optional)
-                </label>
-                <textarea
-                  value={hivStatusForm.notes}
-                  onChange={(e) => setHivStatusForm({ ...hivStatusForm, notes: e.target.value })}
-                  rows="3"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  placeholder="Any additional notes about the test..."
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowHIVStatusModal(false);
-                  setHivStatusForm({ status: '', notes: '' });
-                }}
-                className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdateHIVStatus}
-                disabled={!hivStatusForm.status || loading}
-                className="flex-1 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Saving...' : 'Confirm & Complete'}
-              </button>
-            </div>
           </div>
         </div>
       )}

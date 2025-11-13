@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Eye, X, Calendar, Clock, MapPin, AlertCircle, Edit, Mail, History, FileText, UserCheck, MessageCircle, RefreshCw, CheckCircle, XCircle, TrendingUp, Award, Activity, Phone, User as UserIcon } from 'lucide-react';
 import SessionTimelineModal from '../../components/SessionTimelineModal';
 import CaviteLocationSelect from '../../components/CaviteLocationSelect';
+import { GENDER_IDENTITIES } from '../../constants/genderIdentities';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -39,11 +40,13 @@ const Schedule = () => {
   const [requestSaturday, setRequestSaturday] = useState(false);
   const [saturdayReason, setSaturdayReason] = useState('');
 
+  // ✅ UPDATED: Added contactNumber field
   const [psychosocialForm, setPsychosocialForm] = useState({
     fullName: '',
     age: '',
     gender: '',
-    location: ''
+    location: '',
+    contactNumber: '' // ✅ NEW
   });
 
   const [selectedService, setSelectedService] = useState('');
@@ -218,83 +221,75 @@ const Schedule = () => {
   };
 
   const isDateAvailable = (date) => {
-  if (!date) return true;
-  const dateStr = formatDateToLocal(date);
-  const dayOfWeek = date.getDay();
-  
-  // Check for clinic closures/holidays
-  const closure = clinicSchedule.find(schedule => {
-    const start = new Date(schedule.startDate);
-    const end = new Date(schedule.endDate);
-    const checkDate = parseDateFromString(dateStr);
+    if (!date) return true;
+    const dateStr = formatDateToLocal(date);
+    const dayOfWeek = date.getDay();
     
-    // Set hours to 0 for date comparison
-    start.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
-    checkDate.setHours(0, 0, 0, 0);
+    const closure = clinicSchedule.find(schedule => {
+      const start = new Date(schedule.startDate);
+      const end = new Date(schedule.endDate);
+      const checkDate = parseDateFromString(dateStr);
+      
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+      checkDate.setHours(0, 0, 0, 0);
+      
+      return (schedule.type === 'closure' || schedule.type === 'holiday') && 
+             schedule.isActive &&
+             checkDate >= start && 
+             checkDate <= end;
+    });
     
-    return (schedule.type === 'closure' || schedule.type === 'holiday') && 
-           schedule.isActive &&
-           checkDate >= start && 
-           checkDate <= end;
-  });
-  
-  if (closure) {
-    console.log(`❌ Date ${dateStr} is closed: ${closure.title}`);
-    return false;
-  }
-  
-  // Check for special opening (overrides Sunday closure)
-  const specialOpening = clinicSchedule.find(schedule => {
-    const scheduleDate = formatDateToLocal(new Date(schedule.date || schedule.startDate));
-    return schedule.type === 'special_opening' && 
-           schedule.isActive &&
-           scheduleDate === dateStr;
-  });
-  
-  if (specialOpening) {
-    console.log(`✅ Date ${dateStr} is special opening: ${specialOpening.title}`);
+    if (closure) {
+      console.log(`❌ Date ${dateStr} is closed: ${closure.title}`);
+      return false;
+    }
+    
+    const specialOpening = clinicSchedule.find(schedule => {
+      const scheduleDate = formatDateToLocal(new Date(schedule.date || schedule.startDate));
+      return schedule.type === 'special_opening' && 
+             schedule.isActive &&
+             scheduleDate === dateStr;
+    });
+    
+    if (specialOpening) {
+      console.log(`✅ Date ${dateStr} is special opening: ${specialOpening.title}`);
+      return true;
+    }
+    
+    if (dayOfWeek === 0) {
+      console.log(`❌ Date ${dateStr} is Sunday - closed`);
+      return false;
+    }
+    
     return true;
-  }
-  
-  // Sunday is closed by default
-  if (dayOfWeek === 0) {
-    console.log(`❌ Date ${dateStr} is Sunday - closed`);
-    return false;
-  }
-  
-  return true;
-};
+  };
 
-const isTimeSlotAvailable = (date, time) => {
-  if (!date || !time) return true;
-  
-  // Check if date itself is available first
-  if (!isDateAvailable(date)) return false;
-  
-  const dateStr = formatDateToLocal(date);
-  
-  // Check if slot is already booked
-  if (isSlotBooked(date, time)) return false;
-  
-  // Check for partial day closures (if implemented in future)
-  const partialClosure = clinicSchedule.find(schedule => {
-    const scheduleDate = formatDateToLocal(new Date(schedule.date || schedule.startDate));
-    return schedule.type === 'closure' && 
-           schedule.isActive &&
-           scheduleDate === dateStr &&
-           schedule.affectedTimeSlots && 
-           schedule.affectedTimeSlots.includes(time);
-  });
-  
-  if (partialClosure) {
-    console.log(`❌ Time ${time} on ${dateStr} is closed: ${partialClosure.title}`);
-    return false;
-  }
-  
-  return true;
-};
-
+  const isTimeSlotAvailable = (date, time) => {
+    if (!date || !time) return true;
+    
+    if (!isDateAvailable(date)) return false;
+    
+    const dateStr = formatDateToLocal(date);
+    
+    if (isSlotBooked(date, time)) return false;
+    
+    const partialClosure = clinicSchedule.find(schedule => {
+      const scheduleDate = formatDateToLocal(new Date(schedule.date || schedule.startDate));
+      return schedule.type === 'closure' && 
+             schedule.isActive &&
+             scheduleDate === dateStr &&
+             schedule.affectedTimeSlots && 
+             schedule.affectedTimeSlots.includes(time);
+    });
+    
+    if (partialClosure) {
+      console.log(`❌ Time ${time} on ${dateStr} is closed: ${partialClosure.title}`);
+      return false;
+    }
+    
+    return true;
+  };
 
   const handleServiceSelection = (service) => {
     setSelectedService(service);
@@ -307,9 +302,10 @@ const isTimeSlotAvailable = (date, time) => {
     }
   };
 
+  // ✅ UPDATED: Validate contact number
   const handlePsychosocialFormSubmit = () => {
-    if (!psychosocialForm.fullName || !psychosocialForm.age || !psychosocialForm.gender || !psychosocialForm.location) {
-      alert('Please fill in all fields');
+    if (!psychosocialForm.fullName || !psychosocialForm.age || !psychosocialForm.gender || !psychosocialForm.location || !psychosocialForm.contactNumber) {
+      alert('Please fill in all fields including contact number');
       return;
     }
 
@@ -319,7 +315,14 @@ const isTimeSlotAvailable = (date, time) => {
       return;
     }
 
-    console.log('✅ Psychosocial form completed:', psychosocialForm);
+    // ✅ Validate contact number (Philippine format)
+    const contactRegex = /^(09|\+639)\d{9}$/;
+    if (!contactRegex.test(psychosocialForm.contactNumber.replace(/\s+/g, ''))) {
+      alert('Please enter a valid Philippine contact number (e.g., 09123456789 or +639123456789)');
+      return;
+    }
+
+    console.log('✅ Form completed:', psychosocialForm);
     setShowPsychosocialFormModal(false);
     setShowDateTimeModal(true);
   };
@@ -329,7 +332,7 @@ const isTimeSlotAvailable = (date, time) => {
     setSelectedDate(null);
     setSelectedTime('');
     setNote('');
-    setPsychosocialForm({ fullName: '', age: '', gender: '', location: '' });
+    setPsychosocialForm({ fullName: '', age: '', gender: '', location: '', contactNumber: '' });
     setRequestSaturday(false);
     setSaturdayReason('');
     setIsEditing(false);
@@ -339,17 +342,19 @@ const isTimeSlotAvailable = (date, time) => {
   const handleEditAppointment = () => {
     if (bookedAppointment) {
       setSelectedService(bookedAppointment.service);
-      setSelectedDate(parseDateFromString(bookedAppointment.date)); // ✅ Parse correctly
+      setSelectedDate(parseDateFromString(bookedAppointment.date));
       setSelectedTime(bookedAppointment.time);
       setNote(bookedAppointment.note || '');
       
       if (bookedAppointment.psychosocialInfo) {
         setPsychosocialForm(bookedAppointment.psychosocialInfo);
+      } else if (bookedAppointment.testingInfo) {
+        setPsychosocialForm(bookedAppointment.testingInfo);
       }
       
-      if (bookedAppointment.requestSaturday) {
+      if (bookedAppointment.saturdayRequest) {
         setRequestSaturday(true);
-        setSaturdayReason(bookedAppointment.saturdayReason || '');
+        setSaturdayReason(bookedAppointment.saturdayRequest.reason || '');
       }
       
       setIsEditing(true);
@@ -377,13 +382,11 @@ const isTimeSlotAvailable = (date, time) => {
       return;
     }
 
-    // ✅ Validate Sunday
     if (isSunday(selectedDate)) {
       alert('❌ Sundays are not available. Please select a weekday.');
       return;
     }
 
-    // ✅ Validate Saturday request
     if (isSaturday(selectedDate)) {
       if (!requestSaturday) {
         alert('⚠️ Saturday appointments require a special request. Please enable "Request Saturday" option.');
@@ -406,7 +409,7 @@ const isTimeSlotAvailable = (date, time) => {
     try {
       const appointmentData = {
         service: selectedService,
-        date: formatDateToLocal(selectedDate), // ✅ Use consistent formatting
+        date: formatDateToLocal(selectedDate),
         time: selectedTime,
         note: note || '',
         requestSaturday: requestSaturday,
@@ -458,7 +461,7 @@ const isTimeSlotAvailable = (date, time) => {
     }
 
     try {
-      const response = await fetch(`${API_URL}/appointments/${bookedAppointment._id}/cancel-request`, {
+      const response = await fetch(`${API_URL}/appointments/${bookedAppointment._id}/request-cancel`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ reason: cancelReason })
@@ -530,7 +533,6 @@ const isTimeSlotAvailable = (date, time) => {
     });
   };
 
-  // ✅ FIXED: Consistent date formatting for slot booking check
   const isSlotBooked = (date, time) => {
     if (!date || !time) return false;
     const dateStr = formatDateToLocal(date);
@@ -570,7 +572,7 @@ const isTimeSlotAvailable = (date, time) => {
 
   return (
     <div className="min-h-screen flex flex-col items-center">
-      {/* CPAG HEADER - keeping original */}
+      {/* CPAG HEADER */}
       <div className="bg-white max-w-6xl rounded-lg shadow-lg w-full mb-6">
         <div className="bg-gradient-to-r from-sky-50 via-cyan-300 to-sky-100 h-48 md:h-64 rounded-lg relative overflow-hidden">
           <div className="absolute inset-0 flex items-center justify-center">
@@ -579,75 +581,56 @@ const isTimeSlotAvailable = (date, time) => {
                 src="/src/assets/cover-cpag-new.png" 
                 alt="CPAG Region IV-A Banner" 
                 className=" rounded-lg w-full max-w-4xl mx-auto h-auto"
-                
               />
-              <div className="hidden">
-                <div className="flex items-center justify-center gap-4 mb-4">
-                  <div className="bg-white/90 p-4 rounded-full">
-                    <Activity className="w-16 h-16 text-blue-600" />
-                  </div>
-                  <div className="text-left">
-                    <h1 className="text-2xl md:text-4xl font-bold text-blue-900">CPAG REGION IV-A</h1>
-                    <p className="text-lg md:text-2xl text-blue-800 italic">Cavite Positive Action Group</p>
-                  </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center bg-white max-w-6xl mx-auto px-4 py-6 rounded-lg shadow-md p-6">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4 text-center">
+            CAVITE POSITIVE ACTION GROUP THE JCH ADVOCACY INC.
+          </h2>
+          
+          <div className="grid md:grid-cols-2 gap-4 mb-6">
+            <div className="flex items-start gap-3">
+              <MapPin className="w-5 h-5 text-blue-600 flex-shrink-0 mt-1" />
+              <div>
+                <p className="font-semibold text-gray-700 text-sm">Address</p>
+                <p className="text-gray-600 text-sm">
+                  9002 J. Miranda Street<br />
+                  Barangay Lao Lao Caridad<br />
+                  Cavite City 4100, Philippines
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <Phone className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold text-gray-700 text-sm">Phone</p>
+                  <p className="text-gray-600 text-sm">(046) 542 9246</p>
                 </div>
-                <div className="text-sm md:text-base text-blue-900 font-semibold">
-                  <span className="bg-white/80 px-3 py-1 rounded">#CPAGcares2023</span>
-                  <span className="bg-white/80 px-3 py-1 rounded ml-2">#BeInspired</span>
-                  <span className="bg-white/80 px-3 py-1 rounded ml-2">#WeDontWaitWeAct</span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Mail className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold text-gray-700 text-sm">Email</p>
+                  <p className="text-gray-600 text-sm">cavitepositiveactiongroup@outlook.com</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Clock className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold text-gray-700 text-sm">Office Hours</p>
+                  <p className="text-gray-600 text-sm">Monday-Friday | 9 AM - 5:30 PM</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
-
-        
-          <div className="flex flex-col items-center bg-white max-w-6xl mx-auto px-4 py-6 rounded-lg shadow-md p-6">
-            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4 text-center">
-              CAVITE POSITIVE ACTION GROUP THE JCH ADVOCACY INC.
-            </h2>
-            
-            <div className="grid md:grid-cols-2 gap-4 mb-6">
-              <div className="flex items-start gap-3">
-                <MapPin className="w-5 h-5 text-blue-600 flex-shrink-0 mt-1" />
-                <div>
-                  <p className="font-semibold text-gray-700 text-sm">Address</p>
-                  <p className="text-gray-600 text-sm">
-                    9002 J. Miranda Street<br />
-                    Barangay Lao Lao Caridad<br />
-                    Cavite City 4100, Philippines
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <Phone className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                  <div>
-                    <p className="font-semibold text-gray-700 text-sm">Phone</p>
-                    <p className="text-gray-600 text-sm">(046) 542 9246</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Mail className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                  <div>
-                    <p className="font-semibold text-gray-700 text-sm">Email</p>
-                    <p className="text-gray-600 text-sm">cavitepositiveactiongroup@outlook.com</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                  <div>
-                    <p className="font-semibold text-gray-700 text-sm">Office Hours</p>
-                    <p className="text-gray-600 text-sm">Monday-Friday | 9 AM - 5:30 PM</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        
       </div>
 
       {/* Header */}
@@ -678,7 +661,7 @@ const isTimeSlotAvailable = (date, time) => {
         </div>
       </div>
 
-      {/* Current Appointment or No Appointment sections - keeping original code but won't paste it all here for brevity */}
+      {/* Current Appointment or No Appointment */}
       {bookedAppointment ? (
         <div className="bg-white max-w-6xl rounded-lg shadow-lg w-full p-6 mb-6">
           <div className="flex justify-between items-start mb-4">
@@ -756,38 +739,123 @@ const isTimeSlotAvailable = (date, time) => {
             </div>
           </div>
 
-          {bookedAppointment.requestSaturday && (
-            <div className="mt-4 bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
-              <h3 className="font-semibold text-yellow-800 mb-2 flex items-center gap-2">
-                ⚠️ Saturday Special Request
-              </h3>
-              <p className="text-gray-700 text-sm"><strong>Reason:</strong> {bookedAppointment.saturdayReason}</p>
+{/* ✅ ENHANCED: Saturday Request Display in Current Appointment */}
+{bookedAppointment.saturdayRequest?.requested && (
+  <div className="mt-4 bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
+    <h3 className="font-semibold text-purple-800 mb-2 flex items-center gap-2">
+      <Calendar className="w-5 h-5" />
+      📅 Saturday Appointment Request
+    </h3>
+    <div className="space-y-3">
+      <div className="bg-white rounded-lg p-3 border border-purple-200">
+        <p className="text-sm font-medium text-gray-700 mb-1">Your Reason:</p>
+        <p className="text-gray-800 pl-3 border-l-4 border-purple-400">
+          {bookedAppointment.saturdayRequest.reason}
+        </p>
+      </div>
+      
+      {bookedAppointment.saturdayRequest.approved !== null ? (
+        <div className={`rounded-lg p-4 border-2 ${
+          bookedAppointment.saturdayRequest.approved 
+            ? 'bg-green-50 border-green-300' 
+            : 'bg-red-50 border-red-300'
+        }`}>
+          <div className="flex items-start gap-2 mb-2">
+            {bookedAppointment.saturdayRequest.approved ? (
+              <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            ) : (
+              <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            )}
+            <div className="flex-1">
+              <p className={`font-bold text-lg ${
+                bookedAppointment.saturdayRequest.approved ? 'text-green-800' : 'text-red-800'
+              }`}>
+                {bookedAppointment.saturdayRequest.approved ? '✅ REQUEST APPROVED' : '❌ REQUEST DENIED'}
+              </p>
+            </div>
+          </div>
+          
+          {bookedAppointment.saturdayRequest.adminResponse && (
+            <div className="mt-3">
+              <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                <MessageCircle className="w-4 h-4" />
+                Admin's Response:
+              </p>
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <p className="text-gray-800 italic">
+                  "{bookedAppointment.saturdayRequest.adminResponse}"
+                </p>
+              </div>
             </div>
           )}
+          
+          {bookedAppointment.saturdayRequest.processedAt && (
+            <p className="text-xs text-gray-600 mt-3 flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              Processed on {new Date(bookedAppointment.saturdayRequest.processedAt).toLocaleString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="bg-orange-50 rounded-lg p-3 border border-orange-300">
+          <p className="text-sm text-orange-800 font-medium flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            ⏳ Awaiting admin review...
+          </p>
+          <p className="text-xs text-orange-600 mt-1">
+            Your request will be reviewed by an administrator soon.
+          </p>
+        </div>
+      )}
+    </div>
+  </div>
+)}
 
-          {bookedAppointment.service === 'Psychosocial support and assistance' && bookedAppointment.psychosocialInfo && (
+
+          {/* Personal Information Display */}
+          {((bookedAppointment.service === 'Psychosocial support and assistance' && bookedAppointment.psychosocialInfo) ||
+           (bookedAppointment.service === 'Testing and Counseling' && bookedAppointment.testingInfo)) && (
             <div className="mt-4 bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
               <h3 className="font-semibold text-indigo-800 mb-3 flex items-center gap-2">
                 <UserIcon className="w-5 h-5" />
                 Personal Information
               </h3>
               <div className="grid md:grid-cols-2 gap-3 text-sm">
-                <div>
-                  <span className="text-gray-600">Full Name:</span>
-                  <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.fullName}</p>
-                </div>
-                <div>
-                  <span className="text-gray-600">Age:</span>
-                  <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.age}</p>
-                </div>
-                <div>
-                  <span className="text-gray-600">Gender:</span>
-                  <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.gender}</p>
-                </div>
-                <div>
-                  <span className="text-gray-600">Location:</span>
-                  <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.location}</p>
-                </div>
+                {(() => {
+                  const info = bookedAppointment.psychosocialInfo || bookedAppointment.testingInfo;
+                  return (
+                    <>
+                      <div>
+                        <span className="text-gray-600">Full Name:</span>
+                        <p className="font-medium text-gray-800">{info.fullName}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Age:</span>
+                        <p className="font-medium text-gray-800">{info.age}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Gender:</span>
+                        <p className="font-medium text-gray-800">{info.gender}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Location:</span>
+                        <p className="font-medium text-gray-800">{info.location}</p>
+                      </div>
+                      {info.contactNumber && (
+                        <div>
+                          <span className="text-gray-600">Contact Number:</span>
+                          <p className="font-medium text-gray-800">{info.contactNumber}</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -865,10 +933,10 @@ const isTimeSlotAvailable = (date, time) => {
         </div>
       )}
 
-      {/* Psychosocial Support Form Modal */}
+      {/* ✅ UPDATED: Psychosocial/Testing Form Modal with 72 Gender Identities and Contact Number */}
       {showPsychosocialFormModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                 <UserIcon className="w-7 h-7 text-blue-600" />
@@ -888,7 +956,7 @@ const isTimeSlotAvailable = (date, time) => {
             </div>
 
             <p className="text-gray-600 mb-6">
-              Please provide your information for psychosocial support services
+              Please provide your information for the service
             </p>
 
             <div className="space-y-4">
@@ -922,9 +990,10 @@ const isTimeSlotAvailable = (date, time) => {
                 />
               </div>
 
+              {/* ✅ NEW: 72 Gender Identities Dropdown */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Gender <span className="text-red-500">*</span>
+                  Gender Identity <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={psychosocialForm.gender}
@@ -932,11 +1001,12 @@ const isTimeSlotAvailable = (date, time) => {
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                 >
-                  <option value="">Select gender</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                  <option value="Prefer not to say">Prefer not to say</option>
+                  <option value="">Select gender identity</option>
+                  {GENDER_IDENTITIES.map((gender) => (
+                    <option key={gender} value={gender}>
+                      {gender}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -950,6 +1020,24 @@ const isTimeSlotAvailable = (date, time) => {
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
+              </div>
+
+              {/* ✅ NEW: Contact Number Field */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Contact Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="tel"
+                  value={psychosocialForm.contactNumber}
+                  onChange={(e) => setPsychosocialForm({ ...psychosocialForm, contactNumber: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="09123456789 or +639123456789"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Please enter a valid Philippine contact number
+                </p>
               </div>
             </div>
 
@@ -974,7 +1062,7 @@ const isTimeSlotAvailable = (date, time) => {
         </div>
       )}
 
-      {/* ✅ FIXED Calendar Modal */}
+      {/* ✅ Calendar Modal */}
       {showDateTimeModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-auto">
           <div className="bg-white rounded-2xl max-w-5xl w-full p-8 max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -1148,24 +1236,24 @@ const isTimeSlotAvailable = (date, time) => {
                 <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
                   {timeSlots.map((time) => {
                     const booked = isSlotBooked(selectedDate, time);
-                    const available = isTimeSlotAvailable(selectedDate, time); // ✅ NEW: Check clinic schedule too
+                    const available = isTimeSlotAvailable(selectedDate, time);
                     const selected = selectedTime === time;
 
                     return (
                       <button
                         key={time}
                         onClick={() => available && !booked && handleTimeSelection(time)}
-                        disabled={booked || !available} // ✅ UPDATED: Disable if not available
+                        disabled={booked || !available}
                         className={`
                           p-3 rounded-lg font-semibold transition-all
                           ${selected ? 'bg-blue-600 text-white ring-4 ring-blue-300' : ''}
-                          ${booked || !available ? 'bg-gray-200 text-gray-400 cursor-not-allowed line-through' : ''} // ✅ UPDATED
+                          ${booked || !available ? 'bg-gray-200 text-gray-400 cursor-not-allowed line-through' : ''}
                           ${!booked && available && !selected ? 'bg-white text-gray-700 hover:bg-blue-100 hover:text-blue-700 border-2 border-gray-200' : ''}
                         `}
                       >
                         {time}
                         {booked && <span className="block text-xs mt-1">Booked</span>}
-                        {!booked && !available && <span className="block text-xs mt-1">Closed</span>} {/* ✅ NEW */}
+                        {!booked && !available && <span className="block text-xs mt-1">Closed</span>}
                       </button>
                     );
                   })}
@@ -1217,7 +1305,7 @@ const isTimeSlotAvailable = (date, time) => {
       {/* Review Modal */}
       {showReviewModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-3xl font-bold text-gray-800">Review Your Appointment</h3>
               <button onClick={() => {
@@ -1276,6 +1364,10 @@ const isTimeSlotAvailable = (date, time) => {
                     <div>
                       <span className="text-gray-600">Location:</span>
                       <p className="font-medium text-gray-800">{psychosocialForm.location}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Contact:</span>
+                      <p className="font-medium text-gray-800">{psychosocialForm.contactNumber}</p>
                     </div>
                   </div>
                 </div>
@@ -1405,12 +1497,87 @@ const isTimeSlotAvailable = (date, time) => {
                   {bookedAppointment.time}
                 </p>
               </div>
-
-              {bookedAppointment.requestSaturday && (
-                <div className="bg-yellow-50 rounded-lg p-5 border-2 border-yellow-200">
-                  <h4 className="font-bold text-yellow-800 mb-2 text-lg">⚠️ Saturday Special Request</h4>
-                  <p className="text-gray-700"><strong>Reason:</strong> {bookedAppointment.saturdayReason}</p>
-                </div>
+              
+{bookedAppointment.saturdayRequest?.requested && (
+  <div className="bg-purple-50 rounded-lg p-5 border-2 border-purple-200">
+    <h4 className="font-bold text-purple-800 mb-3 text-lg flex items-center gap-2">
+      <Calendar className="w-5 h-5" />
+      📅 Saturday Appointment Request
+    </h4>
+    <div className="space-y-3">
+      <div className="bg-white rounded-lg p-3 border border-purple-200">
+        <p className="text-sm font-semibold text-gray-700 mb-1">Your Reason:</p>
+        <p className="text-gray-800 pl-3 border-l-4 border-purple-400">
+          {bookedAppointment.saturdayRequest.reason}
+        </p>
+      </div>
+      
+      {bookedAppointment.saturdayRequest.approved !== null ? (
+        <div className={`rounded-lg p-4 border-2 ${
+          bookedAppointment.saturdayRequest.approved 
+            ? 'bg-green-50 border-green-300' 
+            : 'bg-red-50 border-red-300'
+        }`}>
+          <div className="flex items-center gap-2 mb-3">
+            {bookedAppointment.saturdayRequest.approved ? (
+              <CheckCircle className="w-6 h-6 text-green-600" />
+            ) : (
+              <XCircle className="w-6 h-6 text-red-600" />
+            )}
+            <p className={`font-bold text-lg ${
+              bookedAppointment.saturdayRequest.approved ? 'text-green-800' : 'text-red-800'
+            }`}>
+              {bookedAppointment.saturdayRequest.approved ? 'REQUEST APPROVED' : 'REQUEST DENIED'}
+            </p>
+          </div>
+          
+          {bookedAppointment.saturdayRequest.adminResponse && (
+            <div className="mt-3">
+              <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                <MessageCircle className="w-4 h-4" />
+                Administrator's Response:
+              </p>
+              <div className="bg-white rounded-lg p-4 border border-gray-300 shadow-sm">
+                <p className="text-gray-800 leading-relaxed">
+                  {bookedAppointment.saturdayRequest.adminResponse}
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {bookedAppointment.saturdayRequest.adminNotes && (
+            <div className="mt-3">
+              <p className="text-sm font-semibold text-gray-700 mb-1">Internal Notes:</p>
+              <p className="text-xs text-gray-600 italic">{bookedAppointment.saturdayRequest.adminNotes}</p>
+            </div>
+          )}
+          
+          <div className="mt-3 pt-3 border-t border-gray-300">
+            <p className="text-xs text-gray-600">
+              Processed on {new Date(bookedAppointment.saturdayRequest.processedAt).toLocaleString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-orange-50 rounded-lg p-4 border border-orange-300">
+          <p className="text-sm text-orange-800 font-semibold flex items-center gap-2">
+            <AlertCircle className="w-5 h-5" />
+            Pending Administrative Review
+          </p>
+          <p className="text-xs text-orange-600 mt-2">
+            Your Saturday appointment request is awaiting admin approval. You will be notified once a decision is made.
+          </p>
+        </div>
+      )}
+    </div>
+  </div>
               )}
 
               {bookedAppointment.sessionTracking?.sessionNotes?.length > 0 && (
@@ -1449,29 +1616,43 @@ const isTimeSlotAvailable = (date, time) => {
                 </div>
               )}
 
-              {bookedAppointment.service === 'Psychosocial support and assistance' && bookedAppointment.psychosocialInfo && (
+              {((bookedAppointment.service === 'Psychosocial support and assistance' && bookedAppointment.psychosocialInfo) ||
+                (bookedAppointment.service === 'Testing and Counseling' && bookedAppointment.testingInfo)) && (
                 <div className="bg-indigo-50 rounded-lg p-5 border-2 border-indigo-200">
                   <h4 className="font-bold text-indigo-800 mb-3 text-lg flex items-center gap-2">
                     <UserIcon className="w-5 h-5" />
                     Personal Information
                   </h4>
                   <div className="grid md:grid-cols-2 gap-3">
-                    <div>
-                      <span className="text-gray-600 text-sm">Full Name:</span>
-                      <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.fullName}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 text-sm">Age:</span>
-                      <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.age}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 text-sm">Gender:</span>
-                      <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.gender}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 text-sm">Location:</span>
-                      <p className="font-medium text-gray-800">{bookedAppointment.psychosocialInfo.location}</p>
-                    </div>
+                    {(() => {
+                      const info = bookedAppointment.psychosocialInfo || bookedAppointment.testingInfo;
+                      return (
+                        <>
+                          <div>
+                            <span className="text-gray-600 text-sm">Full Name:</span>
+                            <p className="font-medium text-gray-800">{info.fullName}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600 text-sm">Age:</span>
+                            <p className="font-medium text-gray-800">{info.age}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600 text-sm">Gender:</span>
+                            <p className="font-medium text-gray-800">{info.gender}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600 text-sm">Location:</span>
+                            <p className="font-medium text-gray-800">{info.location}</p>
+                          </div>
+                          {info.contactNumber && (
+                            <div>
+                              <span className="text-gray-600 text-sm">Contact Number:</span>
+                              <p className="font-medium text-gray-800">{info.contactNumber}</p>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -1559,7 +1740,7 @@ const isTimeSlotAvailable = (date, time) => {
                             Case Manager: {apt.assignedCaseManager.name || apt.assignedCaseManager.username}
                           </p>
                         )}
-                        {apt.requestSaturday && (
+                        {apt.saturdayRequest?.requested && (
                           <span className="inline-block mt-2 px-2 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded">
                             Saturday Request
                           </span>
@@ -1634,33 +1815,97 @@ const isTimeSlotAvailable = (date, time) => {
                 </p>
               </div>
 
-              {selectedHistoryItem.requestSaturday && (
-                <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
-                  <h4 className="font-semibold text-yellow-800 mb-2">⚠️ Saturday Request</h4>
-                  <p className="text-gray-700"><strong>Reason:</strong> {selectedHistoryItem.saturdayReason}</p>
-                </div>
-              )}
+              {selectedHistoryItem.saturdayRequest?.requested && (
+  <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
+    <h4 className="font-semibold text-purple-800 mb-3 flex items-center gap-2">
+      <Calendar className="w-5 h-5" />
+      Saturday Request Details
+    </h4>
+    <div className="space-y-2">
+      <div className="bg-white rounded p-3 border border-purple-200">
+        <p className="text-sm font-medium text-gray-700">Your Reason:</p>
+        <p className="text-gray-800 text-sm mt-1">{selectedHistoryItem.saturdayRequest.reason}</p>
+      </div>
+      
+      {selectedHistoryItem.saturdayRequest.approved !== null && (
+        <div className={`rounded-lg p-3 ${
+          selectedHistoryItem.saturdayRequest.approved 
+            ? 'bg-green-50 border border-green-300' 
+            : 'bg-red-50 border border-red-300'
+        }`}>
+          <p className={`font-semibold text-sm flex items-center gap-2 mb-2 ${
+            selectedHistoryItem.saturdayRequest.approved ? 'text-green-800' : 'text-red-800'
+          }`}>
+            {selectedHistoryItem.saturdayRequest.approved ? (
+              <>
+                <CheckCircle className="w-4 h-4" />
+                Approved
+              </>
+            ) : (
+              <>
+                <XCircle className="w-4 h-4" />
+                Denied
+              </>
+            )}
+          </p>
+          
+          {selectedHistoryItem.saturdayRequest.adminResponse && (
+            <div className="mt-2">
+              <p className="text-xs font-semibold text-gray-700 mb-1">Admin Response:</p>
+              <div className="bg-white rounded p-2 border border-gray-200">
+                <p className="text-sm text-gray-800">
+                  {selectedHistoryItem.saturdayRequest.adminResponse}
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {selectedHistoryItem.saturdayRequest.processedAt && (
+            <p className="text-xs text-gray-600 mt-2">
+              Processed: {new Date(selectedHistoryItem.saturdayRequest.processedAt).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  </div>
+)}
 
-              {selectedHistoryItem.service === 'Psychosocial support and assistance' && selectedHistoryItem.psychosocialInfo && (
+
+              {((selectedHistoryItem.service === 'Psychosocial support and assistance' && selectedHistoryItem.psychosocialInfo) ||
+                (selectedHistoryItem.service === 'Testing and Counseling' && selectedHistoryItem.testingInfo)) && (
                 <div className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
                   <h4 className="font-semibold text-indigo-800 mb-3">Personal Information</h4>
                   <div className="grid md:grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-gray-600">Name:</span>
-                      <p className="font-medium text-gray-800">{selectedHistoryItem.psychosocialInfo.fullName}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Age:</span>
-                      <p className="font-medium text-gray-800">{selectedHistoryItem.psychosocialInfo.age}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Gender:</span>
-                      <p className="font-medium text-gray-800">{selectedHistoryItem.psychosocialInfo.gender}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Location:</span>
-                      <p className="font-medium text-gray-800">{selectedHistoryItem.psychosocialInfo.location}</p>
-                    </div>
+                    {(() => {
+                      const info = selectedHistoryItem.psychosocialInfo || selectedHistoryItem.testingInfo;
+                      return (
+                        <>
+                          <div>
+                            <span className="text-gray-600">Name:</span>
+                            <p className="font-medium text-gray-800">{info.fullName}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Age:</span>
+                            <p className="font-medium text-gray-800">{info.age}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Gender:</span>
+                            <p className="font-medium text-gray-800">{info.gender}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Location:</span>
+                            <p className="font-medium text-gray-800">{info.location}</p>
+                          </div>
+                          {info.contactNumber && (
+                            <div>
+                              <span className="text-gray-600">Contact:</span>
+                              <p className="font-medium text-gray-800">{info.contactNumber}</p>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               )}

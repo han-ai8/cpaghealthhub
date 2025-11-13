@@ -1,127 +1,143 @@
-// routes/hivAnalytics.js - FIXED ANALYTICS WITH PROPER DATA FETCHING
+// routes/hivAnalytics.js - NOW SERVICE USAGE ANALYTICS
 import express from 'express';
 import Appointment from '../models/appointment.js';
 import { isAuthenticated, isAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Get HIV Analytics Data
+// ✅ UPDATED: Get Service Usage Analytics (no more HIV status)
 router.get('/analytics', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    console.log('📊 Fetching HIV Analytics...');
+    console.log('📊 Fetching Service Usage Analytics...');
 
-    // Get all Testing and Counseling appointments with confirmed HIV status
-    const appointments = await Appointment.find({
+    // Get all completed appointments
+    const testingAppointments = await Appointment.find({
       service: 'Testing and Counseling',
-      'hivStatus.status': { $in: ['positive', 'negative'] }
-    })
-    .populate('user', 'name username email')
-    .lean();
+      status: 'completed'
+    }).lean();
 
-    console.log(`✅ Found ${appointments.length} completed HIV tests`);
+    const psychosocialAppointments = await Appointment.find({
+      service: 'Psychosocial support and assistance',
+      status: 'completed'
+    }).lean();
 
-    // Initialize counters
+    console.log(`✅ Found ${testingAppointments.length} Testing appointments`);
+    console.log(`✅ Found ${psychosocialAppointments.length} Psychosocial appointments`);
+
+    // Initialize analytics structure
     const analytics = {
-      total: appointments.length,
-      positive: 0,
-      negative: 0,
-      byAge: {
-        positive: { '0-17': 0, '18-24': 0, '25-34': 0, '35-44': 0, '45-54': 0, '55+': 0 },
-        negative: { '0-17': 0, '18-24': 0, '25-34': 0, '35-44': 0, '45-54': 0, '55+': 0 }
+      testing: {
+        total: testingAppointments.length,
+        byAge: {},
+        byGender: {},
+        byLocation: {}
       },
-      byGender: {
-        positive: { Male: 0, Female: 0, Other: 0, 'Prefer not to say': 0 },
-        negative: { Male: 0, Female: 0, Other: 0, 'Prefer not to say': 0 }
+      psychosocial: {
+        total: psychosocialAppointments.length,
+        byAge: {},
+        byGender: {},
+        byLocation: {}
       },
-      byLocation: {
-        positive: {},
-        negative: {}
+      overall: {
+        total: testingAppointments.length + psychosocialAppointments.length,
+        testingPercentage: 0,
+        psychosocialPercentage: 0
       }
     };
 
-    // Process each appointment
-    appointments.forEach(apt => {
-      const status = apt.hivStatus.status;
+    // Helper function to categorize age
+    const getAgeGroup = (age) => {
+      if (!age || age < 1) return 'Unknown';
+      if (age < 18) return '0-17';
+      if (age >= 18 && age < 25) return '18-24';
+      if (age >= 25 && age < 35) return '25-34';
+      if (age >= 35 && age < 45) return '35-44';
+      if (age >= 45 && age < 55) return '45-54';
+      return '55+';
+    };
 
-      // ✅ FIXED: Get demographic data from testingInfo (not psychosocialInfo)
-      const age = apt.testingInfo?.age || 0;
-      const gender = apt.testingInfo?.gender || 'Other';
-      const location = apt.testingInfo?.location || 'Unknown';
+    // Process Testing and Counseling appointments
+    testingAppointments.forEach(apt => {
+      const info = apt.testingInfo;
+      if (!info) return;
 
-      console.log(`Processing: ${apt._id} | Status: ${status} | Age: ${age} | Gender: ${gender} | Location: ${location}`);
-
-      // Count totals
-      if (status === 'positive') {
-        analytics.positive++;
-      } else if (status === 'negative') {
-        analytics.negative++;
-      }
+      const age = info.age || 0;
+      const gender = info.gender || 'Not specified';
+      const location = info.location || 'Unknown';
 
       // Age groups
-      let ageGroup = '55+';
-      if (age < 18) {
-        ageGroup = '0-17';
-      } else if (age >= 18 && age < 25) {
-        ageGroup = '18-24';
-      } else if (age >= 25 && age < 35) {
-        ageGroup = '25-34';
-      } else if (age >= 35 && age < 45) {
-        ageGroup = '35-44';
-      } else if (age >= 45 && age < 55) {
-        ageGroup = '45-54';
-      }
-
-      analytics.byAge[status][ageGroup]++;
-      console.log(`  → Age group: ${ageGroup}`);
+      const ageGroup = getAgeGroup(age);
+      analytics.testing.byAge[ageGroup] = (analytics.testing.byAge[ageGroup] || 0) + 1;
 
       // Gender
-      if (analytics.byGender[status][gender] !== undefined) {
-        analytics.byGender[status][gender]++;
-        console.log(`  → Gender: ${gender}`);
-      } else {
-        analytics.byGender[status]['Other']++;
-        console.log(`  → Gender: ${gender} (counted as Other)`);
-      }
+      analytics.testing.byGender[gender] = (analytics.testing.byGender[gender] || 0) + 1;
 
       // Location
-      if (!analytics.byLocation[status][location]) {
-        analytics.byLocation[status][location] = 0;
-      }
-      analytics.byLocation[status][location]++;
-      console.log(`  → Location: ${location}`);
+      analytics.testing.byLocation[location] = (analytics.testing.byLocation[location] || 0) + 1;
+
+      console.log(`Testing: Age ${age} (${ageGroup}), Gender: ${gender}, Location: ${location}`);
     });
 
+    // Process Psychosocial Support appointments
+    psychosocialAppointments.forEach(apt => {
+      const info = apt.psychosocialInfo;
+      if (!info) return;
+
+      const age = info.age || 0;
+      const gender = info.gender || 'Not specified';
+      const location = info.location || 'Unknown';
+
+      // Age groups
+      const ageGroup = getAgeGroup(age);
+      analytics.psychosocial.byAge[ageGroup] = (analytics.psychosocial.byAge[ageGroup] || 0) + 1;
+
+      // Gender
+      analytics.psychosocial.byGender[gender] = (analytics.psychosocial.byGender[gender] || 0) + 1;
+
+      // Location
+      analytics.psychosocial.byLocation[location] = (analytics.psychosocial.byLocation[location] || 0) + 1;
+
+      console.log(`Psychosocial: Age ${age} (${ageGroup}), Gender: ${gender}, Location: ${location}`);
+    });
+
+    // Calculate percentages
+    const total = analytics.overall.total;
+    if (total > 0) {
+      analytics.overall.testingPercentage = Math.round((testingAppointments.length / total) * 100);
+      analytics.overall.psychosocialPercentage = Math.round((psychosocialAppointments.length / total) * 100);
+    }
+
     console.log('═══════════════════════════════════════════════════');
-    console.log('📊 ANALYTICS SUMMARY');
+    console.log('📊 SERVICE USAGE ANALYTICS SUMMARY');
     console.log('═══════════════════════════════════════════════════');
-    console.log('Total Tests:', analytics.total);
-    console.log('Positive:', analytics.positive);
-    console.log('Negative:', analytics.negative);
-    console.log('\nAge Distribution (Positive):');
-    Object.entries(analytics.byAge.positive).forEach(([age, count]) => {
+    console.log('Total Completed Appointments:', total);
+    console.log('Testing and Counseling:', testingAppointments.length, `(${analytics.overall.testingPercentage}%)`);
+    console.log('Psychosocial Support:', psychosocialAppointments.length, `(${analytics.overall.psychosocialPercentage}%)`);
+    console.log('\nTesting & Counseling - Age Distribution:');
+    Object.entries(analytics.testing.byAge).forEach(([age, count]) => {
       if (count > 0) console.log(`  ${age}: ${count}`);
     });
-    console.log('\nAge Distribution (Negative):');
-    Object.entries(analytics.byAge.negative).forEach(([age, count]) => {
+    console.log('\nPsychosocial Support - Age Distribution:');
+    Object.entries(analytics.psychosocial.byAge).forEach(([age, count]) => {
       if (count > 0) console.log(`  ${age}: ${count}`);
     });
-    console.log('\nGender Distribution (Positive):');
-    Object.entries(analytics.byGender.positive).forEach(([gender, count]) => {
+    console.log('\nTesting & Counseling - Gender Distribution:');
+    Object.entries(analytics.testing.byGender).forEach(([gender, count]) => {
       if (count > 0) console.log(`  ${gender}: ${count}`);
     });
-    console.log('\nGender Distribution (Negative):');
-    Object.entries(analytics.byGender.negative).forEach(([gender, count]) => {
+    console.log('\nPsychosocial Support - Gender Distribution:');
+    Object.entries(analytics.psychosocial.byGender).forEach(([gender, count]) => {
       if (count > 0) console.log(`  ${gender}: ${count}`);
     });
-    console.log('\nTop 5 Locations (Positive):');
-    Object.entries(analytics.byLocation.positive)
+    console.log('\nTesting & Counseling - Top 10 Locations:');
+    Object.entries(analytics.testing.byLocation)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
+      .slice(0, 10)
       .forEach(([loc, count]) => console.log(`  ${loc}: ${count}`));
-    console.log('\nTop 5 Locations (Negative):');
-    Object.entries(analytics.byLocation.negative)
+    console.log('\nPsychosocial Support - Top 10 Locations:');
+    Object.entries(analytics.psychosocial.byLocation)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
+      .slice(0, 10)
       .forEach(([loc, count]) => console.log(`  ${loc}: ${count}`));
     console.log('═══════════════════════════════════════════════════');
 
@@ -130,10 +146,10 @@ router.get('/analytics', isAuthenticated, isAdmin, async (req, res) => {
       analytics
     });
   } catch (error) {
-    console.error('❌ Error fetching HIV analytics:', error);
+    console.error('❌ Error fetching service analytics:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch HIV analytics',
+      error: 'Failed to fetch service analytics',
       details: error.message
     });
   }

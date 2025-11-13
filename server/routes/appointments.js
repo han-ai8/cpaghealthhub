@@ -1,9 +1,29 @@
-// routes/appointments.js - FIXED TO SAVE testingInfo FOR TESTING AND COUNSELING
+// routes/appointments.js - FIXED GENDER VALIDATION WITH 72 IDENTITIES
 import express from 'express';
 import Appointment from '../models/appointment.js';
 import { isAuthenticated, isUserRole } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// ✅ 72 GENDER IDENTITIES - SERVER-SIDE VALIDATION
+const VALID_GENDERS = [
+  'Agender', 'Androgyne', 'Androgynes', 'Androgynous', 'Bigender',
+  'Cis', 'Cis Female', 'Cis Male', 'Cis Man', 'Cis Woman',
+  'Cisgender', 'Cisgender Female', 'Cisgender Male', 'Cisgender Man', 'Cisgender Woman',
+  'Female to Male', 'FTM', 'Gender Fluid', 'Gender Nonconforming', 'Gender Questioning',
+  'Gender Variant', 'Genderqueer', 'Intersex', 'Male to Female', 'MTF',
+  'Neither', 'Neutrois', 'Non-binary', 'Other', 'Pangender',
+  'Trans', 'Trans Female', 'Trans Male', 'Trans Man', 'Trans Person', 'Trans Woman',
+  'Trans*', 'Trans* Female', 'Trans* Male', 'Trans* Man', 'Trans* Person', 'Trans* Woman',
+  'Transfeminine', 'Transgender', 'Transgender Female', 'Transgender Male',
+  'Transgender Man', 'Transgender Person', 'Transgender Woman', 'Transmasculine',
+  'Transsexual', 'Transsexual Female', 'Transsexual Male', 'Transsexual Man',
+  'Transsexual Person', 'Transsexual Woman', 'Two-spirit',
+  'Male', 'Female', 'Man', 'Woman',
+  'Demiboy', 'Demigirl', 'Demiguy', 'Genderflux', 'Maverique',
+  'Novigender', 'Aporagender', 'Third Gender', 'Polygender', 'Omnigender',
+  'Prefer not to say'
+];
 
 // ============================================
 // 🇵🇭 PHILIPPINE TIMEZONE HELPER FUNCTIONS
@@ -15,7 +35,7 @@ const getPhilippineDate = () => {
 const isWeekend = (dateString) => {
   const date = new Date(dateString);
   const day = date.getDay();
-  return day === 0 || day === 6; // Sunday = 0, Saturday = 6
+  return day === 0 || day === 6;
 };
 
 const formatPhilippineDate = (date) => {
@@ -32,7 +52,6 @@ const formatPhilippineDate = (date) => {
 };
 
 const normalizeDate = (dateString) => {
-  // Parse date as local time to avoid timezone shifts
   const [year, month, day] = dateString.split('-').map(Number);
   return new Date(year, month - 1, day);
 };
@@ -139,8 +158,7 @@ router.get('/history', isAuthenticated, isUserRole, async (req, res) => {
 });
 
 // ============================================
-// ✅ FIXED: CREATE NEW APPOINTMENT
-// NOW PROPERLY SAVES testingInfo FOR TESTING AND COUNSELING
+// ✅ FIXED: CREATE NEW APPOINTMENT WITH PROPER GENDER VALIDATION
 // ============================================
 router.post('/', isAuthenticated, isUserRole, async (req, res) => {
   try {
@@ -164,13 +182,13 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
       return res.status(400).json({ error: 'Invalid service type' });
     }
 
-    // ✅ VALIDATE DEMOGRAPHIC INFO FOR BOTH SERVICES
+    // ✅ VALIDATE DEMOGRAPHIC INFO WITH 72 GENDER IDENTITIES
     if (psychosocialInfo) {
-      const { fullName, age, gender, location } = psychosocialInfo;
+      const { fullName, age, gender, location, contactNumber } = psychosocialInfo;
       
-      if (!fullName || !age || !gender || !location) {
+      if (!fullName || !age || !gender || !location || !contactNumber) {
         return res.status(400).json({
-          error: 'Please provide: fullName, age, gender, and location'
+          error: 'Please provide: fullName, age, gender, location, and contact number'
         });
       }
 
@@ -181,10 +199,19 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
         });
       }
 
-      const validGenders = ['Male', 'Female', 'Other', 'Prefer not to say'];
-      if (!validGenders.includes(gender)) {
+      // ✅ FIX: Validate against 72 gender identities
+      if (!VALID_GENDERS.includes(gender)) {
+        console.error('❌ Invalid gender received:', gender);
         return res.status(400).json({
-          error: 'Invalid gender value'
+          error: 'Invalid gender identity selected. Please choose from the provided list.'
+        });
+      }
+
+      // Validate contact number (Philippine format)
+      const contactRegex = /^(09|\+639)\d{9}$/;
+      if (!contactRegex.test(contactNumber.replace(/\s+/g, ''))) {
+        return res.status(400).json({
+          error: 'Please enter a valid Philippine contact number (e.g., 09123456789 or +639123456789)'
         });
       }
     }
@@ -280,21 +307,20 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
       } : undefined
     };
 
-    // ✅ KEY FIX: Save demographic data with correct field name based on service
+    // ✅ Save demographic data with correct field name based on service
     if (psychosocialInfo) {
       const demographicData = {
         fullName: psychosocialInfo.fullName,
         age: parseInt(psychosocialInfo.age),
         gender: psychosocialInfo.gender,
-        location: psychosocialInfo.location
+        location: psychosocialInfo.location,
+        contactNumber: psychosocialInfo.contactNumber
       };
 
       if (service === 'Testing and Counseling') {
-        // ✅ FOR TESTING AND COUNSELING → Save as testingInfo
         appointmentData.testingInfo = demographicData;
         console.log('✅ Testing demographic info saved as testingInfo:', demographicData);
       } else if (service === 'Psychosocial support and assistance') {
-        // ✅ FOR PSYCHOSOCIAL → Save as psychosocialInfo
         appointmentData.psychosocialInfo = demographicData;
         console.log('✅ Psychosocial info saved as psychosocialInfo:', demographicData);
       }
@@ -412,6 +438,15 @@ router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
       }
     }
 
+    // ✅ VALIDATE GENDER IF PROVIDED
+    if (psychosocialInfo && psychosocialInfo.gender) {
+      if (!VALID_GENDERS.includes(psychosocialInfo.gender)) {
+        return res.status(400).json({
+          error: 'Invalid gender identity selected'
+        });
+      }
+    }
+
     // Update fields
     if (service) appointment.service = service;
     if (date) appointment.date = date;
@@ -424,7 +459,8 @@ router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
         fullName: psychosocialInfo.fullName,
         age: parseInt(psychosocialInfo.age),
         gender: psychosocialInfo.gender,
-        location: psychosocialInfo.location
+        location: psychosocialInfo.location,
+        contactNumber: psychosocialInfo.contactNumber
       };
 
       if (appointment.service === 'Testing and Counseling') {

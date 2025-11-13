@@ -1,4 +1,4 @@
-// server/models/User.js
+// server/models/User.js - UPDATED WITH PHONE NUMBER
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
@@ -56,11 +56,10 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
-    // ✅ FIXED: Allow empty/null gender values
     gender: {
       type: String,
-      enum: ['Male', 'Female', 'Other', 'Prefer not to say', ''], // ✅ Added empty string
-      default: '' // ✅ Default to empty string
+      enum: ['Male', 'Female', 'Other', 'Prefer not to say', ''], 
+      default: ''
     },
     address: {
       street: { type: String, default: '' },
@@ -69,7 +68,6 @@ const userSchema = new mongoose.Schema(
       zipCode: { type: String, default: '' },
     },
     
-    // ✅ ADD THESE FIELDS (for user profile completion)
     fullName: {
       type: String,
       trim: true,
@@ -93,7 +91,6 @@ const userSchema = new mongoose.Schema(
       default: 'user',
     },
     
-    // Email Verification Fields
     isEmailVerified: {
       type: Boolean,
       default: false,
@@ -107,7 +104,6 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
     
-    // Password Reset Fields
     resetPasswordCode: {
       type: String,
       select: false,
@@ -117,7 +113,6 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
     
-    // Profile
     profilePicture: {
       type: String,
       default: '',
@@ -128,7 +123,6 @@ const userSchema = new mongoose.Schema(
       phoneNumber: { type: String, default: '' },
     },
     
-    // Account Status
     isActive: {
       type: Boolean,
       default: true,
@@ -144,7 +138,6 @@ const userSchema = new mongoose.Schema(
       type: Date,
     },
 
-    // Case Manager Assignment
     assignedCaseManager: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -156,16 +149,13 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Add indexes
 userSchema.index({ username: 1 });
 userSchema.index({ email: 1 });
 
-// Virtual for account lock status
 userSchema.virtual('isLocked').get(function () {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 });
 
-// Hash password before saving
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
     return next();
@@ -180,12 +170,10 @@ userSchema.pre('save', async function (next) {
   }
 });
 
-// Method to compare password
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Method to increment login attempts
 userSchema.methods.incLoginAttempts = function () {
   if (this.lockUntil && this.lockUntil < Date.now()) {
     return this.updateOne({
@@ -196,7 +184,7 @@ userSchema.methods.incLoginAttempts = function () {
 
   const updates = { $inc: { loginAttempts: 1 } };
   const maxAttempts = 5;
-  const lockTime = 2 * 60 * 60 * 1000; // 2 hours
+  const lockTime = 2 * 60 * 60 * 1000;
 
   if (this.loginAttempts + 1 >= maxAttempts && !this.isLocked) {
     updates.$set = { lockUntil: Date.now() + lockTime };
@@ -205,7 +193,6 @@ userSchema.methods.incLoginAttempts = function () {
   return this.updateOne(updates);
 };
 
-// Method to reset login attempts
 userSchema.methods.resetLoginAttempts = function () {
   return this.updateOne({
     $set: { loginAttempts: 0 },

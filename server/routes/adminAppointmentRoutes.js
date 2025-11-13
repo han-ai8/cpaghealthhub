@@ -1,4 +1,4 @@
-// routes/adminAppointmentRoutes.js - COMPLETE WITH HIV STATUS FIX
+// routes/adminAppointmentRoutes.js - COMPLETE WITH HIV STATUS REMOVED
 import express from 'express';
 import mongoose from 'mongoose';
 import Appointment from '../models/appointment.js';
@@ -19,7 +19,6 @@ router.get('/appointments', isAuthenticated, isAdmin, async (req, res) => {
       .populate('assignedCaseManager', 'name username email')
       .populate('assignedBy', 'name username')
       .populate('sessionTracking.sessionNotes.caseManagerId', 'name username')
-      .populate('hivStatus.confirmedBy', 'name username')
       .sort({ createdAt: -1 });
 
     console.log(`✅ Found ${appointments.length} appointments`);
@@ -115,14 +114,12 @@ router.put('/appointments/:id/reschedule', isAuthenticated, isCaseManager, async
     console.log(`📅 Rescheduling appointment ${appointmentId}`);
     console.log(`New date: ${date}, New time: ${time}`);
 
-    // Validate required fields
     if (!date || !time) {
       return res.status(400).json({ 
         error: 'Date and time are required' 
       });
     }
 
-    // Find the appointment
     const appointment = await Appointment.findById(appointmentId);
 
     if (!appointment) {
@@ -131,7 +128,6 @@ router.put('/appointments/:id/reschedule', isAuthenticated, isCaseManager, async
       });
     }
 
-    // Check permissions - case manager can only edit their own assignments
     const user = await User.findById(userId);
     if (user.role === 'case_manager') {
       if (!appointment.assignedCaseManager || 
@@ -142,16 +138,14 @@ router.put('/appointments/:id/reschedule', isAuthenticated, isCaseManager, async
       }
     }
 
-    // Check if appointment can be rescheduled
     if (appointment.programCompleted) {
       return res.status(400).json({ 
         error: 'Cannot reschedule completed programs' 
       });
     }
 
-    // Check for time slot conflicts (excluding current appointment)
     const conflict = await Appointment.findOne({
-      _id: { $ne: appointmentId }, // Exclude current appointment
+      _id: { $ne: appointmentId },
       date,
       time,
       status: { $in: ['pending', 'confirmed', 'completed'] }
@@ -167,7 +161,6 @@ router.put('/appointments/:id/reschedule', isAuthenticated, isCaseManager, async
       });
     }
 
-    // Validate date is not in the past
     const appointmentDate = new Date(date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -179,7 +172,6 @@ router.put('/appointments/:id/reschedule', isAuthenticated, isCaseManager, async
       });
     }
 
-    // Update appointment
     appointment.date = date;
     appointment.time = time;
     if (note !== undefined) {
@@ -188,7 +180,6 @@ router.put('/appointments/:id/reschedule', isAuthenticated, isCaseManager, async
 
     await appointment.save();
 
-    // Populate references
     await appointment.populate([
       { path: 'user', select: 'name email username fullName age gender location' },
       { path: 'assignedCaseManager', select: 'name username email' },
@@ -283,78 +274,6 @@ router.get('/appointments/stats/overview', isAuthenticated, isAdmin, async (req,
     res.status(500).json({ error: 'Failed to fetch statistics' });
   }
 });
-
-// ============================================
-// UPDATE HIV STATUS - Admin Only (FIXED ROUTE)
-// ============================================
-router.put('/appointments/:id/hiv-status', isAuthenticated, isAdmin, async (req, res) => {
-  try {
-    const { status, notes } = req.body;
-    const adminId = req.user.id;
-
-    console.log('🔬 Admin updating HIV status:', {
-      appointmentId: req.params.id,
-      status,
-      adminId
-    });
-
-    const appointment = await Appointment.findById(req.params.id);
-
-    if (!appointment) {
-      return res.status(404).json({ error: 'Appointment not found' });
-    }
-
-    if (appointment.service !== 'Testing and Counseling') {
-      return res.status(400).json({ 
-        error: 'HIV status can only be set for Testing and Counseling appointments' 
-      });
-    }
-
-    if (!status || !['positive', 'negative'].includes(status)) {
-      return res.status(400).json({ 
-        error: 'Valid status (positive or negative) is required' 
-      });
-    }
-
-    appointment.hivStatus = {
-      status,
-      confirmedBy: adminId,
-      confirmedAt: new Date(),
-      notes: notes || ''
-    };
-
-    // Auto-complete the appointment when HIV status is set
-    if (appointment.status !== 'completed') {
-      appointment.status = 'completed';
-      appointment.completedAt = new Date();
-      appointment.completedBy = adminId;
-    }
-
-    await appointment.save();
-
-    await appointment.populate([
-      { path: 'user', select: 'name email username' },
-      { path: 'hivStatus.confirmedBy', select: 'name username' },
-      { path: 'completedBy', select: 'name username' }
-    ]);
-
-    console.log('✅ HIV status updated successfully');
-
-    res.json({
-      success: true,
-      message: 'HIV status updated and appointment completed',
-      appointment
-    });
-  } catch (error) {
-    console.error('❌ Error updating HIV status:', error);
-    res.status(500).json({ 
-      error: 'Failed to update HIV status',
-      details: error.message
-    });
-  }
-});
-
-
 
 // ============================================
 // CASE MANAGER PLANNER - Get assigned appointments with stats
@@ -859,16 +778,17 @@ router.get('/saturday-requests', isAuthenticated, isAdmin, async (req, res) => {
 });
 
 // ============================================
-// APPROVE/REJECT SATURDAY REQUEST
+// APPROVE/REJECT SATURDAY REQUEST WITH ADMIN RESPONSE
 // ============================================
 router.post('/saturday-requests/:id/process', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    const { approved, adminNotes } = req.body;
+    const { approved, adminNotes, adminResponse } = req.body;
     const adminId = req.user.id;
     const appointmentId = req.params.id;
 
     console.log(`📅 Processing Saturday request for appointment: ${appointmentId}`);
     console.log(`Decision: ${approved ? 'APPROVED' : 'REJECTED'}`);
+    console.log(`Admin Response: ${adminResponse || 'None'}`);
 
     if (typeof approved !== 'boolean') {
       return res.status(400).json({
@@ -898,6 +818,7 @@ router.post('/saturday-requests/:id/process', isAuthenticated, isAdmin, async (r
     appointment.saturdayRequest.processedBy = adminId;
     appointment.saturdayRequest.processedAt = new Date();
     appointment.saturdayRequest.adminNotes = adminNotes || '';
+    appointment.saturdayRequest.adminResponse = adminResponse || (approved ? 'Your Saturday request has been approved.' : 'Your Saturday request has been denied.');
 
     if (!approved) {
       appointment.status = 'cancelled';
@@ -914,6 +835,7 @@ router.post('/saturday-requests/:id/process', isAuthenticated, isAdmin, async (r
       : '❌ Saturday appointment request rejected';
 
     console.log(message);
+    console.log(`Response sent to user: ${appointment.saturdayRequest.adminResponse}`);
 
     res.json({
       success: true,
