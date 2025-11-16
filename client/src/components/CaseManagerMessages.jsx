@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, Send, Clock, User, Check, X, Menu } from 'lucide-react';
-import { io } from 'socket.io-client';
+import { MessageCircle, Send, Clock, User, X, Menu } from 'lucide-react';
 import axios from 'axios';
+import socketService from '../services/socketService'; // ✅ Using your existing service
 import { useUserProfile } from '../hooks/useUserProfile';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const SOCKET_URL = import.meta.env.VITE_API_URL ? undefined : 'http://localhost:5000';
 
 const CaseManagerMessages = () => {
   const [conversations, setConversations] = useState([]);
@@ -15,48 +14,87 @@ const CaseManagerMessages = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [totalUnreadCount, setTotalUnreadCount] = useState(0); // ✅ Total unread count
 
   const messagesEndRef = useRef(null);
-  const socketRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
   const { user: caseManager, loading: profileLoading, error: profileError } = useUserProfile();
 
   const getToken = () => localStorage.getItem('token');
 
+  // ✅ Connect to socket and set up listeners
   useEffect(() => {
-    // initialize socket only when we have a case manager id
     if (!caseManager?._id) return;
 
-    try {
-      socketRef.current = io(SOCKET_URL, {
-        withCredentials: true,
-        transports: ['websocket', 'polling']
-      });
+    // Connect socket
+    socketService.connect(caseManager._id);
 
-      socketRef.current.emit('join', caseManager._id);
-
-      socketRef.current.on('newMessage', ({ message }) => {
-        // Refresh conversations list and append message if belongs to selected conversation
-        fetchConversations();
-        if (selectedConversation?.userId?._id === message.senderId) {
-          setMessages((prev) => [...prev, message]);
-          markAsRead();
-        }
-      });
-
-      socketRef.current.on('userTyping', ({ isTyping: typing }) => setIsTyping(typing));
-
-      socketRef.current.on('connect_error', (err) => console.error('Socket error', err));
-    } catch (err) {
-      console.error('Socket initialization failed', err);
-    }
-
-    return () => {
-      if (socketRef.current) socketRef.current.disconnect();
+    // ✅ Listen for new messages
+    const handleNewMessage = ({ message }) => {
+      // Refresh conversations list and append message if belongs to selected conversation
+      fetchConversations();
+      fetchTotalUnreadCount();
+      
+      if (selectedConversation?.userId?._id === message.senderId) {
+        setMessages((prev) => [...prev, message]);
+        markAsRead();
+      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    // ✅ Listen for typing indicator
+    const handleTyping = ({ isTyping: typing }) => {
+      setIsTyping(typing);
+    };
+
+    // ✅ Listen for unread count updates
+    const handleUnreadCountUpdate = ({ unreadCount }) => {
+      console.log('📬 Socket: Unread count updated to', unreadCount);
+      setTotalUnreadCount(unreadCount);
+    };
+
+    // Register listeners
+    socketService.on('newMessage', handleNewMessage);
+    socketService.on('userTyping', handleTyping);
+    socketService.on('unreadCountUpdated', handleUnreadCountUpdate);
+
+    // Cleanup
+    return () => {
+      socketService.off('newMessage', handleNewMessage);
+      socketService.off('userTyping', handleTyping);
+      socketService.off('unreadCountUpdated', handleUnreadCountUpdate);
+    };
   }, [caseManager?._id, selectedConversation?._id]);
+
+  // ✅ Fetch total unread count
+  const fetchTotalUnreadCount = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/messages/unread-count`, {
+        headers: { Authorization: `Bearer ${getToken()}` }
+      });
+      
+      if (res.data?.success) {
+        setTotalUnreadCount(res.data.unreadCount || 0);
+        console.log('📬 Total unread count:', res.data.unreadCount);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch total unread count', err?.response?.data || err.message);
+    }
+  };
+
+  // ✅ Fetch unread count on mount and periodically
+  useEffect(() => {
+    if (!caseManager?._id) return;
+
+    fetchTotalUnreadCount();
+
+    // Poll for unread count every 30 seconds
+    const interval = setInterval(() => {
+      fetchTotalUnreadCount();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [caseManager?._id]);
 
   useEffect(() => {
     if (caseManager?._id && !profileLoading) fetchConversations();
@@ -76,7 +114,15 @@ const CaseManagerMessages = () => {
       const res = await axios.get(`${API_URL}/messages/conversations`, {
         headers: { Authorization: `Bearer ${getToken()}` }
       });
-      if (res.data?.success) setConversations(res.data.conversations || []);
+      if (res.data?.success) {
+        setConversations(res.data.conversations || []);
+        
+        // ✅ Calculate total unread count from conversations
+        const total = (res.data.conversations || []).reduce((sum, conv) => {
+          return sum + (conv.unreadCount?.caseManager || 0);
+        }, 0);
+        setTotalUnreadCount(total);
+      }
     } catch (err) {
       console.error('Error fetching conversations', err?.response?.data || err.message);
     }
@@ -91,6 +137,7 @@ const CaseManagerMessages = () => {
       if (res.data?.success) {
         setMessages(res.data.messages || []);
         markAsRead();
+        fetchTotalUnreadCount(); // ✅ Update unread count after reading
       } else {
         setMessages([]);
       }
@@ -124,7 +171,6 @@ const CaseManagerMessages = () => {
     } catch (err) {
       console.error('Send message error', err?.response?.data || err.message);
       setNewMessage(text);
-      // graceful in-UI error
       alert('Message failed to send. Please try again.');
     }
   };
@@ -139,6 +185,7 @@ const CaseManagerMessages = () => {
         { headers: { Authorization: `Bearer ${getToken()}` } }
       );
       fetchConversations();
+      fetchTotalUnreadCount(); // ✅ Update unread count
     } catch (err) {
       console.error('Mark read failed', err);
     }
@@ -152,9 +199,9 @@ const CaseManagerMessages = () => {
   };
 
   const handleTyping = () => {
-    if (!socketRef.current || !selectedConversation || !caseManager?._id) return;
+    if (!selectedConversation || !caseManager?._id) return;
 
-    socketRef.current.emit('typing', {
+    socketService.emit('typing', {
       conversationId: [caseManager._id, selectedConversation.userId._id].sort().join('_'),
       userId: caseManager._id,
       isTyping: true
@@ -163,7 +210,7 @@ const CaseManagerMessages = () => {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     typingTimeoutRef.current = setTimeout(() => {
-      socketRef.current.emit('typing', {
+      socketService.emit('typing', {
         conversationId: [caseManager._id, selectedConversation.userId._id].sort().join('_'),
         userId: caseManager._id,
         isTyping: false
@@ -230,7 +277,27 @@ const CaseManagerMessages = () => {
   }
 
   return (
-    <div className="flex h-full bg-gray-50 min-h-[500px]">
+    <div className="flex h-full bg-gray-50 min-h-[500px] relative">
+      {/* ✅ FLOATING CHAT WIDGET BUTTON - FIXED WITH WRAPPER APPROACH */}
+      {!sidebarOpen && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="relative bg-gradient-to-br from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-full p-4 shadow-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 transition-transform transform hover:scale-105"
+            aria-label="Open messages"
+          >
+            <MessageCircle className="w-6 h-6" />
+            
+            {/* ✅ UNREAD COUNT BADGE - NOW PROPERLY POSITIONED */}
+            {totalUnreadCount > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-7 w-7 flex items-center justify-center animate-pulse shadow-lg ring-2 ring-white">
+                {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Sidebar / Conversations */}
       <aside
         className={`bg-white border-r transition-all duration-200 ease-in-out ${sidebarOpen ? 'w-80' : 'w-0 overflow-hidden'} hidden md:block`}
@@ -242,8 +309,19 @@ const CaseManagerMessages = () => {
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <MessageCircle className="w-5 h-5" />
                 Messages
+                {/* ✅ Unread count badge in header */}
+                {totalUnreadCount > 0 && (
+                  <span className="bg-red-500 text-white text-xs font-semibold rounded-full h-6 min-w-[24px] px-2 flex items-center justify-center animate-pulse">
+                    {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+                  </span>
+                )}
               </h2>
-              <p className="text-xs text-blue-100 mt-1">{conversations.length} conversation{conversations.length !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-blue-100 mt-1">
+                {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
+                {totalUnreadCount > 0 && (
+                  <span className="ml-2 font-semibold">· {totalUnreadCount} unread</span>
+                )}
+              </p>
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -281,8 +359,11 @@ const CaseManagerMessages = () => {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="text-xs text-gray-500">{formatDateLabel(conv.lastMessageTime)}</div>
+                      {/* ✅ Individual conversation unread badge */}
                       {conv.unreadCount?.caseManager > 0 && (
-                        <div className="mt-2 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-xs font-semibold h-6 w-6">{conv.unreadCount.caseManager}</div>
+                        <div className="mt-2 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-xs font-semibold h-6 w-6">
+                          {conv.unreadCount.caseManager}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -299,7 +380,15 @@ const CaseManagerMessages = () => {
           <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-md bg-gray-100">
             <Menu className="w-5 h-5" />
           </button>
-          <h3 className="text-sm font-semibold">Messages</h3>
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            Messages
+            {/* ✅ Mobile unread badge */}
+            {totalUnreadCount > 0 && (
+              <span className="bg-red-500 text-white text-xs font-semibold rounded-full h-5 min-w-[20px] px-1.5 flex items-center justify-center">
+                {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+              </span>
+            )}
+          </h3>
         </div>
         <div className="text-xs text-gray-500">{conversations.length} conv{s(conversations.length)}</div>
       </div>
@@ -417,6 +506,17 @@ const CaseManagerMessages = () => {
               <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
               <h3 className="text-lg font-semibold mb-2">Select a conversation</h3>
               <p className="text-sm">Pick a user from the list to start chatting.</p>
+              {/* ✅ Show unread count in empty state */}
+              {totalUnreadCount > 0 && (
+                <div className="mt-4">
+                  <span className="inline-flex items-center gap-2 bg-red-50 text-red-700 px-4 py-2 rounded-full text-sm font-medium">
+                    <span className="bg-red-500 text-white rounded-full h-6 min-w-[24px] px-2 flex items-center justify-center text-xs font-semibold">
+                      {totalUnreadCount}
+                    </span>
+                    Unread message{totalUnreadCount !== 1 ? 's' : ''} waiting
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -57,6 +57,20 @@ function App() {
     <Router>
       <Routes>
         {/* ========================================= */}
+        {/* ROOT REDIRECT */}
+        {/* ========================================= */}
+        <Route 
+          path="/" 
+          element={
+            user 
+              ? user.role === 'user' 
+                ? <Navigate to="/user/home" replace /> 
+                : <Navigate to="/admin/dashboard" replace />
+              : <Navigate to="/user/login" replace />
+          } 
+        />
+
+        {/* ========================================= */}
         {/* PUBLIC ROUTES - USER */}
         {/* ========================================= */}
         
@@ -70,7 +84,6 @@ function App() {
           element={user && user.role === 'user' ? <Navigate to="/user/home" /> : <Register />}
         />
         
-        {/* ✅ ADD THESE TWO ROUTES - Email Verification & Forgot Password */}
         <Route 
           path="/user/verify-email" 
           element={<EmailVerification />}
@@ -79,6 +92,17 @@ function App() {
         <Route 
           path="/user/forgot-password" 
           element={<ForgotPassword />}
+        />
+
+        {/* ✅ ADD LEGACY ROUTE REDIRECTS (for backward compatibility) */}
+        <Route 
+          path="/login" 
+          element={<Navigate to="/user/login" replace />}
+        />
+        
+        <Route 
+          path="/register" 
+          element={<Navigate to="/user/register" replace />}
         />
 
         {/* ========================================= */}
@@ -113,6 +137,9 @@ function App() {
                 <Route path="articles/:id" element={<ArticleDetail />} />
                 <Route path="notifications" element={<Notifications />} />
                 <Route path="settings" element={<UserSettings />} />
+                
+                {/* Catch-all for unmatched user routes */}
+                <Route path="*" element={<Navigate to="/user/home" replace />} />
               </Routes>
             </Layout>
           ) : (
@@ -155,7 +182,10 @@ function App() {
                   <>
                     <Route path="community" element={<CommunityForum />} />
                     {user.role === 'content_moderator' && (
-                      <Route path="faq" element={<ContentModeratorFAQ />} /> 
+                      <>
+                        <Route index element={<CommunityForum />} />
+                        <Route path="faq" element={<ContentModeratorFAQ />} /> 
+                      </>
                     )}
                   </>
                 )}
@@ -182,6 +212,20 @@ function App() {
             <Navigate to="/admin/login" replace />
           )
         } />
+
+        {/* ========================================= */}
+        {/* CATCH-ALL - Redirect unknown routes */}
+        {/* ========================================= */}
+        <Route 
+          path="*" 
+          element={
+            user 
+              ? user.role === 'user' 
+                ? <Navigate to="/user/home" replace /> 
+                : <Navigate to="/admin/dashboard" replace />
+              : <Navigate to="/user/login" replace />
+          } 
+        />
       </Routes>
     </Router>
   );

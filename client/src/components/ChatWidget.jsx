@@ -1,11 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, X, MessageCircle, Shield, Clock, AlertCircle, ChevronDown, CircleDot } from 'lucide-react';
-import { io } from 'socket.io-client';
 import axios from 'axios';
+import socketService from '../services/socketService'; // ✅ Using your existing service
 
-// NOTE: expects TailwindCSS in the project
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
 export default function ChatWidget({ user }) {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -16,52 +14,98 @@ export default function ChatWidget({ user }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
-  const socketRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
   const assignedCaseManagerId = user?.assignedCaseManager?._id || user?.assignedCaseManager;
  
-
   const getToken = () => localStorage.getItem('token');
 
-  // --- Debug logs (kept but quiet) ---
+  // --- Debug logs ---
   useEffect(() => {
     console.log('ChatWidget initialized', { user });
   }, [user]);
 
-  // --- Socket initialization ---
+  // ✅ Connect to socket and set up listeners
   useEffect(() => {
     const userId = user?._id || user?.id;
     if (!userId) return;
 
-    socketRef.current = io(SOCKET_URL, {
-      withCredentials: true,
-      transports: ['websocket', 'polling']
-    });
+    // Connect socket
+    socketService.connect(userId);
 
-    socketRef.current.emit('join', userId);
-
-    socketRef.current.on('newMessage', ({ message }) => {
+    // ✅ Listen for new messages
+    const handleNewMessage = ({ message }) => {
       setMessages(prev => [...prev, message]);
-      if (!isChatOpen || isMinimized) setUnreadCount(prev => prev + 1);
-    });
-
-    socketRef.current.on('userTyping', ({ isTyping: typing }) => {
-      setIsTyping(typing);
-    });
-
-    socketRef.current.on('connect_error', (err) => console.error('Socket error', err));
-
-    return () => {
-      socketRef.current?.disconnect();
+      
+      // Update unread count if chat is closed or minimized
+      if (!isChatOpen || isMinimized) {
+        setUnreadCount(prev => prev + 1);
+      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?._id, user?.id]);
+
+    // ✅ Listen for typing indicator
+    const handleTyping = ({ isTyping: typing }) => {
+      setIsTyping(typing);
+    };
+
+    // ✅ Listen for unread count updates
+    const handleUnreadCountUpdate = ({ unreadCount: count }) => {
+      console.log('📬 Socket: Unread count updated to', count);
+      setUnreadCount(count);
+    };
+
+    // Register listeners
+    socketService.on('newMessage', handleNewMessage);
+    socketService.on('userTyping', handleTyping);
+    socketService.on('unreadCountUpdated', handleUnreadCountUpdate);
+
+    // Cleanup
+    return () => {
+      socketService.off('newMessage', handleNewMessage);
+      socketService.off('userTyping', handleTyping);
+      socketService.off('unreadCountUpdated', handleUnreadCountUpdate);
+    };
+  }, [user?._id, user?.id, isChatOpen, isMinimized]);
+
+  // ✅ Fetch unread count on mount and periodically
+  useEffect(() => {
+    if (!user?._id || !user?.assignedCaseManager) return;
+
+    fetchUnreadCount();
+
+    // Poll for unread count every 30 seconds
+    const interval = setInterval(() => {
+      if (!isChatOpen) {
+        fetchUnreadCount();
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [user?._id, user?.assignedCaseManager, isChatOpen]);
+
+  // ✅ Fetch unread count function
+  const fetchUnreadCount = async () => {
+    if (!user?.assignedCaseManager) return;
+    
+    try {
+      const res = await axios.get(`${API_URL}/messages/unread-count`, {
+        headers: { Authorization: `Bearer ${getToken()}` }
+      });
+      
+      if (res.data?.success) {
+        setUnreadCount(res.data.unreadCount || 0);
+        console.log('📬 Unread count updated:', res.data.unreadCount);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch unread count', err?.response?.data || err.message);
+    }
+  };
 
   // Fetch messages when chat opened
   useEffect(() => {
     if (isChatOpen && user?.assignedCaseManager) {
       fetchMessages();
+      // ✅ Reset unread count when opening chat
       setUnreadCount(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -88,6 +132,8 @@ export default function ChatWidget({ user }) {
       if (res.data?.success) {
         setMessages(res.data.messages || []);
         markAsRead();
+        // ✅ Fetch updated unread count after marking as read
+        fetchUnreadCount();
       } else {
         setMessages([]);
       }
@@ -99,7 +145,6 @@ export default function ChatWidget({ user }) {
     }
   };
 
-  // Update sendMessage to use the correct ID
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
     if (noCaseManager) {
@@ -146,9 +191,9 @@ export default function ChatWidget({ user }) {
   // Typing indicator emit
   const emitTyping = (typing) => {
     const userId = user?._id || user?.id;
-    if (!socketRef.current || !user?.assignedCaseManager || !userId) return;
+    if (!user?.assignedCaseManager || !userId) return;
 
-    socketRef.current.emit('typing', {
+    socketService.emit('typing', {
       conversationId: [userId, user.assignedCaseManager].sort().join('_'),
       userId: userId,
       isTyping: typing
@@ -194,12 +239,14 @@ export default function ChatWidget({ user }) {
         >
           <MessageCircle className="w-6 h-6" />
 
-          {/* badge */}
+          {/* ✅ Badge with unread count */}
           {noCaseManager ? (
             <span className="absolute -top-1 -right-1 bg-yellow-500 text-white text-xs font-semibold rounded-full h-6 w-6 flex items-center justify-center">!</span>
           ) : (
             unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-semibold rounded-full h-6 w-6 flex items-center justify-center">{unreadCount}</span>
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-semibold rounded-full h-6 min-w-[24px] px-1.5 flex items-center justify-center animate-pulse">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
             )
           )}
         </button>
@@ -257,6 +304,12 @@ export default function ChatWidget({ user }) {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {/* ✅ Show unread count in minimized state */}
+                {unreadCount > 0 && (
+                  <span className="bg-red-500 text-white text-xs font-semibold rounded-full h-6 min-w-[24px] px-2 flex items-center justify-center">
+                    {unreadCount}
+                  </span>
+                )}
                 <button onClick={() => { setIsMinimized(false); inputRef.current?.focus(); }} className="px-3 py-1 rounded-md bg-blue-600 text-white text-sm">Open</button>
               </div>
             </div>
@@ -351,7 +404,6 @@ export default function ChatWidget({ user }) {
                     <button
                       type="button"
                       onClick={() => {
-                        // quick template actions
                         if (!noCaseManager) {
                           setNewMessage(prev => (prev ? prev + "\n" : '') + 'Hello, I need assistance with...');
                           inputRef.current?.focus();
@@ -386,9 +438,9 @@ export default function ChatWidget({ user }) {
         </div>
       )}
 
-      {/* Mobile backdrop to close chat when tapping outside */}
+      {/* Mobile backdrop */}
       {isChatOpen && (
-        <div className="md:hidden fixed inset-0 bg-black/30" onClick={() => setIsChatOpen(false)} />
+        <div className="md:hidden fixed inset-0 bg-black/30 -z-10" onClick={() => setIsChatOpen(false)} />
       )}
     </div>
   );

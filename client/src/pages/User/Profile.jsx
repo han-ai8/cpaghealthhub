@@ -1,4 +1,4 @@
-// Profile.jsx - Updated with navigation to Home feature
+// Profile.jsx - COMPLETE UPDATED VERSION
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
@@ -50,7 +50,7 @@ const Profile = () => {
         setSavedPosts(data);
       } else if (response.status === 401) {
         setSavedPosts([]);
-        navigate('/login');
+        navigate('/user/login');
       } else {
         throw new Error('Failed to load saved posts');
       }
@@ -86,7 +86,7 @@ const Profile = () => {
         if (!response.ok) {
           if (response.status === 401) {
             toast.error('Please log in to view your profile');
-            navigate('/login');
+            navigate('/user/login');
             return;
           }
           throw new Error('Failed to load profile');
@@ -173,7 +173,6 @@ const Profile = () => {
 
   const handlePasswordToggle = () => {
     setChangingPassword(!changingPassword);
-    // Clear form when toggling
     if (!changingPassword) {
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
     }
@@ -196,7 +195,6 @@ const Profile = () => {
       return;
     }
 
-    // Check if new password is same as current
     if (passwordForm.currentPassword === passwordForm.newPassword) {
       toast.error('New password must be different from current password');
       return;
@@ -204,31 +202,72 @@ const Profile = () => {
 
     try {
       setLoading(true);
+      
+      // Debug logging
+      const token = localStorage.getItem('token');
+      console.log('🔐 Password change attempt');
+      console.log('Token exists:', !!token);
+      console.log('API URL:', `${API_URL}/auth/password`);
+      
       const response = await fetch(`${API_URL}/auth/password`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         credentials: 'include',
-        body: JSON.stringify(passwordForm)
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+          confirmPassword: passwordForm.confirmPassword
+        })
       });
 
-      const data = await response.json();
+      console.log('Response status:', response.status);
 
-      if (!response.ok) {
-        toast.error('Failed to change password: ' + (data.msg || 'Unknown error'));
+      let data;
+      try {
+        data = await response.json();
+        console.log('Response data:', data);
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError);
+        toast.error('Server error: Invalid response format');
         return;
       }
 
+      if (!response.ok) {
+        if (response.status === 401) {
+          toast.error('Session expired. Please login again.');
+          setTimeout(() => {
+            localStorage.removeItem('token');
+            navigate('/user/login');
+          }, 2000);
+          return;
+        }
+        
+        if (response.status === 500) {
+          console.error('Server error details:', data);
+          toast.error('Server error: ' + (data.msg || data.error || 'Please try again later'));
+          return;
+        }
+        
+        if (data.msg) {
+          toast.error(data.msg);
+        } else {
+          toast.error('Failed to change password: ' + (data.error || 'Unknown error'));
+        }
+        return;
+      }
+
+      console.log('✅ Password changed successfully');
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setChangingPassword(false);
       toast.success('Password changed successfully! Please login again for security.');
       
-      // Optional: Log user out after password change for security
       setTimeout(() => {
         localStorage.removeItem('token');
         navigate('/user/login');
       }, 2000);
     } catch (err) {
-      toast.error('Error changing password: ' + err.message);
+      console.error('❌ Password change error:', err);
+      toast.error('Network error: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -290,7 +329,7 @@ const Profile = () => {
       <div className="min-h-screen flex items-center justify-center bg-[#FFFFFF]">
         <div className="alert alert-error max-w-md bg-[#C62828] text-[#FFFFFF]">
           <span>Please log in to view your profile</span>
-          <button onClick={() => navigate('/login')} className="btn btn-sm bg-[#4C8DD8] hover:bg-[#4C8DD8]/90 text-[#FFFFFF]">
+          <button onClick={() => navigate('/user/login')} className="btn btn-sm bg-[#4C8DD8] hover:bg-[#4C8DD8]/90 text-[#FFFFFF]">
             Go to Login
           </button>
         </div>
@@ -582,7 +621,6 @@ const Profile = () => {
                     <span>{new Date(post.createdAt).toLocaleDateString()}</span>
                   </div>
                   
-                  {/* ✅ NEW: View on Home button */}
                   <button
                     onClick={() => handleViewPostOnHome(post._id)}
                     className="mt-2 btn btn-sm bg-[#4C8DD8] hover:bg-[#4C8DD8]/90 text-white"

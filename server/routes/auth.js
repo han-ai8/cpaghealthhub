@@ -956,10 +956,14 @@ router.put('/profile', [
   }
 });
 
+// auth.js - PASSWORD CHANGE ROUTE SECTION
+// Find the existing router.put('/password', ...) route and REPLACE it with this:
+// This should be in the PROTECTED ROUTES section (around line 1200+)
+
 router.put('/password', [
   isAuthenticated,
-  body('currentPassword').exists(),
-  body('newPassword').isLength({ min: 6 }),
+  body('currentPassword').exists().withMessage('Current password is required'),
+  body('newPassword').isLength({ min: 6 }).withMessage('New password must be at least 6 characters'),
   body('confirmPassword').custom((value, { req }) => {
     if (value !== req.body.newPassword) {
       throw new Error('Passwords do not match');
@@ -967,32 +971,86 @@ router.put('/password', [
     return true;
   })
 ], async (req, res) => {
+  console.log('═══════════════════════════════════');
+  console.log('🔐 Password change request received');
+  console.log('User from middleware:', req.user);
+  console.log('Request body keys:', Object.keys(req.body));
+  
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
+    console.log('❌ Validation errors:', errors.array());
+    return res.status(400).json({ 
+      msg: errors.array()[0].msg,
+      errors: errors.array() 
+    });
   }
 
   const { currentPassword, newPassword } = req.body;
-  const userId = req.user?.id || req.session.userId;
+  
+  // Get user ID from req.user (set by isAuthenticated middleware)
+  const userId = req.user?.id || req.session?.userId;
+
+  if (!userId) {
+    console.log('❌ No user ID found in request');
+    return res.status(401).json({ msg: 'Authentication required. Please login again.' });
+  }
 
   try {
-    const user = await User.findById(userId);
+    console.log('📍 Looking up user:', userId);
+    
+    // Must explicitly select password field since it has select: false in schema
+    const user = await User.findById(userId).select('+password');
+    
     if (!user) {
+      console.log('❌ User not found:', userId);
       return res.status(404).json({ msg: 'User not found' });
     }
 
+    console.log('✅ User found:', user.username);
+
+    // Check if password field exists
+    if (!user.password) {
+      console.log('❌ Password field missing from user document');
+      return res.status(500).json({ msg: 'User password data is invalid' });
+    }
+
+    // Verify current password
+    console.log('🔍 Verifying current password...');
     const isMatch = await user.comparePassword(currentPassword);
+    
     if (!isMatch) {
+      console.log('❌ Current password is incorrect');
       return res.status(400).json({ msg: 'Current password is incorrect' });
     }
 
+    console.log('✅ Current password verified');
+
+    // Check if new password is different from current
+    const isSamePassword = await user.comparePassword(newPassword);
+    if (isSamePassword) {
+      console.log('❌ New password same as current');
+      return res.status(400).json({ 
+        msg: 'New password must be different from current password' 
+      });
+    }
+
+    // Update password (will be hashed by pre-save hook in User model)
+    console.log('💾 Updating password...');
     user.password = newPassword;
     await user.save();
 
+    console.log('✅ Password changed successfully for user:', user.username);
+    console.log('═══════════════════════════════════');
+
     res.json({ msg: 'Password changed successfully' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: 'Server error' });
+    console.error('❌ Password change error:', err);
+    console.error('Error stack:', err.stack);
+    console.log('═══════════════════════════════════');
+    res.status(500).json({ 
+      msg: 'Server error while changing password',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 

@@ -29,6 +29,43 @@ async function verifyCaseManagerAssignment(userId, caseManagerId) {
 }
 
 // ============================================
+// 📊 HELPER: Calculate and Emit Unread Count
+// ============================================
+/**
+ * Calculate total unread count for a user and emit via socket
+ * @param {string} userId - The user ID to calculate unread count for
+ * @param {object} io - Socket.io instance
+ */
+async function calculateAndEmitUnreadCount(userId, io) {
+  try {
+    const user = await User.findById(userId);
+    if (!user) return;
+
+    const userRole = (user.role === 'case_manager' || user.role === 'admin') 
+      ? 'caseManager' 
+      : 'user';
+
+    const conversations = await Conversation.find({
+      [userRole === 'caseManager' ? 'caseManagerId' : 'userId']: userId
+    });
+
+    const totalUnread = conversations.reduce((sum, conv) => {
+      return sum + (conv.unreadCount[userRole] || 0);
+    }, 0);
+
+    // Emit via socket using the helper function
+    if (io && io.emitUnreadCountUpdate) {
+      await io.emitUnreadCountUpdate(userId, totalUnread);
+    }
+
+    return totalUnread;
+  } catch (error) {
+    console.error('Error calculating unread count:', error);
+    return 0;
+  }
+}
+
+// ============================================
 // GET CONVERSATION - ✅ AUTO-MARK AS READ
 // ============================================
 router.get('/conversation', isAuthenticated, async (req, res) => {
@@ -143,6 +180,12 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
       );
 
       console.log(`✅ Marked ${unreadMessages.length} messages as read`);
+      
+      // ✅ NEW: Emit updated unread count after auto-marking as read
+      const io = req.app.get('io');
+      if (io) {
+        await calculateAndEmitUnreadCount(userId, io);
+      }
       
       // Update the messages array to reflect read status
       messages.forEach(msg => {
@@ -285,10 +328,20 @@ router.post('/send', isAuthenticated, async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       console.log('📡 Emitting socket event to room:', receiverId.toString());
-      io.to(receiverId.toString()).emit('newMessage', { 
-        message, 
-        conversationId 
-      });
+      
+      // ✅ Emit new message event
+      if (io.emitNewMessage) {
+        await io.emitNewMessage(receiverId, message);
+      } else {
+        // Fallback for old socket structure
+        io.to(receiverId.toString()).emit('newMessage', { 
+          message, 
+          conversationId 
+        });
+      }
+      
+      // ✅ NEW: Emit unread count update to receiver
+      await calculateAndEmitUnreadCount(receiverId, io);
     }
 
     console.log('═══════════════════════════════════');
@@ -453,6 +506,13 @@ router.put('/read', isAuthenticated, async (req, res) => {
     );
 
     console.log('✅ Reset unread count for', userRole);
+    
+    // ✅ NEW: Emit updated unread count after marking as read
+    const io = req.app.get('io');
+    if (io) {
+      await calculateAndEmitUnreadCount(userId, io);
+    }
+    
     console.log('═══════════════════════════════════');
 
     res.json({ 

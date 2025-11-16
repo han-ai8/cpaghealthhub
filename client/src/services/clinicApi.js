@@ -21,7 +21,7 @@ export const getAllClinics = async () => {
     }
     
     const data = await response.json();
-    console.log('✅ Clinics fetched successfully:', data);
+    console.log('✅ Clinics fetched successfully:', data); // Debug
     return data;
   } catch (error) {
     console.error('❌ Error fetching clinics:', error);

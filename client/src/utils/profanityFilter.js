@@ -18,7 +18,7 @@ export const inappropriateWords = [
   'nigger', 'nigga', 'faggot', 'fag', 'retard',
   
   // Violence
-  'rape', 'nazi', 'hitler', 'kill', 'murder', 'suicide',
+  'rape', 'nazi', 'hitler', 'kill', 'murder', 'suicide', 'arcy', 'boy', 'lunas', 'aah daddy', 'koyah natanggal',
   
   // Drugs
   'drug', 'cocaine', 'heroin', 'meth',
