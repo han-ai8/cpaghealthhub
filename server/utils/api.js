@@ -54,7 +54,6 @@ export const apiRequest = async (endpoint, options = {}) => {
 
     return data;
   } catch (error) {
-    console.error('API Request Error:', error);
     throw error;
   }
 };
@@ -109,7 +108,6 @@ export const api = {
 
       return data;
     } catch (error) {
-      console.error('Upload Error:', error);
       throw error;
     }
   }

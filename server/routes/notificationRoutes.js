@@ -8,7 +8,6 @@ const router = express.Router();
 router.get('/', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const userId = req.user.id;
-    console.log(`📬 Fetching notifications for user: ${userId}`);
 
     const notifications = await Notification.find({ recipient: userId })
       .sort({ createdAt: -1 })
@@ -18,14 +17,11 @@ router.get('/', isAuthenticated, isUserRole, async (req, res) => {
       recipient: userId,
       read: false
     });
-
-    console.log(`✅ Found ${notifications.length} notifications, ${unreadCount} unread`);
     res.json({
       notifications,
       unreadCount
     });
   } catch (error) {
-    console.error('❌ Error fetching notifications:', error);
     res.status(500).json({ error: 'Failed to fetch notifications' });
   }
 });
@@ -42,7 +38,6 @@ router.get('/unread-count', isAuthenticated, isUserRole, async (req, res) => {
 
     res.json({ count });
   } catch (error) {
-    console.error('❌ Error fetching unread count:', error);
     res.status(500).json({ error: 'Failed to fetch unread count' });
   }
 });
@@ -63,10 +58,8 @@ router.put('/:id/read', isAuthenticated, isUserRole, async (req, res) => {
       return res.status(404).json({ error: 'Notification not found' });
     }
 
-    console.log(`✅ Notification ${notificationId} marked as read`);
     res.json(notification);
   } catch (error) {
-    console.error('❌ Error marking notification as read:', error);
     res.status(500).json({ error: 'Failed to update notification' });
   }
 });
@@ -81,10 +74,8 @@ router.put('/read-all', isAuthenticated, isUserRole, async (req, res) => {
       { read: true }
     );
 
-    console.log(`✅ All notifications marked as read for user ${userId}`);
     res.json({ message: 'All notifications marked as read' });
   } catch (error) {
-    console.error('❌ Error marking all notifications as read:', error);
     res.status(500).json({ error: 'Failed to update notifications' });
   }
 });
@@ -104,12 +95,10 @@ router.delete('/:id', isAuthenticated, isUserRole, async (req, res) => {
       return res.status(404).json({ error: 'Notification not found' });
     }
 
-    console.log(`✅ Notification ${notificationId} deleted`);
     res.json({ message: 'Notification deleted' });
   } catch (error) {
-    console.error('❌ Error deleting notification:', error);
     res.status(500).json({ error: 'Failed to delete notification' });
   }
 });
 
-export default router; // ✅ MAKE SURE THIS IS HERE!
+export default router; 

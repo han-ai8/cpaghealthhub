@@ -123,7 +123,7 @@ const Header = ({ toggleSidebar, unreadCount }) => {
       <header className="bg-[#FFFFFF] shadow-lg border-b border-[#4C8DD8]/20 sticky top-0 z-50 backdrop-blur-sm flex items-center justify-between px-4 max-w-7xl mx-auto w-full h-16 transition-all duration-300">
         <div className="flex-1 ml-2">
           <Link to="/user/home">
-            <img src="/src/assets/HEALTHUB.png" alt="Logo" className="w-20 h-5 md:w-30 md:h-15 lg:w-60 lg:h-10 hover:scale-105 transition-transform duration-200" />
+            <img src="/src/assets/logo-header.png" alt="Logo" className="w-20 h-5 md:w-30 md:h-15 lg:w-60 lg:h-10 hover:scale-105 transition-transform duration-200" />
           </Link>
         </div>
         <div className="flex-none">
@@ -139,25 +139,26 @@ const Header = ({ toggleSidebar, unreadCount }) => {
 
   return (
     <>
-      <header className="bg-[#FFFFFF] shadow-lg border-b border-[#4C8DD8]/20 sticky top-0 z-50 backdrop-blur-sm flex items-center justify-between px-4 max-w-8xl mx-auto w-full h-16 transition-all duration-300">
+      <header className="bg-[#FFFFFF] shadow-lg border-b border-[#4C8DD8]/20 sticky top-0 z-50 backdrop-blur-sm flex items-center justify-between px-4 max-w-8xl mx-auto w-full h-20 transition-all duration-300">
         {/* Burger Icon - Mobile only */}
         <button
           onClick={toggleSidebar}
-          className="btn btn-ghost btn-circle md:hidden hover:bg-[#4C8DD8]/10 transition-colors duration-200"
+          className="btn btn-ghost btn-circle xl:hidden hover:bg-[#4C8DD8]/10 transition-colors duration-200"
           aria-label="Toggle Sidebar"
         >
           <HiMenu className="w-6 h-6 text-[#4C8DD8]" />
         </button>
 
         {/* Logo Section */}
-        <div className="flex-1 ml-2">
-          <Link to="/user/home" className="hover:opacity-80 transition-opacity duration-200">
+        <Link to="/user/home" className="hover:opacity-80 transition-opacity duration-200">
             <img 
-              src="/src/assets/HEALTHUB.png" 
+              src="/src/assets/logo-header.png" 
               alt="Logo" 
-              className="w-20 h-5 md:w-30 md:h-15 lg:w-60 lg:h-10 hover:scale-105 transition-transform duration-200" 
+              className="w-20 h-15  md:w-30 md:h-15 lg:w-60 lg:h-10 hover:scale-105 transition-transform duration-200" 
             />
           </Link>
+        <div className="flex-1 ml-2">
+          
         </div>
 
         {/* Navigation Links - Desktop */}

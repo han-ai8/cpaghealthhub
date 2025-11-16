@@ -14,10 +14,8 @@ class NotificationService {
         this.io.to(`user_${data.recipient}`).emit('new_notification', notification);
       }
 
-      console.log(`✅ Notification created for user ${data.recipient}`);
       return notification;
     } catch (error) {
-      console.error('❌ Error creating notification:', error);
       throw error;
     }
   }
@@ -31,7 +29,7 @@ class NotificationService {
         message: `${announcement.title}`,
         relatedId: announcement._id,
         relatedModel: 'Announcement',
-        link: `/user/home#announcement-${announcement._id}` // ✅ Direct link to announcement
+        link: `/user/home#announcement-${announcement._id}` 
       })
     );
     return Promise.all(promises);
@@ -46,7 +44,7 @@ class NotificationService {
         message: post.content.substring(0, 100) + '...',
         relatedId: post._id,
         relatedModel: 'Post',
-        link: `/user/home#post-${post._id}` // ✅ Direct link to post
+        link: `/user/home#post-${post._id}`
       })
     );
     return Promise.all(promises);

@@ -1,12 +1,18 @@
 // src/pages/admin/AdminFAQ.jsx
-import { useState } from 'react';
-import { HiOutlineQuestionMarkCircle, HiChevronDown } from 'react-icons/hi';
+import { useState, useMemo } from 'react';
+import { HiOutlineQuestionMarkCircle, HiX } from 'react-icons/hi';
 
 const AdminFAQ = () => {
   const [openIndex, setOpenIndex] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const toggleFAQ = (index) => {
     setOpenIndex(openIndex === index ? null : index);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setOpenIndex(null);
   };
 
   const faqCategories = [
@@ -228,6 +234,37 @@ const AdminFAQ = () => {
     }
   ];
 
+  // Filter FAQ based on search query
+  const filteredCategories = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return faqCategories;
+    }
+
+    const query = searchQuery.toLowerCase();
+    
+    return faqCategories
+      .map(category => ({
+        ...category,
+        questions: category.questions.filter(faq =>
+          faq.question.toLowerCase().includes(query) ||
+          faq.answer.toLowerCase().includes(query)
+        )
+      }))
+      .filter(category => category.questions.length > 0);
+  }, [searchQuery]);
+
+  // Auto-expand first result when searching
+  const handleSearch = (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    
+    if (query.trim() && filteredCategories.length > 0 && filteredCategories[0].questions.length > 0) {
+      setOpenIndex('0-0');
+    } else if (!query.trim()) {
+      setOpenIndex(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-6">
       <div className="max-w-5xl mx-auto">
@@ -248,21 +285,63 @@ const AdminFAQ = () => {
 
         {/* Search Bar */}
         <div className="mb-8">
-          <input
-            type="text"
-            placeholder="Search for questions..."
-            className="input input-bordered w-full max-w-2xl mx-auto block shadow-md"
-          />
+          <div className="relative max-w-2xl mx-auto">
+            <input
+              type="text"
+              placeholder="Search for questions..."
+              value={searchQuery}
+              onChange={handleSearch}
+              className="input input-bordered w-full shadow-md pr-10"
+            />
+            {searchQuery && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Clear search"
+              >
+                <HiX className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <p className="text-center text-sm text-gray-600 mt-2">
+              Found {filteredCategories.reduce((acc, cat) => acc + cat.questions.length, 0)} result(s)
+            </p>
+          )}
         </div>
+
+        {/* No Results Message */}
+        {searchQuery && filteredCategories.length === 0 && (
+          <div className="bg-white rounded-lg shadow-lg p-12 text-center">
+            <div className="text-6xl mb-4">🔍</div>
+            <h3 className="text-2xl font-bold text-gray-800 mb-2">No Results Found</h3>
+            <p className="text-gray-600 mb-4">
+              We couldn't find any questions matching "{searchQuery}"
+            </p>
+            <button
+              onClick={clearSearch}
+              className="btn btn-primary"
+            >
+              Clear Search
+            </button>
+          </div>
+        )}
 
         {/* FAQ Categories */}
         <div className="space-y-6">
-          {faqCategories.map((category, categoryIndex) => (
+          {filteredCategories.map((category, categoryIndex) => (
             <div key={categoryIndex} className="bg-white rounded-lg shadow-lg p-6">
               {/* Category Header */}
               <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-primary">
                 <span className="text-3xl">{category.icon}</span>
-                <h2 className="text-2xl font-bold text-gray-800">{category.category}</h2>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  {category.category}
+                  {searchQuery && (
+                    <span className="text-sm font-normal text-gray-500 ml-2">
+                      ({category.questions.length})
+                    </span>
+                  )}
+                </h2>
               </div>
 
               {/* Questions */}
@@ -297,22 +376,6 @@ const AdminFAQ = () => {
             </div>
           ))}
         </div>
-
-        {/* Contact Support Section
-        <div className="mt-12 bg-gradient-to-r from-primary to-primary-focus text-white rounded-lg shadow-xl p-8 text-center">
-          <h3 className="text-2xl font-bold mb-3">Still Have Questions?</h3>
-          <p className="text-lg mb-6 opacity-90">
-            Our support team is here to help you with any concerns or issues
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="btn btn-outline btn-white bg-white text-primary hover:bg-gray-100 border-2">
-              📧 Contact Support
-            </button>
-            <button className="btn btn-outline btn-white bg-white text-primary hover:bg-gray-100 border-2">
-              📖 View Documentation
-            </button>
-          </div>
-        </div> */}
 
         {/* Footer Note */}
         <div className="mt-8 text-center text-sm text-gray-500">

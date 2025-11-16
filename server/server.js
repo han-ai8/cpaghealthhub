@@ -31,10 +31,8 @@ const app = express();
 const server = http.createServer(app);
 const io = initializeSocket(server);
 
-// ✅ NEW: Create notification service instance
 const notificationService = new NotificationService(io);
 
-// ✅ NEW: Make io and notificationService available in routes
 app.set('io', io);
 app.set('notificationService', notificationService);
 
@@ -128,10 +126,10 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 Socket.io initialized and ready`);
-  console.log(`🔔 Notification service initialized`); // ✅ NEW
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🚀 running `);
+  console.log(`📡 initialized and ready`);
+  console.log(`🔔 initialized`); // ✅ NEW
+  console.log(`🌍 Environment: 'development'}`);
 });
 
 process.on('unhandledRejection', (err) => {

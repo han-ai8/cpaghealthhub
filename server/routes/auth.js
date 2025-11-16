@@ -192,11 +192,10 @@ router.post('/user/register', [
   const { username, email, password } = req.body;
   const normalizedEmail = email.toLowerCase().trim();
 
-  console.log('📧 Email configuration check:', {
-    hasEmailUser: !!process.env.EMAIL_USER,
-    hasEmailPassword: !!process.env.EMAIL_PASSWORD,
-    emailUser: process.env.EMAIL_USER ? process.env.EMAIL_USER.substring(0, 3) + '***' : 'NOT SET'
-  });
+  console.log('📧 Resend configuration:', {
+  hasApiKey: !!process.env.RESEND_API_KEY,
+  fromEmail: process.env.RESEND_FROM_EMAIL
+});
 
   try {
     // Check if user already exists
@@ -256,6 +255,7 @@ router.post('/user/register', [
         errors: usernameValidationErrors 
       });
     }
+
 
     console.log('🔐 Generating verification code...');
     const verificationCode = generateVerificationCode();

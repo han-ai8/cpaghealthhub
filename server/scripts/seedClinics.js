@@ -29,19 +29,15 @@ const clinicsData = [
 const seedClinics = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log('Connected to MongoDB');
-
+ 
     // Clear existing clinics
     await Clinic.deleteMany({});
-    console.log('Cleared existing clinics');
-
+   
     // Insert new clinics
     await Clinic.insertMany(clinicsData);
-    console.log('Successfully seeded clinics data');
-
+  
     process.exit(0);
   } catch (error) {
-    console.error('Error seeding clinics:', error);
     process.exit(1);
   }
 };

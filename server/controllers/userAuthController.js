@@ -5,6 +5,7 @@ import {
   generateVerificationCode,
   sendVerificationEmail,
   sendPasswordResetEmail,
+  sendWelcomeEmail, // ✅ Add this
 } from '../utils/emailService.js';
 
 // Generate JWT Token
@@ -97,7 +98,6 @@ export const register = async (req, res) => {
       requiresVerification: true,
     });
   } catch (error) {
-    console.error('Registration error:', error);
     res.status(500).json({ 
       msg: 'Registration failed. Please try again.' 
     });
@@ -155,6 +155,12 @@ export const verifyEmail = async (req, res) => {
     user.verificationCodeExpires = undefined;
     await user.save();
 
+    sendWelcomeEmail(user.email, user.username).catch(err => {
+      console.error('Failed to send welcome email:', err);
+      // Don't fail the request if welcome email fails
+    });
+
+
     // Generate token
     const token = generateToken(user._id, user.role);
 
@@ -170,7 +176,6 @@ export const verifyEmail = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Verification error:', error);
     res.status(500).json({ 
       msg: 'Verification failed. Please try again.' 
     });
@@ -221,7 +226,6 @@ export const resendVerificationCode = async (req, res) => {
       msg: 'New verification code sent to your email',
     });
   } catch (error) {
-    console.error('Resend verification error:', error);
     res.status(500).json({ 
       msg: 'Failed to resend verification code' 
     });
@@ -308,7 +312,6 @@ export const login = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
     res.status(500).json({ 
       msg: 'Login failed. Please try again.' 
     });
@@ -354,7 +357,6 @@ export const forgotPassword = async (req, res) => {
       msg: 'If an account exists with this email, a password reset code has been sent.',
     });
   } catch (error) {
-    console.error('Forgot password error:', error);
     res.status(500).json({ 
       msg: 'Failed to process request' 
     });
@@ -414,7 +416,6 @@ export const resetPassword = async (req, res) => {
       msg: 'Password reset successful. Please login with your new password.',
     });
   } catch (error) {
-    console.error('Reset password error:', error);
     res.status(500).json({ 
       msg: 'Password reset failed. Please try again.' 
     });
@@ -434,7 +435,6 @@ export const getMe = async (req, res) => {
 
     res.status(200).json({ user });
   } catch (error) {
-    console.error('Get user error:', error);
     res.status(500).json({ msg: 'Server error' });
   }
 };

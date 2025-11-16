@@ -79,7 +79,6 @@ export const register = async (req, res) => {
     try {
       await sendVerificationEmail(email, verificationCode, firstName);
     } catch (emailError) {
-      console.error('Email sending failed:', emailError);
       // Delete user if email fails
       await User.findByIdAndDelete(user._id);
       return res.status(500).json({ 
@@ -93,7 +92,6 @@ export const register = async (req, res) => {
       requiresVerification: true,
     });
   } catch (error) {
-    console.error('Registration error:', error);
     res.status(500).json({ 
       message: 'Registration failed. Please try again.' 
     });
@@ -167,7 +165,6 @@ export const verifyEmail = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Verification error:', error);
     res.status(500).json({ 
       message: 'Verification failed. Please try again.' 
     });
@@ -300,7 +297,6 @@ export const login = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
     res.status(500).json({ 
       message: 'Login failed. Please try again.' 
     });
@@ -346,7 +342,6 @@ export const forgotPassword = async (req, res) => {
       message: 'If an account exists with this email, a password reset code has been sent.',
     });
   } catch (error) {
-    console.error('Forgot password error:', error);
     res.status(500).json({ 
       message: 'Failed to process request' 
     });
@@ -406,7 +401,6 @@ export const resetPassword = async (req, res) => {
       message: 'Password reset successful. Please login with your new password.',
     });
   } catch (error) {
-    console.error('Reset password error:', error);
     res.status(500).json({ 
       message: 'Password reset failed. Please try again.' 
     });
@@ -426,7 +420,6 @@ export const getMe = async (req, res) => {
 
     res.status(200).json({ user });
   } catch (error) {
-    console.error('Get user error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

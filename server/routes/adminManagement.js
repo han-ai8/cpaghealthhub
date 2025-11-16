@@ -11,15 +11,12 @@ const router = express.Router();
 // ============================================
 router.get('/staff-list', isAuthenticated, isAdminRole, async (req, res) => {
   try {
-    console.log('📋 Fetching staff list...');
-    
     const staff = await User.find({
       role: { $in: ['admin', 'case_manager', 'content_moderator'] }
     })
     .select('username email role isActive createdAt')
     .sort({ createdAt: -1 });
 
-    console.log(`✅ Found ${staff.length} staff members`);
 
     res.json({
       success: true,
@@ -33,7 +30,6 @@ router.get('/staff-list', isAuthenticated, isAdminRole, async (req, res) => {
       }))
     });
   } catch (err) {
-    console.error('❌ Error fetching staff:', err);
     res.status(500).json({
       success: false,
       msg: 'Failed to fetch staff list',
@@ -73,7 +69,6 @@ router.post('/create-staff', isAuthenticated, isAdminRole, [
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    console.log('👤 Creating staff member:', { username, email, role });
 
     // Check if user already exists
     const existingUser = await User.findOne({
@@ -110,7 +105,6 @@ router.post('/create-staff', isAuthenticated, isAdminRole, [
 
     await newStaff.save();
 
-    console.log('✅ Staff member created:', newStaff.username);
 
     res.status(201).json({
       success: true,
@@ -124,7 +118,6 @@ router.post('/create-staff', isAuthenticated, isAdminRole, [
       }
     });
   } catch (err) {
-    console.error('❌ Error creating staff:', err);
     res.status(500).json({
       success: false,
       msg: 'Failed to create staff member',
@@ -160,7 +153,6 @@ router.put('/staff/:id', isAuthenticated, isAdminRole, [
   const { username, isActive } = req.body;
 
   try {
-    console.log('✏️ Updating staff member:', id);
 
     const staff = await User.findById(id);
 
@@ -195,7 +187,6 @@ router.put('/staff/:id', isAuthenticated, isAdminRole, [
 
     await staff.save();
 
-    console.log('✅ Staff member updated:', staff.username);
 
     res.json({
       success: true,
@@ -209,7 +200,6 @@ router.put('/staff/:id', isAuthenticated, isAdminRole, [
       }
     });
   } catch (err) {
-    console.error('❌ Error updating staff:', err);
     res.status(500).json({
       success: false,
       msg: 'Failed to update staff member',
@@ -239,8 +229,6 @@ router.post('/staff/:id/reset-password', isAuthenticated, isAdminRole, [
   const { newPassword } = req.body;
 
   try {
-    console.log('🔑 Resetting password for staff:', id);
-
     const staff = await User.findById(id);
 
     if (!staff) {
@@ -262,14 +250,12 @@ router.post('/staff/:id/reset-password', isAuthenticated, isAdminRole, [
     staff.password = newPassword;
     await staff.save();
 
-    console.log('✅ Password reset for:', staff.username);
 
     res.json({
       success: true,
       msg: 'Password reset successfully. Please share the new password with the staff member.'
     });
   } catch (err) {
-    console.error('❌ Error resetting password:', err);
     res.status(500).json({
       success: false,
       msg: 'Failed to reset password',
@@ -285,7 +271,6 @@ router.delete('/staff/:id', isAuthenticated, isAdminRole, async (req, res) => {
   const { id } = req.params;
 
   try {
-    console.log('🗑️ Deleting staff member:', id);
 
     const staff = await User.findById(id);
 
@@ -306,14 +291,12 @@ router.delete('/staff/:id', isAuthenticated, isAdminRole, async (req, res) => {
 
     await User.findByIdAndDelete(id);
 
-    console.log('✅ Staff member deleted:', staff.username);
 
     res.json({
       success: true,
       msg: 'Staff member deleted successfully'
     });
   } catch (err) {
-    console.error('❌ Error deleting staff:', err);
     res.status(500).json({
       success: false,
       msg: 'Failed to delete staff member',

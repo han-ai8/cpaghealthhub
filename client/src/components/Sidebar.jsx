@@ -6,6 +6,7 @@ import {
   HiUserGroup, 
   HiCalendar, 
   HiLocationMarker,
+  HiQuestionMarkCircle,
   HiX,
 } from 'react-icons/hi';
 
@@ -20,6 +21,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Community', path: '/user/community', icon: HiUserGroup },
     { name: 'Schedule', path: '/user/schedule', icon: HiCalendar },
     { name: 'Clinic Finder', path: '/user/clinic-finder', icon: HiLocationMarker },
+    { name: 'FAQs', path: '/user/faqs', icon: HiQuestionMarkCircle },
   ];
 
   // Close modal when clicking outside
@@ -31,21 +33,21 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   return (
     <>
-      {/* Mobile Sidebar Overlay */}
+      {/* Mobile Sidebar Overlay - Changed from xl:hidden to 2xl:hidden */}
       {isOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-[#4C8DD8]/50 z-40 transition-opacity"
+          className="2xl:hidden fixed inset-0 bg-[#4C8DD8]/50 z-40 transition-opacity"
           onClick={toggleSidebar}
           aria-hidden="false"
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Changed from xl:translate-x-0 to 2xl:translate-x-0 */}
       <aside
         className={`
           fixed top-16 left-0 z-50 h-[calc(100vh-4rem)] w-56 bg-[#FFFFFF] shadow-xl border-r border-[#4C8DD8]/20 transition-transform duration-300 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0 lg:static lg:h-full lg:top-0
+          2xl:translate-x-0 2xl:static 2xl:h-full 2xl:top-0
         `} 
         role="complementary"
         aria-hidden={!isOpen ? "true" : "false"}
@@ -63,7 +65,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                   <li key={item.path}>
                     <NavLink
                       to={item.path}
-                      onClick={handleModalOverlayClick}
+                      onClick={toggleSidebar}
                       className={`
                         flex items-center space-x-3 rounded-lg px-4 py-3 transition-all duration-200 hover:bg-[#4C8DD8]/10 hover:text-[#2E7D32]
                         ${isActive ? 'bg-[#4C8DD8] text-[#FFFFFF] shadow-md' : 'text-[#4C8DD8]'}
@@ -295,6 +297,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={(e) => handleModalOverlayClick(e, setShowTermsOfUse)}
         >
+        
           <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-[#4C8DD8]/20 bg-[#4C8DD8] rounded-t-lg flex-shrink-0">

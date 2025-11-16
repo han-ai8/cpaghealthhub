@@ -73,7 +73,6 @@ export const checkLoginAttempts = async (req, res, next) => {
     if (attemptRecord.lockedUntil && attemptRecord.lockedUntil > Date.now()) {
       const remainingTime = Math.ceil((attemptRecord.lockedUntil - Date.now()) / 1000 / 60); // minutes
       
-      console.log(`🔒 Account locked: ${normalizedEmail} - ${remainingTime} minutes remaining`);
       
       return res.status(429).json({
         msg: `Too many failed login attempts. Your account is locked for ${remainingTime} more minutes.`,
@@ -88,7 +87,6 @@ export const checkLoginAttempts = async (req, res, next) => {
       attemptRecord.attempts = 0;
       attemptRecord.lockedUntil = null;
       await attemptRecord.save();
-      console.log(`✅ Lock expired and reset for: ${normalizedEmail}`);
     }
 
     // Check if there's a required delay before next attempt
@@ -98,8 +96,6 @@ export const checkLoginAttempts = async (req, res, next) => {
       
       if (timeSinceLastAttempt < delayTime) {
         const remainingDelay = Math.ceil(delayTime - timeSinceLastAttempt);
-        
-        console.log(`⏳ Delay required for ${normalizedEmail}: ${remainingDelay} seconds`);
         
         return res.status(429).json({
           msg: `Please wait ${remainingDelay} seconds before trying again.`,
@@ -115,7 +111,6 @@ export const checkLoginAttempts = async (req, res, next) => {
     req.attemptRecord = attemptRecord;
     next();
   } catch (error) {
-    console.error('❌ Rate limiter error:', error);
     // Don't block login on rate limiter errors
     next();
   }
@@ -143,16 +138,13 @@ export const recordFailedAttempt = async (email) => {
       // Lock account after max attempts
       if (attemptRecord.attempts >= MAX_ATTEMPTS) {
         attemptRecord.lockedUntil = new Date(Date.now() + LOCK_TIME);
-        console.log(`🔒 Account locked for 24 hours: ${normalizedEmail}`);
       } else {
-        console.log(`⚠️ Failed attempt ${attemptRecord.attempts}/${MAX_ATTEMPTS} for: ${normalizedEmail}`);
       }
     }
     
     await attemptRecord.save();
     return attemptRecord;
   } catch (error) {
-    console.error('❌ Error recording failed attempt:', error);
     return null;
   }
 };
@@ -172,10 +164,9 @@ export const resetLoginAttempts = async (email) => {
       attemptRecord.lastAttempt = Date.now();
       await attemptRecord.save();
       
-      console.log(`✅ Login attempts reset for: ${normalizedEmail}`);
     }
   } catch (error) {
-    console.error('❌ Error resetting attempts:', error);
+    console.error('Error:', error);
   }
 };
 
@@ -191,9 +182,8 @@ export const cleanupOldAttempts = async () => {
       attempts: 0
     });
     
-    console.log(`🧹 Cleaned up ${result.deletedCount} old login attempt records`);
   } catch (error) {
-    console.error('❌ Error cleaning up old attempts:', error);
+    console.error('Error:', error);
   }
 };
 

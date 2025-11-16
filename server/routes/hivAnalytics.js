@@ -8,8 +8,6 @@ const router = express.Router();
 // ✅ UPDATED: Get Service Usage Analytics (no more HIV status)
 router.get('/analytics', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    console.log('📊 Fetching Service Usage Analytics...');
-
     // Get all completed appointments
     const testingAppointments = await Appointment.find({
       service: 'Testing and Counseling',
@@ -21,8 +19,6 @@ router.get('/analytics', isAuthenticated, isAdmin, async (req, res) => {
       status: 'completed'
     }).lean();
 
-    console.log(`✅ Found ${testingAppointments.length} Testing appointments`);
-    console.log(`✅ Found ${psychosocialAppointments.length} Psychosocial appointments`);
 
     // Initialize analytics structure
     const analytics = {
@@ -74,8 +70,6 @@ router.get('/analytics', isAuthenticated, isAdmin, async (req, res) => {
 
       // Location
       analytics.testing.byLocation[location] = (analytics.testing.byLocation[location] || 0) + 1;
-
-      console.log(`Testing: Age ${age} (${ageGroup}), Gender: ${gender}, Location: ${location}`);
     });
 
     // Process Psychosocial Support appointments
@@ -97,7 +91,6 @@ router.get('/analytics', isAuthenticated, isAdmin, async (req, res) => {
       // Location
       analytics.psychosocial.byLocation[location] = (analytics.psychosocial.byLocation[location] || 0) + 1;
 
-      console.log(`Psychosocial: Age ${age} (${ageGroup}), Gender: ${gender}, Location: ${location}`);
     });
 
     // Calculate percentages
@@ -107,46 +100,32 @@ router.get('/analytics', isAuthenticated, isAdmin, async (req, res) => {
       analytics.overall.psychosocialPercentage = Math.round((psychosocialAppointments.length / total) * 100);
     }
 
-    console.log('═══════════════════════════════════════════════════');
-    console.log('📊 SERVICE USAGE ANALYTICS SUMMARY');
-    console.log('═══════════════════════════════════════════════════');
-    console.log('Total Completed Appointments:', total);
-    console.log('Testing and Counseling:', testingAppointments.length, `(${analytics.overall.testingPercentage}%)`);
-    console.log('Psychosocial Support:', psychosocialAppointments.length, `(${analytics.overall.psychosocialPercentage}%)`);
-    console.log('\nTesting & Counseling - Age Distribution:');
     Object.entries(analytics.testing.byAge).forEach(([age, count]) => {
       if (count > 0) console.log(`  ${age}: ${count}`);
     });
-    console.log('\nPsychosocial Support - Age Distribution:');
     Object.entries(analytics.psychosocial.byAge).forEach(([age, count]) => {
       if (count > 0) console.log(`  ${age}: ${count}`);
     });
-    console.log('\nTesting & Counseling - Gender Distribution:');
     Object.entries(analytics.testing.byGender).forEach(([gender, count]) => {
       if (count > 0) console.log(`  ${gender}: ${count}`);
     });
-    console.log('\nPsychosocial Support - Gender Distribution:');
     Object.entries(analytics.psychosocial.byGender).forEach(([gender, count]) => {
       if (count > 0) console.log(`  ${gender}: ${count}`);
     });
-    console.log('\nTesting & Counseling - Top 10 Locations:');
     Object.entries(analytics.testing.byLocation)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .forEach(([loc, count]) => console.log(`  ${loc}: ${count}`));
-    console.log('\nPsychosocial Support - Top 10 Locations:');
     Object.entries(analytics.psychosocial.byLocation)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .forEach(([loc, count]) => console.log(`  ${loc}: ${count}`));
-    console.log('═══════════════════════════════════════════════════');
 
     res.json({
       success: true,
       analytics
     });
   } catch (error) {
-    console.error('❌ Error fetching service analytics:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch service analytics',

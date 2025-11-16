@@ -18,7 +18,6 @@ router.get('/active', async (req, res) => {
 
     res.json(schedule);
   } catch (err) {
-    console.error('Error fetching clinic schedule:', err);
     res.status(500).json({ error: 'Failed to fetch clinic schedule' });
   }
 });
@@ -34,7 +33,6 @@ router.get('/', isAuthenticated, isAdmin, async (req, res) => {
 
     res.json(schedules);
   } catch (err) {
-    console.error('Error fetching all schedules:', err);
     res.status(500).json({ error: 'Failed to fetch schedules' });
   }
 });
@@ -68,10 +66,8 @@ router.post('/', isAuthenticated, isAdmin, async (req, res) => {
     await schedule.save();
     await schedule.populate('createdBy', 'name username');
 
-    console.log(`✅ Clinic schedule created: ${schedule._id}`);
     res.status(201).json(schedule);
   } catch (err) {
-    console.error('Error creating clinic schedule:', err);
     res.status(500).json({ error: 'Failed to create clinic schedule' });
   }
 });
@@ -101,10 +97,8 @@ router.put('/:id', isAuthenticated, isAdmin, async (req, res) => {
     await schedule.save();
     await schedule.populate('createdBy', 'name username');
 
-    console.log(`✅ Clinic schedule updated: ${schedule._id}`);
     res.json(schedule);
   } catch (err) {
-    console.error('Error updating clinic schedule:', err);
     res.status(500).json({ error: 'Failed to update clinic schedule' });
   }
 });
@@ -120,11 +114,8 @@ router.delete('/:id', isAuthenticated, isAdmin, async (req, res) => {
     }
 
     await ClinicSchedule.findByIdAndDelete(req.params.id);
-
-    console.log(`✅ Clinic schedule deleted: ${req.params.id}`);
     res.json({ message: 'Schedule deleted successfully' });
   } catch (err) {
-    console.error('Error deleting clinic schedule:', err);
     res.status(500).json({ error: 'Failed to delete clinic schedule' });
   }
 });
@@ -143,10 +134,8 @@ router.patch('/:id/toggle', isAuthenticated, isAdmin, async (req, res) => {
     await schedule.save();
     await schedule.populate('createdBy', 'name username');
 
-    console.log(`✅ Schedule status toggled: ${schedule._id} - Active: ${schedule.isActive}`);
     res.json(schedule);
   } catch (err) {
-    console.error('Error toggling schedule status:', err);
     res.status(500).json({ error: 'Failed to toggle schedule status' });
   }
 });
@@ -200,7 +189,6 @@ router.get('/check-date/:date', async (req, res) => {
 
     res.json({ available: true, reason: 'Regular hours' });
   } catch (err) {
-    console.error('Error checking date availability:', err);
     res.status(500).json({ error: 'Failed to check date availability' });
   }
 });

@@ -12,8 +12,6 @@ const router = express.Router();
 // ============================================
 router.get('/appointments', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    console.log('📋 Admin fetching all appointments');
-
     const appointments = await Appointment.find()
       .populate('user', 'name email username fullName age gender location')
       .populate('assignedCaseManager', 'name username email')
@@ -21,10 +19,8 @@ router.get('/appointments', isAuthenticated, isAdmin, async (req, res) => {
       .populate('sessionTracking.sessionNotes.caseManagerId', 'name username')
       .sort({ createdAt: -1 });
 
-    console.log(`✅ Found ${appointments.length} appointments`);
     res.json(appointments);
   } catch (err) {
-    console.error('❌ Error fetching appointments:', err);
     res.status(500).json({ error: 'Failed to fetch appointments' });
   }
 });
@@ -34,14 +30,11 @@ router.get('/appointments', isAuthenticated, isAdmin, async (req, res) => {
 // ============================================
 router.get('/appointments/case-managers/available', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    console.log('👥 Fetching case managers with workload info');
-
     const caseManagers = await User.find({ 
       role: 'case_manager',
       isActive: true
     }).select('name username email').lean();
 
-    console.log(`Found ${caseManagers.length} case managers in database`);
 
     const MAX_APPOINTMENTS = 5;
 
@@ -61,7 +54,6 @@ router.get('/appointments/case-managers/available', isAuthenticated, isAdmin, as
           status: 'completed'
         });
 
-        console.log(`📊 ${cm.name || cm.username}: Active=${activeCount}, Total=${totalCount}, Completed=${completedCount}`);
 
         const remainingSlots = MAX_APPOINTMENTS - activeCount;
         const isAvailable = activeCount < MAX_APPOINTMENTS;
@@ -87,14 +79,11 @@ router.get('/appointments/case-managers/available', isAuthenticated, isAdmin, as
 
     workloadData.sort((a, b) => a.activeAppointments - b.activeAppointments);
 
-    console.log('✅ Case Manager Summary:');
     workloadData.forEach(cm => {
-      console.log(`   ${cm.name}: ${cm.activeAppointments}/${MAX_APPOINTMENTS} - ${cm.isAvailable ? '✅ Available' : '❌ At Capacity'}`);
     });
 
     res.json(workloadData);
   } catch (err) {
-    console.error('❌ Error fetching case managers:', err);
     res.status(500).json({ 
       error: 'Failed to fetch case managers',
       details: err.message 
@@ -110,9 +99,6 @@ router.put('/appointments/:id/reschedule', isAuthenticated, isCaseManager, async
     const { date, time, note } = req.body;
     const userId = req.user.id;
     const appointmentId = req.params.id;
-
-    console.log(`📅 Rescheduling appointment ${appointmentId}`);
-    console.log(`New date: ${date}, New time: ${time}`);
 
     if (!date || !time) {
       return res.status(400).json({ 
@@ -153,7 +139,6 @@ router.put('/appointments/:id/reschedule', isAuthenticated, isCaseManager, async
 
     if (conflict) {
       const conflictUser = conflict.user?.name || conflict.user?.username || 'Another user';
-      console.log(`⚠️ Time slot conflict with ${conflictUser}`);
       return res.status(400).json({ 
         error: `This time slot is already booked by ${conflictUser}`,
         conflict: true,
@@ -187,7 +172,6 @@ router.put('/appointments/:id/reschedule', isAuthenticated, isCaseManager, async
       { path: 'sessionTracking.sessionNotes.caseManagerId', select: 'name username' }
     ]);
 
-    console.log(`✅ Appointment ${appointmentId} rescheduled successfully`);
 
     res.json({
       success: true,
@@ -196,7 +180,6 @@ router.put('/appointments/:id/reschedule', isAuthenticated, isCaseManager, async
     });
 
   } catch (error) {
-    console.error('❌ Error rescheduling appointment:', error);
     res.status(500).json({ 
       error: 'Failed to reschedule appointment',
       details: error.message
@@ -209,7 +192,6 @@ router.put('/appointments/:id/reschedule', isAuthenticated, isCaseManager, async
 // ============================================
 router.get('/appointments/stats/overview', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    console.log('📊 Fetching appointment statistics');
 
     const [
       totalCount,
@@ -266,11 +248,8 @@ router.get('/appointments/stats/overview', isAuthenticated, isAdmin, async (req,
       },
       today: todayCount
     };
-
-    console.log('✅ Statistics:', stats);
     res.json(stats);
   } catch (err) {
-    console.error('❌ Error fetching statistics:', err);
     res.status(500).json({ error: 'Failed to fetch statistics' });
   }
 });
@@ -283,7 +262,6 @@ router.get('/planner', isAuthenticated, isCaseManager, async (req, res) => {
     const caseManagerId = req.user.id;
     const { sortBy, status } = req.query;
 
-    console.log(`📅 Fetching planner for case manager: ${caseManagerId}`);
 
     const query = { assignedCaseManager: caseManagerId };
     if (status) {
@@ -310,11 +288,8 @@ router.get('/planner', isAuthenticated, isCaseManager, async (req, res) => {
       completed: appointments.filter(a => a.status === 'completed').length,
       ongoing: appointments.filter(a => ['pending', 'confirmed'].includes(a.status)).length
     };
-
-    console.log(`✅ Found ${appointments.length} appointments for case manager`);
     res.json({ appointments, stats });
   } catch (err) {
-    console.error('❌ Error fetching planner:', err);
     res.status(500).json({ error: 'Failed to fetch planner data' });
   }
 });

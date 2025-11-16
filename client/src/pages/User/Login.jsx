@@ -111,14 +111,12 @@ export default function Login() {
       <div className="w-full md:w-1/2 bg-[#4c8dd8] flex flex-col items-center justify-center p-8 md:p-12 shadow-xl">
         <h1 className="mb-6">
           <img 
-            src="/src/assets/hivnice-removebg-preview.png" 
+            src="/src/assets/idea-new.png" 
             alt="HealthHub Promotion" 
             className="w-300 h-200 rounded-3xl hover:scale-105" 
           />
         </h1>
-        <div className="text-center text-xl md:text-2xl lg:text-3xl font-semibold text-white opacity-90 px-4">
-          Breaking Stigma, Spreading Truth
-        </div>
+       
       </div>
       
       {/* Right Side: Form */}
@@ -126,7 +124,7 @@ export default function Login() {
         <div className="w-full max-w-md mx-auto space-y-6">
           <div className="text-center justify-center items-center flex flex-col">
             <img 
-              src="/src/assets/HEALTHUB.png" 
+              src="/src/assets/logo-header.png" 
               alt="HealthHub Logo" 
               className="rounded-lg w-500 h-300 hover:scale-105 mb-4" 
             />

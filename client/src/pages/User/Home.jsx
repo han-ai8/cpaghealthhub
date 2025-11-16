@@ -10,7 +10,7 @@ const Home = () => {
   const { confirm } = useConfirm();
   const { user } = useAuth();
   
-  // ✅ NEW: Refs for scrolling to posts
+  // ✅ Refs for scrolling to posts
   const postRefs = useRef({});
   
   // Anonymous name generator function
@@ -84,12 +84,11 @@ const Home = () => {
     fetchLikedStatus();
   }, []);
 
-  // ✅ NEW: Handle scroll to post from saved posts
+  // ✅ Handle scroll to post from saved posts
   useEffect(() => {
     if (location.state?.scrollToPost && posts.length > 0) {
       const postId = location.state.scrollToPost;
       
-      // Wait for DOM to render
       setTimeout(() => {
         const postElement = postRefs.current[postId];
         if (postElement) {
@@ -98,7 +97,6 @@ const Home = () => {
             block: 'center' 
           });
           
-          // Add highlight effect
           postElement.style.transition = 'background-color 0.3s ease';
           postElement.style.backgroundColor = '#E3F2FD';
           
@@ -112,7 +110,6 @@ const Home = () => {
         }
       }, 300);
       
-      // Clear the state to prevent re-scrolling
       window.history.replaceState({}, document.title);
     }
   }, [location.state, posts]);
@@ -417,10 +414,10 @@ const Home = () => {
 
   if (loading || savedLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FFFFFF]">
+      <div className="min-h-screen flex items-center justify-center bg-[#FFFFFF] px-4">
         <div className="text-center">
           <div className="loading loading-spinner loading-lg text-[#4C8DD8]"></div>
-          <p className="mt-4 text-[#4C8DD8]">Loading content...</p>
+          <p className="mt-4 text-[#4C8DD8] text-sm md:text-base">Loading content...</p>
         </div>
       </div>
     );
@@ -428,8 +425,8 @@ const Home = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FFFFFF]">
-        <div className="alert alert-error max-w-md bg-[#C62828] text-[#FFFFFF]">
+      <div className="min-h-screen flex items-center justify-center bg-[#FFFFFF] px-4">
+        <div className="alert alert-error max-w-md bg-[#C62828] text-[#FFFFFF] text-sm md:text-base">
           <span>{error}</span>
         </div>
       </div>
@@ -437,73 +434,77 @@ const Home = () => {
   }
 
   return (
-    <div className="min-h-screen space-y-8">
+    <div className="min-h-screen space-y-4 md:space-y-6 lg:space-y-8 px-2 sm:px-4 md:px-6 lg:px-8 py-4 md:py-6">
       {/* Announcement Post */}
       {announcement ? (
-        <div className="card bg-[#FFFFFF] shadow-lg border border-[#4C8DD8]/20 max-w-6xl mx-auto">
-          <div className="card-body">
-            <h3 className="card-title text-[#4C8DD8] font-semibold text-lg">
-              ANNOUNCEMENT
-              <p className="text-xs text-[#4C8DD8]/60">
+        <div className="card bg-[#FFFFFF] shadow-lg border border-[#4C8DD8]/20 w-full max-w-6xl mx-auto">
+          <div className="card-body p-4 md:p-6 lg:p-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+              <h3 className="card-title text-[#4C8DD8] font-semibold text-base md:text-lg lg:text-xl">
+                ANNOUNCEMENT
+              </h3>
+              <p className="text-xs md:text-sm text-[#4C8DD8]/60">
                 {new Date(announcement.createdAt).toLocaleString()}
               </p>
-            </h3>
+            </div>
             <hr className="border-[#4C8DD8]/20" />
             
-            <p className="font-semibold text-[#4C8DD8]">{announcement.title}</p>
-            <p className="text-[#4C8DD8]/80">{announcement.content}</p>
+            <p className="font-semibold text-[#4C8DD8] text-sm md:text-base lg:text-lg mt-4">{announcement.title}</p>
+            <p className="text-[#4C8DD8]/80 text-sm md:text-base break-words">{announcement.content}</p>
 
             {announcement.image && (
               <div
-                className="rounded-lg h-32 flex items-center justify-center text-[#FFFFFF] font-semibold mb-4 bg-cover bg-center"
+                className="rounded-lg h-32 sm:h-40 md:h-48 lg:h-64 flex items-center justify-center text-[#FFFFFF] font-semibold my-4 bg-cover bg-center"
                 style={{ backgroundImage: `url(${API_URL.replace('/api', '')}/${announcement.image})` }}
               />
             )}
 
             <hr className="border-[#4C8DD8]/20" />
-            <div className="flex space-x-6 text-[#4C8DD8]/80">
+            <div className="flex flex-wrap gap-3 md:gap-6 text-[#4C8DD8]/80 mt-4">
               <button
-                className={`btn btn-ghost btn-sm gap-2 hover:text-[#4C8DD8] ${
+                className={`btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] text-xs md:text-sm ${
                   likedAnnouncementIds.has(announcement._id) ? 'text-[#4C8DD8]' : ''
                 }`}
                 onClick={() => handleAnnouncementLike(announcement._id)}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className={`h-5 w-5 ${likedAnnouncementIds.has(announcement._id) ? 'fill-current' : ''}`}
+                  className={`h-4 w-4 md:h-5 md:w-5 ${likedAnnouncementIds.has(announcement._id) ? 'fill-current' : ''}`}
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                 </svg>
-                {announcement.likes || 0} {likedAnnouncementIds.has(announcement._id) ? 'Liked' : 'Like'}
+                <span className="hidden sm:inline">{announcement.likes || 0} {likedAnnouncementIds.has(announcement._id) ? 'Liked' : 'Like'}</span>
+                <span className="sm:hidden">{announcement.likes || 0}</span>
               </button>
               
               <button
-                className="btn btn-ghost btn-sm gap-2 hover:text-[#4C8DD8]"
+                className="btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] text-xs md:text-sm"
                 onClick={() => toggleComments(announcement._id, 'announcement')}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
+                  className="h-4 w-4 md:h-5 md:w-5"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16h6" />
                 </svg>
-                {announcementComments.length} Comment{announcementComments.length !== 1 ? 's' : ''}
+                <span className="hidden sm:inline">{announcementComments.length} Comment{announcementComments.length !== 1 ? 's' : ''}</span>
+                <span className="sm:hidden">{announcementComments.length}</span>
               </button>
             </div>
 
             {showComments[announcement._id] && (
               <div className="mt-4 border-t border-[#4C8DD8]/20 pt-4">
-                <h4 className="font-semibold text-[#4C8DD8]">Comments</h4>
+                <h4 className="font-semibold text-[#4C8DD8] text-sm md:text-base mb-3">Comments</h4>
                 
                 <div className="mb-4">
                   <textarea
-                    className="textarea textarea-bordered w-full border-[#4C8DD8]/20 focus:border-[#4C8DD8]"
+                    className="textarea textarea-bordered w-full border-[#4C8DD8]/20 focus:border-[#4C8DD8] text-sm md:text-base"
                     placeholder="Write a comment..."
                     rows="2"
                     value={newComment[`announcement-${announcement._id}`] || ''}
@@ -513,7 +514,7 @@ const Home = () => {
                     }))}
                   />
                   <button
-                    className="btn btn-primary bg-[#4C8DD8] hover:bg-[#4C8DD8]/90 text-[#FFFFFF] btn-sm mt-2"
+                    className="btn btn-primary bg-[#4C8DD8] hover:bg-[#4C8DD8]/90 text-[#FFFFFF] btn-sm mt-2 text-xs md:text-sm"
                     onClick={() => submitAnnouncementComment(announcement._id)}
                     disabled={submittingComment[`announcement-${announcement._id}`]}
                   >
@@ -537,8 +538,8 @@ const Home = () => {
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className={`font-semibold text-sm ${
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className={`font-semibold text-xs md:text-sm ${
                                   isMyCommentFlag ? 'text-blue-700' : 'text-[#4C8DD8]'
                                 }`}>
                                   {generateAnonymousName(comment.author)}
@@ -550,13 +551,13 @@ const Home = () => {
                                 )}
                               </div>
                               <p className="text-xs text-[#4C8DD8]/60">{new Date(comment.createdAt).toLocaleString()}</p>
-                              <p className="mt-2 text-[#4C8DD8]/80">{comment.body}</p>
+                              <p className="mt-2 text-[#4C8DD8]/80 text-sm md:text-base break-words">{comment.body}</p>
                               
                               {comment.reply && (
-                                <div className="mt-3 ml-6 bg-[#2E7D32]/10 p-3 rounded border-l-4 border-[#2E7D32]">
-                                  <p className="font-semibold text-sm text-[#2E7D32]">{comment.reply.author}</p>
+                                <div className="mt-3 ml-3 md:ml-6 bg-[#2E7D32]/10 p-3 rounded border-l-4 border-[#2E7D32]">
+                                  <p className="font-semibold text-xs md:text-sm text-[#2E7D32]">{comment.reply.author}</p>
                                   <p className="text-xs text-[#2E7D32]/60">{new Date(comment.reply.createdAt).toLocaleString()}</p>
-                                  <p className="mt-1 text-[#2E7D32]/80">{comment.reply.body}</p>
+                                  <p className="mt-1 text-[#2E7D32]/80 text-sm md:text-base break-words">{comment.reply.body}</p>
                                 </div>
                               )}
                             </div>
@@ -565,7 +566,7 @@ const Home = () => {
                       );
                     })
                   ) : (
-                    <p className="text-[#4C8DD8]/60 text-sm">No comments yet. Be the first to comment!</p>
+                    <p className="text-[#4C8DD8]/60 text-xs md:text-sm">No comments yet. Be the first to comment!</p>
                   )}
                 </div>
               </div>
@@ -573,7 +574,7 @@ const Home = () => {
           </div>
         </div>
       ) : (
-        <div className="text-center text-[#4C8DD8]/60 bg-[#FFFFFF] rounded-lg p-6 max-w-4xl mx-auto">
+        <div className="text-center text-[#4C8DD8]/60 bg-[#FFFFFF] rounded-lg p-6 max-w-4xl mx-auto text-sm md:text-base">
           No announcements available.
         </div>
       )}
@@ -589,93 +590,96 @@ const Home = () => {
             <div 
               key={post._id} 
               ref={(el) => postRefs.current[post._id] = el}
-              className="card bg-[#FFFFFF] shadow-lg border border-[#4C8DD8]/20 max-w-6xl mx-auto"
+              className="card bg-[#FFFFFF] shadow-lg border border-[#4C8DD8]/20 w-full max-w-6xl mx-auto"
             >
-              <div className="card-body">
+              <div className="card-body p-4 md:p-6 lg:p-8">
                 <div className="flex items-center mb-4">
                   <div className="avatar">
-                    <div className="w-10 rounded-full bg-[#C62828] flex justify-center items-center text-[#FFFFFF] font-bold">
+                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#C62828] flex justify-center items-center text-[#FFFFFF] font-bold">
                       <img
                         src="/src/assets/cpag.jpg"
                         alt="Profile"
-                        className="w-10 h-10 rounded-full object-cover"
+                        className="w-full h-full rounded-full object-cover"
                         onError={(e) => e.target.style.display = 'none'}
                       />
                     </div>
                   </div>
-                  <div className="ml-3">
-                    <p className="font-semibold text-[#4C8DD8]">Cavite Positive Action Group The JCH Advocacy Inc.</p>
+                  <div className="ml-3 flex-1">
+                    <p className="font-semibold text-[#4C8DD8] text-xs md:text-sm lg:text-base break-words">Cavite Positive Action Group The JCH Advocacy Inc.</p>
                     <p className="text-xs text-blue-500">{new Date(post.createdAt).toLocaleString()}</p>
                   </div>
                 </div>
 
-                <p className="mb-4 text-[#4C8DD8]/80">{post.content}</p>
+                <p className="mb-4 text-[#4C8DD8]/80 text-sm md:text-base break-words">{post.content}</p>
 
                 {post.image && (
                   <img
                     src={`${API_URL.replace('/api', '')}${post.image}`}
                     alt="Post"
-                    className="rounded-lg w-full h-auto object-cover mb-4"
+                    className="rounded-lg w-full h-auto object-cover mb-4 max-h-96 md:max-h-[500px]"
                     onError={(e) => e.target.style.display = 'none'}
                   />
                 )}
 
-                <div className="flex space-x-6 text-[#4C8DD8]/80">
+                <div className="flex flex-wrap gap-3 md:gap-6 text-[#4C8DD8]/80">
                   <button
-                    className={`btn btn-ghost btn-sm gap-2 hover:text-[#4C8DD8] ${isLiked ? 'text-[#4C8DD8]' : ''}`}
+                    className={`btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] text-xs md:text-sm ${isLiked ? 'text-[#4C8DD8]' : ''}`}
                     onClick={() => handleLike(post._id)}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`}
+                      className={`h-4 w-4 md:h-5 md:w-5 ${isLiked ? 'fill-current' : ''}`}
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                     </svg>
-                    {post.likes || 0} {isLiked ? 'Liked' : 'Like'}
+                    <span className="hidden sm:inline">{post.likes || 0} {isLiked ? 'Liked' : 'Like'}</span>
+                    <span className="sm:hidden">{post.likes || 0}</span>
                   </button>
                   
                   <button 
-                    className="btn btn-ghost btn-sm gap-2 hover:text-[#4C8DD8]"
+                    className="btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] text-xs md:text-sm"
                     onClick={() => toggleComments(post._id, 'post')}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
+                      className="h-4 w-4 md:h-5 md:w-5"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16h6" />
                     </svg>
-                    {comments.length} Comment{comments.length !== 1 ? 's' : ''}
+                    <span className="hidden sm:inline">{comments.length} Comment{comments.length !== 1 ? 's' : ''}</span>
+                    <span className="sm:hidden">{comments.length}</span>
                   </button>
                   
                   <button 
-                    className={`btn btn-ghost btn-sm gap-2 hover:text-[#4C8DD8] ${isSaved ? 'text-[#2E7D32]' : ''}`} 
+                    className={`btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] text-xs md:text-sm ${isSaved ? 'text-[#2E7D32]' : ''}`} 
                     onClick={() => handleSave(post._id)}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className={`h-5 w-5 ${isSaved ? 'fill-current' : 'fill-none'}`}
+                      className={`h-4 w-4 md:h-5 md:w-5 ${isSaved ? 'fill-current' : 'fill-none'}`}
                       viewBox="0 0 24 24"
                       stroke="currentColor"
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5v14l7-7 7 7V5H5z" />
                     </svg>
-                    {isSaved ? 'Saved' : 'Save'}
+                    <span className="hidden sm:inline">{isSaved ? 'Saved' : 'Save'}</span>
+                    <span className="sm:hidden">{isSaved ? '✓' : 'Save'}</span>
                   </button>
                 </div>
 
                 {showComments[post._id] && (
                   <div className="mt-4 border-t border-[#4C8DD8]/20 pt-4">
-                    <h4 className="font-semibold text-[#4C8DD8]">Comments</h4>
+                    <h4 className="font-semibold text-[#4C8DD8] text-sm md:text-base mb-3">Comments</h4>
                     
                     <div className="mb-4">
                       <textarea
-                        className="textarea textarea-bordered w-full border-[#4C8DD8]/20 focus:border-[#4C8DD8]"
+                        className="textarea textarea-bordered w-full border-[#4C8DD8]/20 focus:border-[#4C8DD8] text-sm md:text-base"
                         placeholder="Write a comment..."
                         rows="2"
                         value={newComment[`post-${post._id}`] || ''}
@@ -685,7 +689,7 @@ const Home = () => {
                         }))}
                       />
                       <button
-                        className="btn btn-primary bg-[#4C8DD8] hover:bg-[#4C8DD8]/90 text-[#FFFFFF] btn-sm mt-2"
+                        className="btn btn-primary bg-[#4C8DD8] hover:bg-[#4C8DD8]/90 text-[#FFFFFF] btn-sm mt-2 text-xs md:text-sm"
                         onClick={() => submitPostComment(post._id)}
                         disabled={submittingComment[`post-${post._id}`]}
                       >
@@ -709,8 +713,8 @@ const Home = () => {
                             >
                               <div className="flex justify-between items-start">
                                 <div className="flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <p className={`font-semibold text-sm ${
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className={`font-semibold text-xs md:text-sm ${
                                       isMyCommentFlag ? 'text-blue-700' : 'text-[#4C8DD8]'
                                     }`}>
                                       {generateAnonymousName(comment.author)}
@@ -722,13 +726,13 @@ const Home = () => {
                                     )}
                                   </div>
                                   <p className="text-xs text-[#4C8DD8]/60">{new Date(comment.createdAt).toLocaleString()}</p>
-                                  <p className="mt-2 text-[#4C8DD8]/80">{comment.body}</p>
+                                  <p className="mt-2 text-[#4C8DD8]/80 text-sm md:text-base break-words">{comment.body}</p>
                                   
                                   {comment.reply && (
-                                    <div className="mt-3 ml-6 bg-[#2E7D32]/10 p-3 rounded border-l-4 border-[#2E7D32]">
-                                      <p className="font-semibold text-sm text-[#2E7D32]">{comment.reply.author}</p>
+                                    <div className="mt-3 ml-3 md:ml-6 bg-[#2E7D32]/10 p-3 rounded border-l-4 border-[#2E7D32]">
+                                      <p className="font-semibold text-xs md:text-sm text-[#2E7D32]">{comment.reply.author}</p>
                                       <p className="text-xs text-[#2E7D32]/60">{new Date(comment.reply.createdAt).toLocaleString()}</p>
-                                      <p className="mt-1 text-[#2E7D32]/80">{comment.reply.body}</p>
+                                      <p className="mt-1 text-[#2E7D32]/80 text-sm md:text-base break-words">{comment.reply.body}</p>
                                     </div>
                                   )}
                                 </div>
@@ -737,7 +741,7 @@ const Home = () => {
                           );
                         })
                       ) : (
-                        <p className="text-[#4C8DD8]/60 text-sm">No comments yet. Be the first to comment!</p>
+                        <p className="text-[#4C8DD8]/60 text-xs md:text-sm">No comments yet. Be the first to comment!</p>
                       )}
                     </div>
                   </div>
@@ -747,7 +751,7 @@ const Home = () => {
           );
         })
       ) : (
-        <div className="text-center text-[#4C8DD8]/60 bg-[#FFFFFF] rounded-lg p-6 max-w-4xl mx-auto">
+        <div className="text-center text-[#4C8DD8]/60 bg-[#FFFFFF] rounded-lg p-6 max-w-4xl mx-auto text-sm md:text-base">
           No posts available.
         </div>
       )}

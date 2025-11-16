@@ -10,7 +10,6 @@ class SocketService {
 
   connect(userId) {
     if (this.socket?.connected) {
-      console.log('Socket already connected');
       return;
     }
 
@@ -20,17 +19,16 @@ class SocketService {
     });
 
     this.socket.on('connect', () => {
-      console.log('✅ Socket connected:', this.socket.id);
       this.socket.emit('join_user_room', userId);
       this.socket.emit('join_chat', userId);
     });
 
     this.socket.on('disconnect', () => {
-      console.log('🔌 Socket disconnected');
+      console.log();
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('❌ Socket connection error:', error);
+      console.error('error:', error);
     });
   }
 
@@ -44,7 +42,7 @@ class SocketService {
 
   on(event, callback) {
     if (!this.socket) {
-      console.error('Socket not connected');
+      console.error('Error');
       return;
     }
 
@@ -72,7 +70,7 @@ class SocketService {
 
   emit(event, data) {
     if (!this.socket) {
-      console.error('Socket not connected');
+      console.error('error');
       return;
     }
     this.socket.emit(event, data);

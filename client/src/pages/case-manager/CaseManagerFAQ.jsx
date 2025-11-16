@@ -1,12 +1,18 @@
 // src/pages/case-manager/CaseManagerFAQ.jsx
-import { useState } from 'react';
-import { HiOutlineQuestionMarkCircle } from 'react-icons/hi';
+import { useState, useMemo } from 'react';
+import { HiOutlineQuestionMarkCircle, HiX } from 'react-icons/hi';
 
 const CaseManagerFAQ = () => {
   const [openIndex, setOpenIndex] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const toggleFAQ = (index) => {
     setOpenIndex(openIndex === index ? null : index);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setOpenIndex(null);
   };
 
   const faqCategories = [
@@ -202,6 +208,37 @@ const CaseManagerFAQ = () => {
     }
   ];
 
+  // Filter FAQ based on search query
+  const filteredCategories = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return faqCategories;
+    }
+
+    const query = searchQuery.toLowerCase();
+    
+    return faqCategories
+      .map(category => ({
+        ...category,
+        questions: category.questions.filter(faq =>
+          faq.question.toLowerCase().includes(query) ||
+          faq.answer.toLowerCase().includes(query)
+        )
+      }))
+      .filter(category => category.questions.length > 0);
+  }, [searchQuery]);
+
+  // Auto-expand first result when searching
+  const handleSearch = (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    
+    if (query.trim() && filteredCategories.length > 0 && filteredCategories[0].questions.length > 0) {
+      setOpenIndex('0-0');
+    } else if (!query.trim()) {
+      setOpenIndex(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-100 p-4 sm:p-6">
       <div className="max-w-5xl mx-auto">
@@ -220,27 +257,80 @@ const CaseManagerFAQ = () => {
           </p>
         </div>
 
+        {/* Search Bar */}
+        <div className="mb-8">
+          <div className="relative max-w-2xl mx-auto">
+            <input
+              type="text"
+              placeholder="Search for questions..."
+              value={searchQuery}
+              onChange={handleSearch}
+              className="input input-bordered w-full shadow-md pr-10"
+            />
+            {searchQuery && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Clear search"
+              >
+                <HiX className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <p className="text-center text-sm text-gray-600 mt-2">
+              Found {filteredCategories.reduce((acc, cat) => acc + cat.questions.length, 0)} result(s)
+            </p>
+          )}
+        </div>
+
         {/* Quick Tips Banner */}
-        <div className="bg-purple-100 border-l-4 border-purple-600 p-4 mb-8 rounded-r-lg">
-          <div className="flex items-start">
-            <span className="text-2xl mr-3">💡</span>
-            <div>
-              <h3 className="font-bold text-purple-900 mb-1">Quick Tip</h3>
-              <p className="text-purple-800 text-sm">
-                Always review previous session notes before meeting with a client. This helps maintain continuity of care and shows clients you remember their journey.
-              </p>
+        {!searchQuery && (
+          <div className="bg-purple-100 border-l-4 border-purple-600 p-4 mb-8 rounded-r-lg">
+            <div className="flex items-start">
+              <span className="text-2xl mr-3">💡</span>
+              <div>
+                <h3 className="font-bold text-purple-900 mb-1">Quick Tip</h3>
+                <p className="text-purple-800 text-sm">
+                  Always review previous session notes before meeting with a client. This helps maintain continuity of care and shows clients you remember their journey.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* No Results Message */}
+        {searchQuery && filteredCategories.length === 0 && (
+          <div className="bg-white rounded-lg shadow-lg p-12 text-center">
+            <div className="text-6xl mb-4">🔍</div>
+            <h3 className="text-2xl font-bold text-gray-800 mb-2">No Results Found</h3>
+            <p className="text-gray-600 mb-4">
+              We couldn't find any questions matching "{searchQuery}"
+            </p>
+            <button
+              onClick={clearSearch}
+              className="btn btn-primary bg-purple-600 hover:bg-purple-700 border-purple-600"
+            >
+              Clear Search
+            </button>
+          </div>
+        )}
 
         {/* FAQ Categories */}
         <div className="space-y-6">
-          {faqCategories.map((category, categoryIndex) => (
+          {filteredCategories.map((category, categoryIndex) => (
             <div key={categoryIndex} className="bg-white rounded-lg shadow-lg p-6">
               {/* Category Header */}
               <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-purple-600">
                 <span className="text-3xl">{category.icon}</span>
-                <h2 className="text-2xl font-bold text-gray-800">{category.category}</h2>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  {category.category}
+                  {searchQuery && (
+                    <span className="text-sm font-normal text-gray-500 ml-2">
+                      ({category.questions.length})
+                    </span>
+                  )}
+                </h2>
               </div>
 
               {/* Questions */}
@@ -275,35 +365,6 @@ const CaseManagerFAQ = () => {
             </div>
           ))}
         </div>
-
-        {/* Emergency Resources 
-        <div className="mt-8 bg-red-50 border-2 border-red-300 rounded-lg p-6">
-          <h3 className="text-xl font-bold text-red-800 mb-3 flex items-center gap-2">
-            🚨 Emergency Resources
-          </h3>
-          <div className="text-red-700 space-y-2">
-            <p><strong>Crisis Hotline:</strong> 1-800-273-8255 (24/7)</p>
-            <p><strong>Emergency Services:</strong> 911</p>
-            <p><strong>HIV/AIDS Hotline:</strong> 1-800-CDC-INFO</p>
-            <p className="text-sm mt-3 italic">Always prioritize immediate safety in crisis situations</p>
-          </div>
-        </div>
-
-        {/* Contact Support Section 
-        <div className="mt-8 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg shadow-xl p-8 text-center">
-          <h3 className="text-2xl font-bold mb-3">Need Additional Support?</h3>
-          <p className="text-lg mb-6 opacity-90">
-            Contact your supervisor or the admin team for guidance
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="btn btn-outline btn-white bg-white text-purple-600 hover:bg-gray-100 border-2">
-              📧 Contact Supervisor
-            </button>
-            <button className="btn btn-outline btn-white bg-white text-purple-600 hover:bg-gray-100 border-2">
-              💬 Admin Support
-            </button>
-          </div>
-        </div> */}
 
         {/* Footer Note */}
         <div className="mt-8 text-center text-sm text-gray-500">

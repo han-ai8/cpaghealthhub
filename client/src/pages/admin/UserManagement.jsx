@@ -1,19 +1,6 @@
-// admin/UserManagement.jsx - UPDATED: With Activate/Deactivate Functionality
+// admin/UserManagement.jsx - FULLY RESPONSIVE VERSION
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../utils/api';
-
-/**
- * UserManagement - For Regular Users Only
- * - Shows only users with role='user' (not admin staff)
- * - Responsive: cards on mobile, table on desktop
- * - Search, sort, pagination
- * - Edit user details, assign case managers
- * - Activate/Deactivate accounts (prevents login when inactive)
- * - Delete users with confirmation
- * 
- * For managing admin staff (admin, case_manager, content_moderator),
- * use the separate AdminStaffManagement component
- */
 
 const PAGE_SIZE = 10;
 
@@ -40,7 +27,6 @@ const IconSort = (props) => (
   </svg>
 );
 
-// Status Badge Component
 const StatusBadge = ({ isActive }) => {
   return isActive ? (
     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -64,7 +50,6 @@ const UserManagement = () => {
   const [deletingId, setDeletingId] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // UI controls
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortDir, setSortDir] = useState('desc');
@@ -82,12 +67,9 @@ const UserManagement = () => {
     setLoading(true);
     setError('');
     try {
-      console.log('Fetching users from API...');
       const data = await api.get('/auth/users');
-      // ✅ FILTER: Only show regular users (not staff)
       const regularUsers = (data.users || []).filter(u => u.role === 'user');
       setUsers(regularUsers);
-      console.log('Regular users fetched:', regularUsers.length);
     } catch (err) {
       console.error('Failed to fetch users:', err);
       setError(err?.message || 'Failed to fetch users');
@@ -96,7 +78,6 @@ const UserManagement = () => {
     }
   };
 
-  // Derived filtered list
   const filtered = useMemo(() => {
     let list = (users || []).slice();
 
@@ -127,7 +108,6 @@ const UserManagement = () => {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // Stats
   const stats = useMemo(() => {
     return {
       total: users.length,
@@ -136,13 +116,12 @@ const UserManagement = () => {
     };
   }, [users]);
 
-  // Edit handlers
   const handleEdit = (user) => {
     setEditingUser(user);
     setEditForm({
       name: user.name || '',
       username: user.username || '',
-      isActive: user.isActive !== false, // Default to true if undefined
+      isActive: user.isActive !== false,
     });
     setError('');
     setSuccessMsg('');
@@ -194,7 +173,6 @@ const UserManagement = () => {
     setError('');
   };
 
-  // Delete handlers
   const promptDelete = (id) => {
     setDeletingId(id);
     setShowDeleteConfirm(true);
@@ -223,20 +201,22 @@ const UserManagement = () => {
   return (
     <div className="min-h-screen border rounded-lg bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        {/* Header - Fully Responsive */}
+        <header className="flex flex-col gap-4 mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-blue-900">User Management</h1>
-            <p className="mt-1 text-sm text-slate-600">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-900">User Management</h1>
+            <p className="mt-1 text-xs sm:text-sm text-slate-600">
               Manage regular user accounts and details
-              {' • '}
-              <span className="text-blue-600 font-medium">
+              <span className="hidden sm:inline"> • </span>
+              <span className="block sm:inline text-blue-600 font-medium">
                 For staff management, go to Staff Management →
               </span>
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center w-full sm:w-auto">
-            <div className="relative w-full sm:w-64">
+          {/* Search & Filters - Responsive */}
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+            <div className="relative flex-1">
               <input
                 aria-label="Search users"
                 placeholder="Search username, alias, or email..."
@@ -249,11 +229,11 @@ const UserManagement = () => {
               </div>
             </div>
 
-            <div className="inline-flex items-center gap-2">
+            <div className="flex gap-2">
               <button
                 title="Toggle sort direction"
                 onClick={() => setSortDir((s) => (s === 'asc' ? 'desc' : 'asc'))}
-                className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm shadow-sm inline-flex items-center gap-2"
+                className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm shadow-sm inline-flex items-center gap-2 flex-1 sm:flex-none justify-center"
               >
                 <IconSort />
                 <span className="text-xs text-slate-600">{sortDir === 'asc' ? 'Asc' : 'Desc'}</span>
@@ -262,7 +242,7 @@ const UserManagement = () => {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm shadow-sm"
+                className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm shadow-sm flex-1 sm:flex-none"
               >
                 <option value="createdAt">Sort: Created</option>
                 <option value="username">Sort: Username</option>
@@ -271,7 +251,7 @@ const UserManagement = () => {
           </div>
         </header>
 
-        {/* Stats Cards */}
+        {/* Stats Cards - Responsive Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <div className="text-xs text-slate-500">Total Users</div>
@@ -290,35 +270,35 @@ const UserManagement = () => {
         {/* Info Banner */}
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-start gap-2">
-            <div className="text-blue-600 mt-0.5">ℹ️</div>
-            <div className="text-sm text-blue-800">
+            <div className="text-blue-600 mt-0.5 flex-shrink-0">ℹ️</div>
+            <div className="text-xs sm:text-sm text-blue-800 min-w-0">
               <strong>Note:</strong> Inactive users cannot login. Use this to temporarily suspend accounts for violations.
             </div>
           </div>
         </div>
 
-        {/* Messages */}
+        {/* Messages - Responsive */}
         <div className="space-y-2 mb-4">
           {error && (
-            <div className="rounded-md bg-red-50 border border-red-100 p-3 text-sm text-red-800 flex justify-between items-start">
-              <div>{error}</div>
-              <button onClick={() => setError('')} className="text-red-700 text-sm underline ml-4">
+            <div className="rounded-md bg-red-50 border border-red-100 p-3 text-xs sm:text-sm text-red-800 flex flex-col sm:flex-row justify-between items-start gap-2">
+              <div className="flex-1 min-w-0 break-words">{error}</div>
+              <button onClick={() => setError('')} className="text-red-700 text-xs sm:text-sm underline whitespace-nowrap flex-shrink-0">
                 Dismiss
               </button>
             </div>
           )}
 
           {successMsg && (
-            <div className="rounded-md bg-green-50 border border-green-100 p-3 text-sm text-green-800 flex justify-between items-start">
-              <div>{successMsg}</div>
-              <button onClick={() => setSuccessMsg('')} className="text-green-700 text-sm underline ml-4">
+            <div className="rounded-md bg-green-50 border border-green-100 p-3 text-xs sm:text-sm text-green-800 flex flex-col sm:flex-row justify-between items-start gap-2">
+              <div className="flex-1 min-w-0 break-words">{successMsg}</div>
+              <button onClick={() => setSuccessMsg('')} className="text-green-700 text-xs sm:text-sm underline whitespace-nowrap flex-shrink-0">
                 Dismiss
               </button>
             </div>
           )}
         </div>
 
-        {/* Content */}
+        {/* Content - Responsive */}
         {loading ? (
           <div className="min-h-[240px] flex items-center justify-center bg-white rounded-lg shadow-sm">
             <div className="flex items-center gap-3">
@@ -339,14 +319,14 @@ const UserManagement = () => {
                 paginated.map((user) => (
                   <div key={user.id} className="bg-white p-4 rounded-lg shadow-sm">
                     <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
                         <div className="flex-shrink-0 h-10 w-10 rounded-full bg-green-50 flex items-center justify-center text-green-700 font-semibold">
                           {(user.name || user.username || '').slice(0, 2).toUpperCase()}
                         </div>
-                        <div>
-                          <div className="text-sm font-medium text-slate-800">{user.name || user.username}</div>
-                          <div className="text-xs text-slate-500">@{user.username}</div>
-                          <div className="text-xs text-slate-500">{user.email}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-slate-800 truncate">{user.name || user.username}</div>
+                          <div className="text-xs text-slate-500 truncate">@{user.username}</div>
+                          <div className="text-xs text-slate-500 truncate">{user.email}</div>
                         </div>
                       </div>
                       <StatusBadge isActive={user.isActive !== false} />
@@ -360,14 +340,14 @@ const UserManagement = () => {
                       <button
                         onClick={() => handleEdit(user)}
                         disabled={actioning}
-                        className="flex-1 px-3 py-1 rounded-md bg-blue-600 text-white text-sm hover:bg-blue-700"
+                        className="flex-1 px-3 py-2 rounded-md bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => promptDelete(user.id)}
                         disabled={actioning}
-                        className="flex-1 px-3 py-1 rounded-md bg-red-600 text-white text-sm hover:bg-red-700"
+                        className="flex-1 px-3 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50"
                       >
                         Delete
                       </button>
@@ -401,17 +381,19 @@ const UserManagement = () => {
                       <tr key={user.id}>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-full bg-green-50 flex items-center justify-center text-green-700 font-semibold">
+                            <div className="h-10 w-10 rounded-full bg-green-50 flex items-center justify-center text-green-700 font-semibold flex-shrink-0">
                               {(user.name || user.username || '').slice(0, 2).toUpperCase()}
                             </div>
-                            <div>
-                              <div className="text-sm font-medium text-slate-800">{user.name || user.username}</div>
-                              <div className="text-xs text-slate-500">@{user.username}</div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-slate-800 truncate">{user.name || user.username}</div>
+                              <div className="text-xs text-slate-500 truncate">@{user.username}</div>
                             </div>
                           </div>
                         </td>
 
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{user.email}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">
+                          <div className="max-w-xs truncate">{user.email}</div>
+                        </td>
 
                         <td className="px-6 py-4 whitespace-nowrap">
                           <StatusBadge isActive={user.isActive !== false} />
@@ -419,21 +401,23 @@ const UserManagement = () => {
 
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{formatDate(user.createdAt)}</td>
 
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleEdit(user)}
-                            disabled={actioning}
-                            className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => promptDelete(user.id)}
-                            disabled={actioning}
-                            className="px-3 py-1 rounded-md bg-red-600 text-white hover:bg-red-700"
-                          >
-                            Delete
-                          </button>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleEdit(user)}
+                              disabled={actioning}
+                              className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => promptDelete(user.id)}
+                              disabled={actioning}
+                              className="px-3 py-1 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -442,9 +426,9 @@ const UserManagement = () => {
               </table>
             </div>
 
-            {/* Pagination */}
-            <div className="mt-4 flex items-center justify-between gap-4">
-              <div className="text-sm text-slate-600">
+            {/* Pagination - Responsive */}
+            <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-xs sm:text-sm text-slate-600 text-center sm:text-left">
                 Showing <span className="font-medium">{filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}</span> to{' '}
                 <span className="font-medium">{Math.min(page * PAGE_SIZE, filtered.length)}</span> of{' '}
                 <span className="font-medium">{filtered.length}</span> users
@@ -459,7 +443,7 @@ const UserManagement = () => {
                   Prev
                 </button>
 
-                <div className="text-sm text-slate-600 px-2">Page</div>
+                <div className="text-xs sm:text-sm text-slate-600 px-2">Page</div>
 
                 <select
                   value={page}
@@ -486,7 +470,7 @@ const UserManagement = () => {
         )}
       </div>
 
-      {/* Edit Modal */}
+      {/* Edit Modal - Responsive */}
       {editingUser && (
         <div role="dialog" aria-modal="true" className="fixed inset-0 z-40 flex items-center justify-center p-4">
           <div
@@ -494,8 +478,8 @@ const UserManagement = () => {
             onClick={() => !actioning && handleCancelEdit()}
             aria-hidden="true"
           />
-          <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-xl overflow-hidden z-50">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-xl overflow-hidden z-50 max-h-[90vh] flex flex-col">
+            <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
               <h2 className="text-lg font-semibold text-slate-800">Edit User</h2>
               <button
                 onClick={() => !actioning && handleCancelEdit()}
@@ -506,13 +490,13 @@ const UserManagement = () => {
               </button>
             </div>
 
-            <div className="px-6 py-5 space-y-4">
+            <div className="px-4 sm:px-6 py-5 space-y-4 overflow-y-auto flex-1">
               <div className="text-sm text-slate-600">
-                Email: <span className="font-medium text-slate-800">{editingUser.email}</span>
+                Email: <span className="font-medium text-slate-800 break-all">{editingUser.email}</span>
               </div>
 
               {error && (
-                <div className="rounded-md bg-red-50 border border-red-100 p-2 text-sm text-red-800">{error}</div>
+                <div className="rounded-md bg-red-50 border border-red-100 p-2 text-sm text-red-800 break-words">{error}</div>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -541,18 +525,17 @@ const UserManagement = () => {
                 </div>
               </div>
 
-              {/* Account Status Toggle */}
               <div className="form-control border-t pt-4">
-                <label className="flex items-center gap-3 cursor-pointer">
+                <label className="flex items-start sm:items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={editForm.isActive}
                     onChange={(e) => setEditForm((s) => ({ ...s, isActive: e.target.checked }))}
                     disabled={actioning}
-                    className="toggle toggle-success"
+                    className="toggle toggle-success mt-1 sm:mt-0 flex-shrink-0"
                   />
-                  <div>
-                    <span className="label-text font-medium">Account Status</span>
+                  <div className="min-w-0">
+                    <span className="label-text font-medium block">Account Status</span>
                     <p className="text-xs text-slate-500">
                       {editForm.isActive 
                         ? 'Active - User can login normally' 
@@ -563,11 +546,11 @@ const UserManagement = () => {
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            <div className="px-4 sm:px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 flex-shrink-0">
               <button
                 onClick={handleCancelEdit}
                 disabled={actioning}
-                className="px-4 py-2 rounded-md bg-white border border-slate-200 text-sm"
+                className="px-4 py-2 rounded-md bg-white border border-slate-200 text-sm order-2 sm:order-1"
               >
                 Cancel
               </button>
@@ -575,7 +558,7 @@ const UserManagement = () => {
               <button
                 onClick={handleSaveEdit}
                 disabled={actioning}
-                className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm inline-flex items-center gap-2"
+                className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm inline-flex items-center justify-center gap-2 order-1 sm:order-2"
               >
                 {actioning ? (
                   <>
@@ -594,30 +577,30 @@ const UserManagement = () => {
         </div>
       )}
 
-      {/* Delete confirmation modal */}
+      {/* Delete confirmation modal - Responsive */}
       {showDeleteConfirm && (
         <div role="dialog" aria-modal="true" className="fixed inset-0 z-40 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => !actioning && setShowDeleteConfirm(false)} />
           <div className="relative w-full max-w-md bg-white rounded-lg shadow-xl overflow-hidden z-50">
-            <div className="px-6 py-5">
+            <div className="px-4 sm:px-6 py-5">
               <h3 className="text-lg font-semibold text-slate-800">Confirm delete</h3>
               <p className="text-sm text-slate-600 mt-2">
                 Are you sure you want to permanently delete this user? This action{' '}
                 <span className="font-medium">cannot</span> be undone.
               </p>
 
-              <div className="mt-4 flex justify-end gap-2">
+              <div className="mt-4 flex flex-col sm:flex-row justify-end gap-2">
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
                   disabled={actioning}
-                  className="px-4 py-2 rounded-md bg-white border border-slate-200 text-sm"
+                  className="px-4 py-2 rounded-md bg-white border border-slate-200 text-sm order-2 sm:order-1"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDeleteConfirmed}
                   disabled={actioning}
-                  className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 text-sm inline-flex items-center gap-2"
+                  className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 text-sm inline-flex items-center justify-center gap-2 order-1 sm:order-2"
                 >
                   {actioning ? (
                     <>

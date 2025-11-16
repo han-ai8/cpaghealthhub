@@ -23,7 +23,6 @@ export const getArticleById = async (req, res) => {
     
     res.status(200).json(article);
   } catch (error) {
-    console.error('Error in getArticleById:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -66,7 +65,6 @@ export const createArticle = async (req, res) => {
       const userIds = allUsers.map(u => u._id);
       
       await notificationService.notifyNewArticle(savedArticle, userIds);
-      console.log(`✅ Sent ${userIds.length} notifications for new article`);
     }
 
     res.status(201).json(savedArticle);
@@ -75,7 +73,6 @@ export const createArticle = async (req, res) => {
   }
 };
 
-// Keep all your other functions the same...
 
 // Admin: Update article
 export const updateArticle = async (req, res) => {

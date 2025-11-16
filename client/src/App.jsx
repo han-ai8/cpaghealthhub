@@ -13,7 +13,7 @@ import ArticleDetail from './pages/User/ArticleDetail';
 import Notifications from './pages/User/Notifications';
 import Login from './pages/User/Login';
 import Register from './pages/User/Register';
-import UserSettings from './pages/User/Settings';
+import FAQs from './pages/User/FAQs';
 import EmailVerification from './pages/User/EmailVerification';
 import ForgotPassword from './pages/User/ForgotPassword';
 
@@ -136,7 +136,7 @@ function App() {
                 <Route path="articles" element={<Articles />} />
                 <Route path="articles/:id" element={<ArticleDetail />} />
                 <Route path="notifications" element={<Notifications />} />
-                <Route path="settings" element={<UserSettings />} />
+                <Route path="faqs" element={<FAQs />} />
                 
                 {/* Catch-all for unmatched user routes */}
                 <Route path="*" element={<Navigate to="/user/home" replace />} />

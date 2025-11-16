@@ -24,7 +24,7 @@ const AdminHeader = ({ username, onLogout, onMenuToggle, isMenuOpen }) => {
 
         {/* Logo */}
         <img 
-          src="/src/assets/HEALTHUB.png" 
+          src="/src/assets/logo-header.png" 
           alt="Logo" 
           className="w-20 h-5 md:w-30 md:h-15 lg:w-60 lg:h-10 hover:scale-105 transition-transform duration-200" 
         />
