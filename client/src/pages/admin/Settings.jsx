@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
+import toast from 'react-hot-toast';
 
 const Settings = () => {
   const { user, checkSession } = useAuth();
