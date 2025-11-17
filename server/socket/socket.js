@@ -1,13 +1,22 @@
-// socket/socket.js (Updated with Enhanced Unread Count Events)
+// socket/socket.js (Updated with Production CORS)
 import { Server } from 'socket.io';
 
 export const initializeSocket = (server) => {
   const io = new Server(server, {
     cors: {
-      origin: ['http://localhost:5173', 'http://localhost:5000'],
+      origin: process.env.CORS_ORIGINS 
+        ? process.env.CORS_ORIGINS.split(',')
+        : [
+            'https://www.cpaghealthhub.com',
+            'https://cpaghealthhub.com',
+            'http://localhost:5173',
+            'http://localhost:5000'
+          ],
       credentials: true,
       methods: ['GET', 'POST']
-    }
+    },
+    transports: ['websocket', 'polling'],
+    allowEIO3: true // Support older clients if needed
   });
 
   // Store connected users

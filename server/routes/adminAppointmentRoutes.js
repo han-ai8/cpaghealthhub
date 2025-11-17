@@ -300,7 +300,6 @@ router.get('/planner', isAuthenticated, isCaseManager, async (req, res) => {
 router.get('/my-assigned', isAuthenticated, isCaseManager, async (req, res) => {
   try {
     const caseManagerId = req.user.id;
-    console.log(`📋 Fetching assigned appointments for case manager: ${caseManagerId}`);
 
     const appointments = await Appointment.find({ 
       assignedCaseManager: caseManagerId 
@@ -310,11 +309,8 @@ router.get('/my-assigned', isAuthenticated, isCaseManager, async (req, res) => {
     .populate('assignedCaseManager', 'name username')
     .populate('sessionTracking.sessionNotes.caseManagerId', 'name username')
     .sort({ date: 1, time: 1 });
-
-    console.log(`✅ Found ${appointments.length} appointments`);
     res.json(appointments);
   } catch (err) {
-    console.error('❌ Error fetching case manager appointments:', err);
     res.status(500).json({ error: 'Failed to fetch assigned appointments' });
   }
 });
@@ -324,16 +320,6 @@ router.get('/my-assigned', isAuthenticated, isCaseManager, async (req, res) => {
 // ============================================
 router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    console.log('═══════════════════════════════════════════════════');
-    console.log('📋 CASE MANAGER ASSIGNMENT REQUEST');
-    console.log('═══════════════════════════════════════════════════');
-    console.log('📍 Appointment ID:', req.params.id);
-    console.log('👤 Admin User:', {
-      id: req.user.id,
-      username: req.user.username,
-      role: req.user.role
-    });
-    console.log('📦 Request Body:', req.body);
     
     const { caseManagerId } = req.body;
     const adminId = req.user.id;
@@ -345,36 +331,31 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
         error: 'Case manager ID is required' 
       });
     }
-    console.log('✅ Step 1: Case manager ID provided:', caseManagerId);
 
     if (!mongoose.Types.ObjectId.isValid(caseManagerId)) {
-      console.log('❌ FAILED: Invalid case manager ID format');
+      
       return res.status(400).json({ 
         error: 'Invalid case manager ID format' 
       });
     }
     
     if (!mongoose.Types.ObjectId.isValid(appointmentId)) {
-      console.log('❌ FAILED: Invalid appointment ID format');
+      
       return res.status(400).json({ 
         error: 'Invalid appointment ID format' 
       });
     }
-    console.log('✅ Step 2: ID formats are valid');
-
-    console.log('🔍 Looking up case manager in database...');
+  
     const caseManager = await User.findOne({ 
       _id: caseManagerId, 
       role: 'case_manager' 
     });
 
     if (!caseManager) {
-      console.log('❌ FAILED: Case manager not found or wrong role');
-      console.log('Searched for ID:', caseManagerId);
       
       const userExists = await User.findById(caseManagerId);
       if (userExists) {
-        console.log('⚠️  User exists but has role:', userExists.role);
+        
         return res.status(400).json({ 
           error: `User found but role is '${userExists.role}', not 'case_manager'` 
         });
@@ -386,41 +367,26 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     }
     
     if (!caseManager.isActive) {
-      console.log('❌ FAILED: Case manager account is inactive');
       return res.status(400).json({ 
         error: 'This case manager account is inactive' 
       });
     }
-    
-    console.log('✅ Step 3: Case manager found and active');
-    console.log('   Name:', caseManager.name || caseManager.username);
-    console.log('   Email:', caseManager.email);
 
-    console.log('🔍 Looking up appointment in database...');
     const appointment = await Appointment.findById(appointmentId);
     
     if (!appointment) {
-      console.log('❌ FAILED: Appointment not found');
-      console.log('Searched for ID:', appointmentId);
+      
       return res.status(404).json({ 
         error: 'Appointment not found' 
       });
     }
     
-    console.log('✅ Step 4: Appointment found');
-    console.log('   User ID:', appointment.user);
-    console.log('   Service:', appointment.service);
-    console.log('   Date:', appointment.date);
-    console.log('   Current Status:', appointment.status);
-    console.log('   Currently Assigned:', appointment.assignedCaseManager || 'None');
+    
 
     if (appointment.assignedCaseManager) {
-      console.log('⚠️  Appointment already has a case manager assigned');
-      console.log('   Current CM:', appointment.assignedCaseManager);
-      console.log('   Will reassign to new CM');
-    }
 
-    console.log('💾 Updating appointment...');
+      console.log('');
+    }
     const oldStatus = appointment.status;
     
     appointment.assignedCaseManager = caseManagerId;
@@ -429,16 +395,15 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     
     if (appointment.status === 'pending') {
       appointment.status = 'confirmed';
-      console.log('✅ Status auto-changed: pending → confirmed');
+
     }
 
     await appointment.save();
-    console.log('✅ Step 6: Appointment saved to database');
 
-    console.log('💾 Updating user assignedCaseManager field...');
+    console.log('');
     try {
       const userId = appointment.user;
-      console.log('   User ID to update:', userId);
+      
       
       const updatedUser = await User.findByIdAndUpdate(
         userId,
@@ -447,32 +412,18 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
       ).select('username email assignedCaseManager');
       
       if (updatedUser) {
-        console.log('✅ User assignedCaseManager updated successfully');
-        console.log('   Username:', updatedUser.username);
-        console.log('   Assigned CM:', updatedUser.assignedCaseManager);
+        console.log('');
       } else {
-        console.log('⚠️  User not found for update, but appointment assigned');
+        console.log('⚠️');
       }
     } catch (userUpdateErr) {
-      console.error('⚠️  Error updating user assignedCaseManager (non-critical):', userUpdateErr.message);
+      console.error('⚠️');
     }
-
-    console.log('🔄 Populating referenced documents...');
     await appointment.populate([
       { path: 'user', select: 'name email username fullName age gender location' },
       { path: 'assignedCaseManager', select: 'name username email' },
       { path: 'assignedBy', select: 'name username' }
     ]);
-    console.log('✅ Step 8: References populated');
-
-    console.log('═══════════════════════════════════════════════════');
-    console.log('🎉 ASSIGNMENT SUCCESSFUL!');
-    console.log('═══════════════════════════════════════════════════');
-    console.log('Appointment ID:', appointment._id);
-    console.log('Assigned to:', appointment.assignedCaseManager.name || appointment.assignedCaseManager.username);
-    console.log('Assigned by:', req.user.username);
-    console.log('Status:', `${oldStatus} → ${appointment.status}`);
-    console.log('═══════════════════════════════════════════════════');
 
     res.json({ 
       success: true,
@@ -481,13 +432,6 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     });
     
   } catch (err) {
-    console.error('═══════════════════════════════════════════════════');
-    console.error('❌ ASSIGNMENT ERROR');
-    console.error('═══════════════════════════════════════════════════');
-    console.error('Error Message:', err.message);
-    console.error('Error Stack:', err.stack);
-    console.error('Error Name:', err.name);
-    console.error('═══════════════════════════════════════════════════');
     
     res.status(500).json({ 
       error: 'Failed to assign case manager',
@@ -503,7 +447,6 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
 router.put('/appointments/:id/unassign', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const adminId = req.user.id;
-    console.log(`👤 Admin ${adminId} unassigning case manager from appointment ${req.params.id}`);
 
     const appointment = await Appointment.findById(req.params.id);
     if (!appointment) {
@@ -521,10 +464,8 @@ router.put('/appointments/:id/unassign', isAuthenticated, isAdmin, async (req, r
     await appointment.save();
     await appointment.populate('user', 'name email username');
 
-    console.log(`✅ Case manager unassigned from appointment ${req.params.id}`);
     res.json(appointment);
   } catch (err) {
-    console.error('❌ Error unassigning case manager:', err);
     res.status(500).json({ error: 'Failed to unassign case manager' });
   }
 });
@@ -586,10 +527,8 @@ router.put('/appointments/:id/status', isAuthenticated, isCaseManager, async (re
       { path: 'completedBy', select: 'name username' }
     ]);
 
-    console.log(`✅ Appointment status updated and notification sent`);
     res.json(appointment);
   } catch (err) {
-    console.error('❌ Error updating appointment status:', err);
     res.status(500).json({ error: 'Failed to update appointment status' });
   }
 });
@@ -601,8 +540,6 @@ router.put('/appointments/:id/cancel-request', isAuthenticated, isAdmin, async (
   try {
     const { approved } = req.body;
     const adminId = req.user.id;
-
-    console.log(`📋 Admin ${adminId} handling cancel request for appointment ${req.params.id}`);
 
     if (typeof approved !== 'boolean') {
       return res.status(400).json({ error: 'approved must be true or false' });
@@ -632,11 +569,8 @@ router.put('/appointments/:id/cancel-request', isAuthenticated, isAdmin, async (
       { path: 'user', select: 'name email username' },
       { path: 'cancelRequest.processedBy', select: 'name username' }
     ]);
-
-    console.log(`✅ Cancel request ${approved ? 'approved' : 'denied'} for appointment ${req.params.id}`);
     res.json(appointment);
   } catch (err) {
-    console.error('❌ Error handling cancel request:', err);
     res.status(500).json({ error: 'Failed to handle cancel request' });
   }
 });
@@ -696,10 +630,8 @@ router.post('/appointments/:id/session-note', isAuthenticated, isCaseManager, as
       { path: 'sessionTracking.sessionNotes.caseManagerId', select: 'name username' }
     ]);
 
-    console.log(`✅ Session note added and notification sent`);
     res.json(appointment);
   } catch (err) {
-    console.error('❌ Error adding session note:', err);
     res.status(500).json({ error: 'Failed to add session note' });
   }
 });
@@ -709,7 +641,6 @@ router.post('/appointments/:id/session-note', isAuthenticated, isCaseManager, as
 // ============================================
 router.delete('/appointments/:id', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    console.log(`🗑️ Admin deleting appointment ${req.params.id}`);
 
     const appointment = await Appointment.findByIdAndDelete(req.params.id);
     
@@ -717,10 +648,8 @@ router.delete('/appointments/:id', isAuthenticated, isAdmin, async (req, res) =>
       return res.status(404).json({ error: 'Appointment not found' });
     }
 
-    console.log(`✅ Appointment ${req.params.id} deleted`);
     res.json({ message: 'Appointment deleted successfully' });
   } catch (err) {
-    console.error('❌ Error deleting appointment:', err);
     res.status(500).json({ error: 'Failed to delete appointment' });
   }
 });
@@ -730,7 +659,6 @@ router.delete('/appointments/:id', isAuthenticated, isAdmin, async (req, res) =>
 // ============================================
 router.get('/saturday-requests', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    console.log('📅 Fetching Saturday appointment requests');
 
     const saturdayRequests = await Appointment.find({
       'saturdayRequest.requested': true,
@@ -739,15 +667,13 @@ router.get('/saturday-requests', isAuthenticated, isAdmin, async (req, res) => {
     })
     .populate('user', 'name email username')
     .sort({ 'saturdayRequest.requestedAt': -1 });
-
-    console.log(`✅ Found ${saturdayRequests.length} Saturday requests`);
     
     res.json({
       success: true,
       requests: saturdayRequests
     });
   } catch (err) {
-    console.error('❌ Error fetching Saturday requests:', err);
+
     res.status(500).json({ error: 'Failed to fetch Saturday requests' });
   }
 });
@@ -760,10 +686,6 @@ router.post('/saturday-requests/:id/process', isAuthenticated, isAdmin, async (r
     const { approved, adminNotes, adminResponse } = req.body;
     const adminId = req.user.id;
     const appointmentId = req.params.id;
-
-    console.log(`📅 Processing Saturday request for appointment: ${appointmentId}`);
-    console.log(`Decision: ${approved ? 'APPROVED' : 'REJECTED'}`);
-    console.log(`Admin Response: ${adminResponse || 'None'}`);
 
     if (typeof approved !== 'boolean') {
       return res.status(400).json({
@@ -809,16 +731,13 @@ router.post('/saturday-requests/:id/process', isAuthenticated, isAdmin, async (r
       ? '✅ Saturday appointment request approved'
       : '❌ Saturday appointment request rejected';
 
-    console.log(message);
-    console.log(`Response sent to user: ${appointment.saturdayRequest.adminResponse}`);
-
     res.json({
       success: true,
       message,
       appointment
     });
   } catch (err) {
-    console.error('❌ Error processing Saturday request:', err);
+
     res.status(500).json({
       error: 'Failed to process Saturday request',
       details: err.message
@@ -831,7 +750,6 @@ router.post('/saturday-requests/:id/process', isAuthenticated, isAdmin, async (r
 // ============================================
 router.get('/saturday-requests/all', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    console.log('📅 Fetching all Saturday appointment requests');
 
     const allRequests = await Appointment.find({
       'saturdayRequest.requested': true
@@ -855,7 +773,6 @@ router.get('/saturday-requests/all', isAuthenticated, isAdmin, async (req, res) 
       }
     });
   } catch (err) {
-    console.error('❌ Error fetching all Saturday requests:', err);
     res.status(500).json({ error: 'Failed to fetch Saturday requests' });
   }
 });

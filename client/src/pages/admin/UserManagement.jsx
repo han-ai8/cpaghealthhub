@@ -47,8 +47,7 @@ const UserManagement = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', username: '', isActive: true });
-  const [deletingId, setDeletingId] = useState(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  
 
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState('createdAt');
@@ -173,30 +172,6 @@ const UserManagement = () => {
     setError('');
   };
 
-  const promptDelete = (id) => {
-    setDeletingId(id);
-    setShowDeleteConfirm(true);
-    setError('');
-    setSuccessMsg('');
-  };
-
-  const handleDeleteConfirmed = async () => {
-    if (!deletingId) return;
-    setActioning(true);
-    setError('');
-    try {
-      await api.delete(`/auth/users/${deletingId}`);
-      setUsers((prev) => prev.filter((u) => u.id !== deletingId));
-      setSuccessMsg('User deleted successfully');
-    } catch (err) {
-      console.error('Delete error:', err);
-      setError(err?.message || 'Failed to delete user');
-    } finally {
-      setShowDeleteConfirm(false);
-      setDeletingId(null);
-      setActioning(false);
-    }
-  };
 
   return (
     <div className="min-h-screen border rounded-lg bg-slate-50 p-4 sm:p-6 lg:p-8">
@@ -344,13 +319,7 @@ const UserManagement = () => {
                       >
                         Edit
                       </button>
-                      <button
-                        onClick={() => promptDelete(user.id)}
-                        disabled={actioning}
-                        className="flex-1 px-3 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50"
-                      >
-                        Delete
-                      </button>
+                     
                     </div>
                   </div>
                 ))
@@ -410,13 +379,7 @@ const UserManagement = () => {
                             >
                               Edit
                             </button>
-                            <button
-                              onClick={() => promptDelete(user.id)}
-                              disabled={actioning}
-                              className="px-3 py-1 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-                            >
-                              Delete
-                            </button>
+                            
                           </div>
                         </td>
                       </tr>
@@ -539,7 +502,7 @@ const UserManagement = () => {
                     <p className="text-xs text-slate-500">
                       {editForm.isActive 
                         ? 'Active - User can login normally' 
-                        : 'Inactive - User cannot login (account suspended)'}
+                        : 'Restricted - User cannot login (account suspended)'}
                     </p>
                   </div>
                 </label>
@@ -577,48 +540,7 @@ const UserManagement = () => {
         </div>
       )}
 
-      {/* Delete confirmation modal - Responsive */}
-      {showDeleteConfirm && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-40 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => !actioning && setShowDeleteConfirm(false)} />
-          <div className="relative w-full max-w-md bg-white rounded-lg shadow-xl overflow-hidden z-50">
-            <div className="px-4 sm:px-6 py-5">
-              <h3 className="text-lg font-semibold text-slate-800">Confirm delete</h3>
-              <p className="text-sm text-slate-600 mt-2">
-                Are you sure you want to permanently delete this user? This action{' '}
-                <span className="font-medium">cannot</span> be undone.
-              </p>
-
-              <div className="mt-4 flex flex-col sm:flex-row justify-end gap-2">
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  disabled={actioning}
-                  className="px-4 py-2 rounded-md bg-white border border-slate-200 text-sm order-2 sm:order-1"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeleteConfirmed}
-                  disabled={actioning}
-                  className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 text-sm inline-flex items-center justify-center gap-2 order-1 sm:order-2"
-                >
-                  {actioning ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" d="M4 12a8 8 0 018-8v8z" fill="currentColor" />
-                      </svg>
-                      Deleting...
-                    </>
-                  ) : (
-                    'Delete'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      
     </div>
   );
 };

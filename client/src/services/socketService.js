@@ -1,6 +1,8 @@
+// src/socket/socketService.js or wherever your socket service is
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'http://localhost:5000';
+// Use environment variable for production, fallback to localhost for development
+const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
 class SocketService {
   constructor() {
@@ -15,20 +17,28 @@ class SocketService {
 
     this.socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
-      withCredentials: true
+      withCredentials: true,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5
     });
 
     this.socket.on('connect', () => {
+      console.log('✅ Socket connected');
       this.socket.emit('join_user_room', userId);
       this.socket.emit('join_chat', userId);
     });
 
     this.socket.on('disconnect', () => {
-      console.log();
+      console.log('❌ Socket disconnected');
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('error:', error);
+      console.error('Socket connection error:', error);
+    });
+
+    this.socket.on('room_joined', (data) => {
+      console.log('✅ Joined room:', data);
     });
   }
 
@@ -42,7 +52,7 @@ class SocketService {
 
   on(event, callback) {
     if (!this.socket) {
-      console.error('Error');
+      console.error('Socket not initialized');
       return;
     }
 
@@ -70,10 +80,14 @@ class SocketService {
 
   emit(event, data) {
     if (!this.socket) {
-      console.error('error');
+      console.error('Socket not initialized');
       return;
     }
     this.socket.emit(event, data);
+  }
+
+  isConnected() {
+    return this.socket?.connected || false;
   }
 }
 

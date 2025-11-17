@@ -92,8 +92,7 @@ const Header = ({ toggleSidebar, unreadCount }) => {
 
   // Show logout confirmation toast
   const handleLogoutClick = () => {
-    setShowLogoutConfirm(true);
-    toast.warning('Are you sure you want to logout?', 0); // 0 duration = stays until dismissed
+    setShowLogoutConfirm(true); 
   };
 
   // Confirm logout
