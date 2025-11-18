@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Eye, EyeOff, AlertTriangle } from 'lucide-react';
-
+import api from '../../utils/api';
 import ideaImage from '../../assets/idea-new.png';
 import logoImage from '../../assets/logo-header.png';
 
@@ -28,82 +28,52 @@ export default function AdminLogin() {
     }
   };
 
-  const handleSubmit = async e => {
-    e.preventDefault();
-    setError('');
-    setWarning('');
-    setRemainingAttempts(null);
-    setLoading(true);
-    
-    try {
-      const apiUrl = `${import.meta.env.VITE_API_URL}/auth/admin/login`;
-      
-      const res = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(form),
-      });
-      
-      const data = await res.json();
+  // In handleSubmit function:
+const handleSubmit = async e => {
+  e.preventDefault();
+  setError('');
+  setWarning('');
+  setRemainingAttempts(null);
+  setLoading(true);
+  
+  try {
+    // ✅ USE api.post instead of fetch
+    const data = await api.post('/auth/admin/login', {
+      email: form.email,
+      password: form.password
+    });
 
-      if (res.ok) {
-        if (data.token) {
-          localStorage.setItem('token', data.token);
-        }
-        
-        await checkSession();
-        
-        const roleNames = {
-          admin: 'Administrator',
-          case_manager: 'Case Manager',
-          content_moderator: 'Content Moderator'
-        };
-        
-        toast.success(`Welcome back, ${roleNames[data.user.role]}!`);
-        
-        setTimeout(() => {
-          if (data.user.role === 'admin') {
-            navigate('/admin/dashboard');
-          } else if (data.user.role === 'case_manager') {
-            navigate('/admin/planner');
-          } else if (data.user.role === 'content_moderator') {
-            navigate('/admin/community');
-          }
-        }, 1000);
-      } else {
-        if (res.status === 429) {
-          if (data.locked) {
-            setError('Account locked for 24 hours due to too many failed attempts. Please contact the administrator.');
-            toast.error('Account locked! Contact administrator.');
-          } else if (data.delay) {
-            setError(data.msg);
-            toast.error(data.msg);
-          }
-        } else {
-          setError(data.msg || 'Login failed');
-          
-          if (data.remainingAttempts !== undefined) {
-            setRemainingAttempts(data.remainingAttempts);
-            
-            if (data.warning) {
-              setWarning(data.warning);
-              toast.warning(data.warning);
-            }
-          }
-          
-          toast.error(data.msg || 'Invalid credentials');
-        }
-      }
-    } catch (err) {
-      console.error('Login error:', err);
-      setError('Network error. Please try again.');
-      toast.error('Network error. Please try again.');
-    } finally {
-      setLoading(false);
+    if (data.token) {
+      localStorage.setItem('token', data.token);
     }
-  };
-
+    
+    await checkSession();
+    
+    const roleNames = {
+      admin: 'Administrator',
+      case_manager: 'Case Manager',
+      content_moderator: 'Content Moderator'
+    };
+    
+    toast.success(`Welcome back, ${roleNames[data.user.role]}!`);
+    
+    setTimeout(() => {
+      if (data.user.role === 'admin') {
+        navigate('/admin/dashboard');
+      } else if (data.user.role === 'case_manager') {
+        navigate('/admin/planner');
+      } else if (data.user.role === 'content_moderator') {
+        navigate('/admin/community');
+      }
+    }, 1000);
+  } catch (err) {
+    console.error('Login error:', err);
+    setError(err.message || 'Login failed');
+    toast.error(err.message || 'Login failed');
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-base-100">
       {/* Left Side */}
