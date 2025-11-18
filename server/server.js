@@ -90,7 +90,7 @@ app.use((req, res, next) => {
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
-      mongoUrl: process.env.MONGO_URI,
+      mongoUrl: process.env.MONGODB_URL,
       collectionName: isAdminRoute ? 'admin_sessions' : 'user_sessions'
     }),
     cookie: {
