@@ -4,6 +4,7 @@ import { Bell, User } from 'lucide-react';
 import { HiMenu } from 'react-icons/hi';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import logoHeader from '../assets/logo-header.png';
 
 const Header = ({ toggleSidebar, unreadCount }) => {
   const location = useLocation();
@@ -151,7 +152,7 @@ const Header = ({ toggleSidebar, unreadCount }) => {
         {/* Logo Section */}
         <Link to="/user/home" className="hover:opacity-80 transition-opacity duration-200">
             <img 
-              src="/src/assets/logo-header.png" 
+              src={logoHeader} 
               alt="Logo" 
               className="w-20 h-15  md:w-30 md:h-15 lg:w-60 lg:h-10 hover:scale-105 transition-transform duration-200" 
             />

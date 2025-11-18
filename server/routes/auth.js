@@ -149,7 +149,7 @@ const router = express.Router();
 // ✅ User Register (Enhanced with email verification)
 // In your auth.js routes file, update the user/register route:
 
-router.post('/api/user/register', [
+router.post('/user/register', [
   body('username')
     .trim()
     .isLength({ min: 3, max: 20 })

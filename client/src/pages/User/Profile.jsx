@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../components/ConfirmModal';
 import { Eye, EyeOff } from 'lucide-react';
+import userPfp from '../../assets/userPfp.png';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -346,7 +347,7 @@ const Profile = () => {
             <div className="avatar placeholder mx-auto">
               <div className="text-neutral-content rounded-full w-30 h-24 flex items-center justify-center">
                 <img
-                  src="/src/assets/userPfp.png"
+                  src={userPfp}
                   alt="Profile"
                   onError={(e) => e.target.style.display = 'none'}
                 />

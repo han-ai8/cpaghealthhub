@@ -4,6 +4,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Eye, EyeOff } from 'lucide-react';
+import ideaImage from '../../assets/idea-new.png';
+import logoImage from '../../assets/logo-header.png';
 
 export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -12,7 +14,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const navigate = useNavigate();
-  const { login, checkSession } = useAuth();
+  const { checkSession } = useAuth();
   const toast = useToast();
 
   const handleChange = e => {
@@ -111,7 +113,7 @@ export default function Login() {
       <div className="w-full md:w-1/2 bg-[#4c8dd8] flex flex-col items-center justify-center p-8 md:p-12 shadow-xl">
         <h1 className="mb-6">
           <img 
-            src="/src/assets/idea-new.png" 
+            src={ideaImage}
             alt="HealthHub Promotion" 
             className="w-300 h-200 rounded-3xl hover:scale-105" 
           />
@@ -124,7 +126,7 @@ export default function Login() {
         <div className="w-full max-w-md mx-auto space-y-6">
           <div className="text-center justify-center items-center flex flex-col">
             <img 
-              src="/src/assets/logo-header.png" 
+              src={logoImage} 
               alt="HealthHub Logo" 
               className="rounded-lg w-500 h-300 hover:scale-105 mb-4" 
             />

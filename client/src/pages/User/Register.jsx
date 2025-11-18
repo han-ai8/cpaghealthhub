@@ -3,6 +3,9 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { Eye, EyeOff, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import api from '../../utils/api';
+import ideaImage from '../../assets/idea-new.png';
+import logoImage from '../../assets/logo-header.png';
 
 // Profanity/Inappropriate words filter
 const inappropriateWords = [
@@ -63,7 +66,7 @@ const calculatePasswordStrength = (password) => {
     uppercase: /[A-Z]/.test(password),
     lowercase: /[a-z]/.test(password),
     number: /[0-9]/.test(password),
-    special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
+    special: /[!@#$%^&*()_+\-=\\[\]{};':"\\|,.<>\\/?]/.test(password),
   };
   
   if (checks.length) strength += 20;
@@ -163,48 +166,34 @@ export default function Register() {
     
     setLoading(true);
     
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ 
-          username: form.username, 
-          email: form.email, 
-          password: form.password 
-        })
+     try {
+      // ✅ FIX: Use api.post instead of fetch
+      const data = await api.post('/auth/user/register', {
+        username: form.username,
+        email: form.email,
+        password: form.password
       });
       
-      const data = await res.json();
-      
-      if (res.ok) {
-        // ✅ Check if email verification is required
-        if (data.requiresVerification) {
-          toast.success('Registration successful! Please check your email for verification code.');
-          // Store email for verification page
-          localStorage.setItem('verificationEmail', form.email);
-          // Redirect to verification page
-          setTimeout(() => {
-            navigate('/user/verify-email', { 
-              state: { email: form.email } 
-            });
-          }, 1500);
-        } else {
-          // Old flow (if backend doesn't require verification yet)
-          toast.success('Account created successfully! Please log in to continue.');
-          setTimeout(() => {
-            navigate('/user/login');
-          }, 1500);
-        }
+      // ✅ Check if email verification is required
+      if (data.requiresVerification) {
+        toast.success('Registration successful! Please check your email for verification code.');
+        localStorage.setItem('verificationEmail', form.email);
+        setTimeout(() => {
+          navigate('/user/verify-email', { 
+            state: { email: form.email } 
+          });
+        }, 1500);
       } else {
-        const errorMsg = data.msg || data.errors?.[0]?.msg || 'Registration failed';
-        toast.error(errorMsg);
-        setError(errorMsg);
+        toast.success('Account created successfully! Please log in to continue.');
+        setTimeout(() => {
+          navigate('/user/login');
+        }, 1500);
       }
     } catch (err) {
       console.error('Registration error:', err);
-      toast.error('Server error. Please try again later.');
-      setError('Server error. Please try again.');
+      const errorMsg = err.message || 'Registration failed';
+      toast.error(errorMsg);
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -217,7 +206,7 @@ export default function Register() {
         <div className="w-full md:w-1/2 bg-[#4c8dd8] flex flex-col items-center justify-center p-8 md:p-12 shadow-xl">
           <h1 className="mb-6">
             <img 
-              src="/src/assets/idea-new.png" 
+              src={ideaImage}
               alt="HealthHub Promotion" 
               className="w-200 h-200 rounded-3xl hover:scale-105" 
             />
@@ -229,7 +218,7 @@ export default function Register() {
           <div className="w-full max-w-md mx-auto space-y-6">
             <div className="text-center justify-center items-center flex flex-col">
               <img 
-                src="/src/assets/logo-header.png" 
+                src={logoImage}
                 alt="HealthHub Logo" 
                 className="rounded-lg w-500 h-300 hover:scale-105 mb-4" 
               />
