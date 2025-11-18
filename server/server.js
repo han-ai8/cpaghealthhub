@@ -90,7 +90,11 @@ app.use((req, res, next) => {
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
+<<<<<<< HEAD
       mongoUrl: process.env.MONGODB_URL || 'mongodb+srv://leoStack:leoStack783@cluster0.hbbl7hg.mongodb.net',
+=======
+      mongoUrl: process.env.MONGODB_URL,
+>>>>>>> bd4823273934c361da846d92240c0593b94f6e0f
       collectionName: isAdminRoute ? 'admin_sessions' : 'user_sessions'
     }),
     cookie: {
