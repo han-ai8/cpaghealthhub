@@ -1,6 +1,6 @@
 // src/utils/api.js - Centralized API client with automatic token handling
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 /**
  * Makes an authenticated API request with automatic token handling
