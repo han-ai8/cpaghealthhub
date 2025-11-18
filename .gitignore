@@ -14,3 +14,4 @@ logs/
 coverage/
 server/.env
 client/.env
+
