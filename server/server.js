@@ -4,6 +4,7 @@ dotenv.config();
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/emailService.js';
 
 import session from 'express-session';
 import MongoStore from 'connect-mongo';
