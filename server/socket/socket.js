@@ -1,5 +1,5 @@
 // socket/socket.js (Updated with Production CORS)
-import express from 'express';
+import { Server } from 'socket.io';
 
 export const initializeSocket = (server) => {
   const io = new Server(server, {
