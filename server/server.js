@@ -34,6 +34,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const server = http.createServer(app);
 const io = initializeSocket(server);
+app.set('io', io);
+
 
 const notificationService = new NotificationService(io);
 
