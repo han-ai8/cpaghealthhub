@@ -1,9 +1,9 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "scripts": {
-    "start": "node server.js"
-  },
+"scripts": {
+  "start": "node server/socket/socket.js"
+}
   "dependencies": {
     "jwt-decode": "^4.0.0",
     "multer": "^2.0.2",
