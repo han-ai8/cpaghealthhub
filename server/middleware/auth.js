@@ -86,7 +86,6 @@ export const isAdmin = async (req, res, next) => {
       });
     }
 
-    console.log('✅ Admin access granted');
     next();
   } catch (err) {
     res.status(500).json({ 

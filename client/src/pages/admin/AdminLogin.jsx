@@ -28,52 +28,81 @@ export default function AdminLogin() {
     }
   };
 
-  // In handleSubmit function:
-const handleSubmit = async e => {
-  e.preventDefault();
-  setError('');
-  setWarning('');
-  setRemainingAttempts(null);
-  setLoading(true);
-  
-  try {
-    // ✅ USE api.post instead of fetch
-    const data = await api.post('/auth/admin/login', {
-      email: form.email,
-      password: form.password
-    });
+  const handleSubmit = async e => {
+    e.preventDefault();
+    setError('');
+    setWarning('');
+    setRemainingAttempts(null);
+    setLoading(true);
+    
+    try {
+      
+      const res = await api.get('/auth/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(form),
+      });
+      
+      const data = await res.json();
 
-    if (data.token) {
-      localStorage.setItem('token', data.token);
-    }
-    
-    await checkSession();
-    
-    const roleNames = {
-      admin: 'Administrator',
-      case_manager: 'Case Manager',
-      content_moderator: 'Content Moderator'
-    };
-    
-    toast.success(`Welcome back, ${roleNames[data.user.role]}!`);
-    
-    setTimeout(() => {
-      if (data.user.role === 'admin') {
-        navigate('/admin/dashboard');
-      } else if (data.user.role === 'case_manager') {
-        navigate('/admin/planner');
-      } else if (data.user.role === 'content_moderator') {
-        navigate('/admin/community');
+      if (res.ok) {
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+        }
+        
+        await checkSession();
+        
+        const roleNames = {
+          admin: 'Administrator',
+          case_manager: 'Case Manager',
+          content_moderator: 'Content Moderator'
+        };
+        
+        toast.success(`Welcome back, ${roleNames[data.user.role]}!`);
+        
+        setTimeout(() => {
+          if (data.user.role === 'admin') {
+            navigate('/admin/dashboard');
+          } else if (data.user.role === 'case_manager') {
+            navigate('/admin/planner');
+          } else if (data.user.role === 'content_moderator') {
+            navigate('/admin/community');
+          }
+        }, 1000);
+      } else {
+        if (res.status === 429) {
+          if (data.locked) {
+            setError('Account locked for 24 hours due to too many failed attempts. Please contact the administrator.');
+            toast.error('Account locked! Contact administrator.');
+          } else if (data.delay) {
+            setError(data.msg);
+            toast.error(data.msg);
+          }
+        } else {
+          setError(data.msg || 'Login failed');
+          
+          if (data.remainingAttempts !== undefined) {
+            setRemainingAttempts(data.remainingAttempts);
+            
+            if (data.warning) {
+              setWarning(data.warning);
+              toast.warning(data.warning);
+            }
+          }
+          
+          toast.error(data.msg || 'Invalid credentials');
+        }
       }
-    }, 1000);
-  } catch (err) {
-    console.error('Login error:', err);
-    setError(err.message || 'Login failed');
-    toast.error(err.message || 'Login failed');
-  } finally {
-    setLoading(false);
-  }
-};
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Network error. Please try again.');
+      toast.error('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-base-100">
       {/* Left Side */}

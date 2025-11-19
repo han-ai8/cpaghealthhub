@@ -1,7 +1,7 @@
 // User/pages/ArticleDetail.jsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../utils/api';
 
 const ArticleDetail = () => {
   const { id } = useParams();
@@ -16,7 +16,7 @@ const ArticleDetail = () => {
 
   const fetchArticle = async () => {
     try {
-      const response = await axios.get(`/api/articles/${id}`);
+      const response = await api.get(`/api/articles/${id}`);
       setArticle(response.data);
       setLoading(false);
     } catch (err) {

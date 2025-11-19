@@ -239,7 +239,6 @@ router.post('/appointments/:id/next-session', isAuthenticated, isCaseManager, as
     const caseManagerId = req.user.id;
     const currentAppointmentId = req.params.id;
 
-    console.log('📅 Creating next session for appointment:', currentAppointmentId);
 
     // Get current appointment
     const currentAppointment = await Appointment.findById(currentAppointmentId)
@@ -285,8 +284,6 @@ router.post('/appointments/:id/next-session', isAuthenticated, isCaseManager, as
 
     const nextSessionNumber = lastSessionNumber + 1;
 
-    console.log(`📊 Last session: ${lastSessionNumber}, Next session: ${nextSessionNumber}`);
-
     // Create next session appointment
     const nextAppointment = new Appointment({
       user: currentAppointment.user._id,
@@ -317,8 +314,6 @@ router.post('/appointments/:id/next-session', isAuthenticated, isCaseManager, as
       { path: 'assignedCaseManager', select: 'name username email' }
     ]);
 
-    console.log('✅ Next session created:', nextAppointment._id);
-
     res.status(201).json({
       success: true,
       message: `Session #${nextSessionNumber} scheduled successfully`,
@@ -342,7 +337,6 @@ router.post('/appointments/:id/session-summary', isAuthenticated, isCaseManager,
     const caseManagerId = req.user.id;
     const appointmentId = req.params.id;
 
-    console.log('📝 Adding session summary for appointment:', appointmentId);
 
     if (!notes) {
       return res.status(400).json({ error: 'Session notes are required' });
@@ -501,7 +495,6 @@ router.post('/appointments/:id/complete-program', isAuthenticated, isCaseManager
     const caseManagerId = req.user.id;
     const appointmentId = req.params.id;
 
-    console.log('✅ Completing program for appointment:', appointmentId);
 
     const appointment = await Appointment.findById(appointmentId);
 
@@ -535,7 +528,6 @@ router.post('/appointments/:id/complete-program', isAuthenticated, isCaseManager
       { path: 'completedBy', select: 'name username' }
     ]);
 
-    console.log('✅ Program marked as completed');
 
     res.json({
       success: true,
@@ -559,7 +551,6 @@ router.get('/patients/:userId/sessions', isAuthenticated, isCaseManager, async (
     const { userId } = req.params;
     const caseManagerId = req.user.id;
 
-    console.log('📚 Fetching session history for user:', userId);
 
     const appointments = await Appointment.find({
       user: userId,
@@ -592,7 +583,6 @@ router.get('/patients/:userId/program-report', isAuthenticated, isCaseManager, a
     const { userId } = req.params;
     const caseManagerId = req.user.id;
 
-    console.log('📄 Generating program report for user:', userId);
 
     // Get user details
     const user = await User.findById(userId).select('name email username fullName age gender location');
@@ -681,8 +671,6 @@ router.get('/patients/:userId/program-report', isAuthenticated, isCaseManager, a
       psychosocialInfo: appointments[0]?.psychosocialInfo || null
     };
 
-    console.log('✅ Program report generated');
-
     res.json({
       success: true,
       report
@@ -704,8 +692,6 @@ router.get('/patients/:userId/unified-history', isAuthenticated, isCaseManager, 
   try {
     const { userId } = req.params;
     const caseManagerId = req.user.id;
-
-    console.log('📚 Fetching unified session history for user:', userId);
 
     const appointments = await Appointment.find({
       user: userId,
@@ -797,13 +783,6 @@ router.get('/patients/:userId/unified-history', isAuthenticated, isCaseManager, 
       psychosocialInfo: appointments[0].psychosocialInfo
     };
 
-    console.log(`👤 Patient info extracted:`, {
-      age: patientInfo.age,
-      gender: patientInfo.gender,
-      location: patientInfo.location,
-      source: appointments[0].psychosocialInfo ? 'psychosocialInfo' : 'user object'
-    });
-
     // Get case manager info
     const caseManagerInfo = {
       name: appointments[0].assignedCaseManager?.name || appointments[0].assignedCaseManager?.username,
@@ -834,10 +813,6 @@ router.get('/patients/:userId/unified-history', isAuthenticated, isCaseManager, 
       totalAppointments: appointments.length,
       generatedAt: new Date()
     };
-
-    console.log(`✅ Unified history generated: ${totalSessionsCompleted} sessions across ${appointments.length} appointments`);
-    console.log(`📅 Date range: ${earliestSessionDate} to ${latestSessionDate}`);
-    console.log(`✅ Last completed: ${latestCompletedDate}`);
 
     res.json({
       success: true,

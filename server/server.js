@@ -1,7 +1,10 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
-import 'dotenv/config';
+
 import session from 'express-session';
 import MongoStore from 'connect-mongo';
 import connectDB from './configs/db.js';
@@ -23,6 +26,7 @@ import adminManagementRoutes from './routes/adminManagement.js';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,6 +55,8 @@ app.use(cors({
     const allowedOrigins = process.env.CORS_ORIGINS 
       ? process.env.CORS_ORIGINS.split(',')
       : [
+          'https://cpaghealthhub-qyuh.onrender.com',
+          'https://api.cpaghealthhub.com',
           'https://www.cpaghealthhub.com',
           'https://cpaghealthhub.com',
           'http://localhost:5173',

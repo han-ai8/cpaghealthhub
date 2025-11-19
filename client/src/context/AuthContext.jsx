@@ -26,11 +26,10 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      console.log('🔍 Checking session with token...');
       
       const data = await api.get('/auth/me');
       
-      console.log('✅ Session valid - User:', data.user.username, 'Role:', data.user.role);
+      console.log('..');
       
       // Set user with exact data from backend
       setUser({
@@ -47,7 +46,6 @@ export const AuthProvider = ({ children }) => {
       
       // If token is invalid, it's already removed by api.js
       if (err.message.includes('expired') || err.message.includes('401')) {
-        console.log('❌ Token invalid/expired - clearing session');
         localStorage.removeItem('token');
       }
       
@@ -64,16 +62,13 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password, isAdmin = false) => {
     const endpoint = isAdmin ? '/auth/admin/login' : '/auth/user/login';
     
-    console.log('🔐 Attempting login:', { email, isAdmin });
 
     try {
       const data = await api.post(endpoint, { email, password });
       
-      console.log('✅ Login successful - User:', data.user.username, 'Role:', data.user.role);
       
       if (data.token) {
         localStorage.setItem('token', data.token);
-        console.log('💾 Token stored');
       }
       
       // Set user with exact data from backend response
@@ -108,8 +103,6 @@ export const AuthProvider = ({ children }) => {
   const register = async (username, email, password, isAdmin = false) => {
     const endpoint = isAdmin ? '/auth/admin/register' : '/auth/user/register';
     
-    console.log('📝 Attempting registration:', { username, email, isAdmin });
-
     try {
       const data = await api.post(endpoint, { username, email, password });
       

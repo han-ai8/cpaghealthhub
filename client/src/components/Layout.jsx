@@ -36,7 +36,6 @@ const Layout = ({ children }) => {
   }, [user]);
 
   const handleNewNotification = (notification) => {
-    console.log('🔔 New notification received:', notification);
     setUnreadCount(prev => prev + 1);
     
     // Show browser notification if permitted
@@ -59,13 +58,7 @@ const Layout = ({ children }) => {
   };
 
   useEffect(() => {
-    console.log('═══════════════════════════════════');
-    console.log('🏗️ Layout - User Profile Status:');
-    console.log('Loading:', loading);
-    console.log('Has Error:', !!error);
-    console.log('User Data:', userData);
-    console.log('Unread Notifications:', unreadCount);
-    console.log('═══════════════════════════════════');
+    
   }, [userData, loading, error, unreadCount]);
 
   return (

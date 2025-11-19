@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../components/ConfirmModal';
 import api from '../../utils/api';
+import { getImageUrl } from '../../utils/api';
 import {
   User,
   CheckCircle,
@@ -786,7 +787,7 @@ const Dashboard = () => {
                 <p className="font-semibold text-slate-800">{announcement.title}</p>
                 <p className="text-sm text-slate-700">{announcement.content}</p>
                 {announcement.image && (
-                  <img src={`${API_URL.replace('/api', '')}${announcement.image}`} alt="Announcement" className="w-full mt-2 rounded" />
+                  <img src={getImageUrl(announcement.image)} alt="Announcement" className="w-full mt-2 rounded" />
                 )}
               </div>
             ) : (
@@ -1006,7 +1007,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                     {post.image && (
-                      <img src={`${API_URL.replace('/api', '')}${post.image}`} alt="post" className="max-w-xs mb-2 rounded" />
+                      <img src={getImageUrl(post.image)} alt="post" className="max-w-xs mb-2 rounded" />
                     )}
                     <p className="text-xs text-slate-500 mb-2">{new Date(post.createdAt).toLocaleString()}</p>
                     <div className="flex gap-2">

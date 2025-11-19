@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
-
+import api from '../../utils/api';
 export default function AdminForgotPassword() {
   const [step, setStep] = useState(1); // 1: email, 2: code, 3: new password
   const [email, setEmail] = useState('');
@@ -19,7 +19,7 @@ export default function AdminForgotPassword() {
   try {
     console.log('Sending code to:', email); // Debug log
     
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/admin/forgot-password`, {
+    const res = await api.get('/auth/admin/forgot-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email.toLowerCase().trim() })
@@ -70,7 +70,7 @@ export default function AdminForgotPassword() {
       codeLength: trimmedCode.length 
     });
     
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/admin/verify-reset-code`, {
+    const res = await api.get('/auth/admin/verify-reset-code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 

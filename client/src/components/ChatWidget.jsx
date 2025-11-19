@@ -22,7 +22,6 @@ export default function ChatWidget({ user }) {
 
   // --- Debug logs ---
   useEffect(() => {
-    console.log('ChatWidget initialized', { user });
   }, [user]);
 
   // ✅ Connect to socket and set up listeners
@@ -50,7 +49,6 @@ export default function ChatWidget({ user }) {
 
     // ✅ Listen for unread count updates
     const handleUnreadCountUpdate = ({ unreadCount: count }) => {
-      console.log('📬 Socket: Unread count updated to', count);
       setUnreadCount(count);
     };
 
@@ -94,10 +92,9 @@ export default function ChatWidget({ user }) {
       
       if (res.data?.success) {
         setUnreadCount(res.data.unreadCount || 0);
-        console.log('📬 Unread count updated:', res.data.unreadCount);
       }
     } catch (err) {
-      console.warn('Failed to fetch unread count', err?.response?.data || err.message);
+      console.error('Failed to fetch unread count', err);
     }
   };
 
@@ -119,7 +116,6 @@ export default function ChatWidget({ user }) {
   // --- API calls ---
   const fetchMessages = async () => {
     if (noCaseManager) {
-      console.log('❌ No case manager assigned');
       return;
     }
 

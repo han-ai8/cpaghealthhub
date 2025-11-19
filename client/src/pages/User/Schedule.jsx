@@ -3,7 +3,6 @@ import { Eye, X, Calendar, Clock, MapPin, AlertCircle, Edit, Mail, History, File
 import SessionTimelineModal from '../../components/SessionTimelineModal';
 import CaviteLocationSelect from '../../components/CaviteLocationSelect';
 import { GENDER_IDENTITIES } from '../../constants/genderIdentities';
-import CpagBanner from '../../assets/cover-cpag-new.png';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -114,7 +113,7 @@ const Schedule = () => {
       if (response.ok) {
         const data = await response.json();
         setClinicSchedule(data);
-        console.log('✅ Clinic schedule loaded:', data.length);
+        
       }
     } catch (err) {
       console.error('Error fetching clinic schedule:', err);
@@ -140,7 +139,6 @@ const Schedule = () => {
 
   useEffect(() => {
     const calendarInterval = setInterval(() => {
-      console.log('🔄 Auto-refreshing calendar slots...');
       fetchBookedSlots();
       fetchClinicSchedule();
       setLastUpdate(new Date());
@@ -151,7 +149,6 @@ const Schedule = () => {
 
   useEffect(() => {
     if (showDateTimeModal) {
-      console.log('📅 Calendar opened - refreshing slots');
       fetchBookedSlots();
       fetchClinicSchedule();
       setLastUpdate(new Date());
@@ -163,7 +160,6 @@ const Schedule = () => {
       const response = await fetch(`${API_URL}/appointments/booked-slots`);
       const data = await response.json();
       setBookedSlots(data);
-      console.log('✅ Booked slots updated:', data.length);
     } catch (err) {
       console.error('Error fetching booked slots:', err);
     }
@@ -242,7 +238,6 @@ const Schedule = () => {
     });
     
     if (closure) {
-      console.log(`❌ Date ${dateStr} is closed: ${closure.title}`);
       return false;
     }
     
@@ -579,7 +574,7 @@ const Schedule = () => {
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center px-5">
               <img 
-                src={CpagBanner} 
+                src="/src/assets/cover-cpag-new.png" 
                 alt="CPAG Region IV-A Banner" 
                 className=" rounded-lg w-full max-w-4xl mx-auto h-auto"
               />

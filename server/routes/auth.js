@@ -971,14 +971,9 @@ router.put('/password', [
     return true;
   })
 ], async (req, res) => {
-  console.log('═══════════════════════════════════');
-  console.log('🔐 Password change request received');
-  console.log('User from middleware:', req.user);
-  console.log('Request body keys:', Object.keys(req.body));
   
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    console.log('❌ Validation errors:', errors.array());
     return res.status(400).json({ 
       msg: errors.array()[0].msg,
       errors: errors.array() 
@@ -996,57 +991,44 @@ router.put('/password', [
   }
 
   try {
-    console.log('📍 Looking up user:', userId);
     
     // Must explicitly select password field since it has select: false in schema
     const user = await User.findById(userId).select('+password');
     
     if (!user) {
-      console.log('❌ User not found:', userId);
       return res.status(404).json({ msg: 'User not found' });
     }
 
-    console.log('✅ User found:', user.username);
 
     // Check if password field exists
     if (!user.password) {
-      console.log('❌ Password field missing from user document');
       return res.status(500).json({ msg: 'User password data is invalid' });
     }
 
     // Verify current password
-    console.log('🔍 Verifying current password...');
     const isMatch = await user.comparePassword(currentPassword);
     
     if (!isMatch) {
-      console.log('❌ Current password is incorrect');
       return res.status(400).json({ msg: 'Current password is incorrect' });
     }
 
-    console.log('✅ Current password verified');
 
     // Check if new password is different from current
     const isSamePassword = await user.comparePassword(newPassword);
     if (isSamePassword) {
-      console.log('❌ New password same as current');
       return res.status(400).json({ 
         msg: 'New password must be different from current password' 
       });
     }
 
     // Update password (will be hashed by pre-save hook in User model)
-    console.log('💾 Updating password...');
+   
     user.password = newPassword;
     await user.save();
-
-    console.log('✅ Password changed successfully for user:', user.username);
-    console.log('═══════════════════════════════════');
-
     res.json({ msg: 'Password changed successfully' });
   } catch (err) {
     console.error('❌ Password change error:', err);
     console.error('Error stack:', err.stack);
-    console.log('═══════════════════════════════════');
     res.status(500).json({ 
       msg: 'Server error while changing password',
       error: process.env.NODE_ENV === 'development' ? err.message : undefined
@@ -1118,8 +1100,7 @@ router.post('/admin/forgot-password', [
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    console.log('🔐 Admin forgot password request for:', normalizedEmail);
-
+   
     // Find admin user - don't need to select password here
     const user = await User.findOne({ 
       email: normalizedEmail,
@@ -1127,35 +1108,30 @@ router.post('/admin/forgot-password', [
     });
 
     if (!user) {
-      console.log('⚠️ Admin not found, but returning success (security)');
       // Don't reveal if admin exists for security
       return res.json({ 
         msg: 'If an admin account exists with this email, a password reset code has been sent.' 
       });
     }
 
-    console.log('✅ Admin found:', user.username);
 
     // Generate reset code
     const resetCode = generateVerificationCode();
     const resetCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-    console.log('🔑 Generated reset code:', resetCode);
-    console.log('⏰ Code expires at:', new Date(resetCodeExpires));
 
     // Update user with reset code
     user.resetPasswordCode = resetCode;
     user.resetPasswordExpires = resetCodeExpires;
     await user.save();
 
-    console.log('💾 Reset code saved to database');
 
     // Send email
     try {
       await sendPasswordResetEmail(normalizedEmail, resetCode, user.username);
-      console.log('✅ Password reset email sent successfully');
+
     } catch (emailError) {
-      console.error('❌ Email sending failed:', emailError);
+     
       console.error('Email error details:', {
         message: emailError.message,
         code: emailError.code,
@@ -1206,15 +1182,7 @@ router.post('/admin/verify-reset-code', [
     .matches(/^\d{6}$/)
     .withMessage('Code must be exactly 6 digits')
 ], async (req, res) => {
-  // ✅ Log the raw request body FIRST
-  console.log('📥 Raw request body:', JSON.stringify(req.body, null, 2));
-  console.log('📊 Code details:', {
-    code: req.body.code,
-    codeType: typeof req.body.code,
-    codeLength: req.body.code?.length,
-    email: req.body.email
-  });
-
+ 
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     console.error('❌ Validation errors:', JSON.stringify(errors.array(), null, 2));
@@ -1229,8 +1197,7 @@ router.post('/admin/verify-reset-code', [
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    console.log('🔍 Verifying reset code for:', normalizedEmail);
-    console.log('🔑 Looking for code:', code);
+   
 
     // ✅ SELECT the reset fields explicitly
     const user = await User.findOne({ 
@@ -1239,25 +1206,14 @@ router.post('/admin/verify-reset-code', [
     }).select('+resetPasswordCode +resetPasswordExpires');
 
     if (!user) {
-      console.log('❌ Admin not found');
+      
       return res.status(400).json({ 
         valid: false, 
         msg: 'Invalid or expired code' 
       });
     }
 
-    console.log('✅ User found, checking code...');
-    console.log('📋 Comparison:', {
-      storedCode: user.resetPasswordCode,
-      storedCodeType: typeof user.resetPasswordCode,
-      providedCode: code,
-      providedCodeType: typeof code,
-      match: user.resetPasswordCode === code,
-      expires: user.resetPasswordExpires,
-      now: Date.now(),
-      isExpired: user.resetPasswordExpires < Date.now()
-    });
-
+    
     // Check if code matches
     if (user.resetPasswordCode !== code) {
       console.log('❌ Code mismatch');
@@ -1269,15 +1225,14 @@ router.post('/admin/verify-reset-code', [
 
     // Check if code expired
     if (user.resetPasswordExpires < Date.now()) {
-      console.log('❌ Code expired');
+      
       return res.status(400).json({ 
         valid: false, 
         msg: 'Verification code expired. Please request a new one.' 
       });
     }
 
-    console.log('✅ Code verified successfully');
-
+  
     res.json({ 
       valid: true, 
       msg: 'Code verified successfully' 
@@ -1310,7 +1265,7 @@ router.post('/admin/reset-password-with-code', [
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    console.log('🔐 Resetting password for:', normalizedEmail);
+    
 
     // ✅ SELECT the reset fields explicitly
     const user = await User.findOne({ 
@@ -1343,7 +1298,6 @@ router.post('/admin/reset-password-with-code', [
     user.resetPasswordExpires = undefined;
     await user.save();
 
-    console.log('✅ Admin password reset successful:', user.email);
 
     res.json({
       msg: 'Password reset successful. Please login with your new password.',
@@ -1405,7 +1359,7 @@ router.put('/admin/change-email', [
     user.email = normalizedEmail;
     await user.save();
 
-    console.log('✅ Admin email updated:', userId);
+   
 
     res.json({ 
       msg: 'Email updated successfully',
@@ -1461,7 +1415,6 @@ router.put('/admin/update-username', [
       await req.session.save();
     }
 
-    console.log('✅ Admin username updated:', userId);
 
     res.json({
       msg: 'Username updated successfully',
@@ -1518,8 +1471,6 @@ router.put('/admin/change-password', [
 
     user.password = newPassword;
     await user.save();
-
-    console.log('✅ Admin password changed:', userId);
 
     res.json({ msg: 'Password changed successfully' });
   } catch (err) {

@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../components/ConfirmModal';
 import { useAuth } from '../../context/AuthContext';
+import { getImageUrl } from '../../utils/api';
 
 const Home = () => {
   const location = useLocation();
@@ -455,7 +456,7 @@ const Home = () => {
             {announcement.image && (
               <div
                 className="rounded-lg h-32 sm:h-40 md:h-48 lg:h-64 flex items-center justify-center text-[#FFFFFF] font-semibold my-4 bg-cover bg-center"
-                style={{ backgroundImage: `url(${API_URL.replace('/api', '')}/${announcement.image})` }}
+                style={{ backgroundImage: `url(${getImageUrl(announcement.image)}) ` }}
               />
             )}
 
@@ -582,6 +583,7 @@ const Home = () => {
       {/* Posts */}
       {posts.length > 0 ? (
         posts.map((post) => {
+          
           const isSaved = savedPostIds.has(post._id);
           const isLiked = likedPostIds.has(post._id);
           const comments = postComments[post._id] || [];
@@ -614,7 +616,7 @@ const Home = () => {
 
                 {post.image && (
                   <img
-                    src={`${API_URL.replace('/api', '')}${post.image}`}
+                    src={getImageUrl(post.image)}
                     alt="Post"
                     className="rounded-lg w-full h-auto object-cover mb-4 max-h-96 md:max-h-[500px]"
                     onError={(e) => e.target.style.display = 'none'}

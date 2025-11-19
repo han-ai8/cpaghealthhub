@@ -61,8 +61,7 @@ const normalizeDate = (dateString) => {
 // ============================================
 router.get('/booked-slots', async (req, res) => {
   try {
-    console.log('📅 Fetching ALL booked slots (including user names)');
-
+   
     const appointments = await Appointment.find({ 
       status: { $in: ['pending', 'confirmed', 'completed'] }
     })
@@ -83,7 +82,7 @@ router.get('/booked-slots', async (req, res) => {
       caseManagerId: apt.assignedCaseManager?._id
     }));
 
-    console.log(`✅ Found ${bookedSlots.length} booked slots with user information`);
+    
     res.json(bookedSlots);
   } catch (err) {
     console.error('❌ Error fetching booked slots:', err);
@@ -97,8 +96,7 @@ router.get('/booked-slots', async (req, res) => {
 router.get('/my-appointments', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const userId = req.user.id;
-    console.log(`📋 Fetching appointments for user: ${userId}`);
-
+    
     const currentAppointment = await Appointment.findOne({
       user: userId,
       status: { $in: ['pending', 'confirmed'] }
@@ -114,12 +112,7 @@ router.get('/my-appointments', isAuthenticated, isUserRole, async (req, res) => 
       .populate('assignedBy', 'name username')
       .sort({ createdAt: -1 });
 
-    console.log(`✅ Found appointments for user ${userId}:`, {
-      current: currentAppointment ? 'Yes' : 'No',
-      total: allAppointments.length,
-      hasCaseManager: currentAppointment?.assignedCaseManager ? 'Yes' : 'No'
-    });
-
+    
     res.json({ 
       current: currentAppointment,
       all: allAppointments,
@@ -137,8 +130,7 @@ router.get('/my-appointments', isAuthenticated, isUserRole, async (req, res) => 
 router.get('/history', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const userId = req.user.id;
-    console.log(`📚 Fetching appointment history for user: ${userId}`);
-
+   
     const history = await Appointment.find({
       user: userId,
       status: { $in: ['completed', 'cancelled'] }
@@ -149,7 +141,6 @@ router.get('/history', isAuthenticated, isUserRole, async (req, res) => {
     .populate('sessionTracking.sessionNotes.caseManagerId', 'name username')
     .sort({ date: -1 });
 
-    console.log(`✅ Found ${history.length} historical appointments`);
     res.json(history);
   } catch (err) {
     console.error('❌ Error fetching appointment history:', err);
@@ -164,10 +155,6 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const userId = req.user.id;
     const { service, date, time, note, psychosocialInfo, requestSaturday, saturdayReason } = req.body;
-
-    console.log(`📝 User ${userId} attempting to book appointment for ${date} at ${time}`);
-    console.log('Service:', service);
-    console.log('Demographic data received:', psychosocialInfo);
 
     // Validate required fields
     if (!service || !date || !time) {
@@ -319,10 +306,10 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
 
       if (service === 'Testing and Counseling') {
         appointmentData.testingInfo = demographicData;
-        console.log('✅ Testing demographic info saved as testingInfo:', demographicData);
+       
       } else if (service === 'Psychosocial support and assistance') {
         appointmentData.psychosocialInfo = demographicData;
-        console.log('✅ Psychosocial info saved as psychosocialInfo:', demographicData);
+       
       }
     }
 
@@ -339,13 +326,7 @@ router.post('/', isAuthenticated, isUserRole, async (req, res) => {
       ? '📅 Saturday appointment request submitted! Waiting for admin approval.'
       : '✅ Appointment created successfully!';
 
-    console.log(`✅ Appointment created: ${appointment._id}`);
-    console.log('✅ Saved data:', {
-      service: appointment.service,
-      testingInfo: appointment.testingInfo,
-      psychosocialInfo: appointment.psychosocialInfo
-    });
-
+   
     res.status(201).json({
       ...appointment.toObject(),
       message: responseMessage,
@@ -367,8 +348,6 @@ router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const userId = req.user.id;
     const { service, date, time, note, psychosocialInfo, requestSaturday, saturdayReason } = req.body;
-
-    console.log(`📝 User ${userId} attempting to update appointment ${req.params.id}`);
 
     const appointment = await Appointment.findOne({
       _id: req.params.id,
@@ -465,10 +444,10 @@ router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
 
       if (appointment.service === 'Testing and Counseling') {
         appointment.testingInfo = demographicData;
-        console.log('✅ Updated testingInfo');
+        
       } else if (appointment.service === 'Psychosocial support and assistance') {
         appointment.psychosocialInfo = demographicData;
-        console.log('✅ Updated psychosocialInfo');
+       
       }
     }
 
@@ -480,7 +459,7 @@ router.put('/:id', isAuthenticated, isUserRole, async (req, res) => {
       { path: 'assignedBy', select: 'name username' }
     ]);
 
-    console.log(`✅ Appointment ${req.params.id} updated`);
+    
     res.json(appointment);
   } catch (err) {
     console.error('❌ Error updating appointment:', err);
@@ -495,8 +474,6 @@ router.post('/:id/request-cancel', isAuthenticated, isUserRole, async (req, res)
   try {
     const userId = req.user.id;
     const { reason } = req.body;
-
-    console.log(`🚫 User ${userId} requesting cancellation for appointment ${req.params.id}`);
 
     const appointment = await Appointment.findOne({
       _id: req.params.id,
@@ -531,7 +508,7 @@ router.post('/:id/request-cancel', isAuthenticated, isUserRole, async (req, res)
 
     await appointment.save();
 
-    console.log(`✅ Cancellation requested for appointment ${req.params.id}`);
+ 
     res.json({ 
       message: 'Cancellation request submitted.',
       appointment 
@@ -549,7 +526,7 @@ router.delete('/:id', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    console.log(`🗑️ User ${userId} attempting to cancel appointment ${req.params.id}`);
+   
 
     const appointment = await Appointment.findOne({
       _id: req.params.id,
@@ -583,7 +560,6 @@ router.delete('/:id', isAuthenticated, isUserRole, async (req, res) => {
 
     await Appointment.findByIdAndDelete(req.params.id);
 
-    console.log(`✅ Appointment ${req.params.id} cancelled`);
     res.json({ 
       message: '✅ Appointment cancelled successfully',
       cancelledWithin24Hours: true 

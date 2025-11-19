@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Flag, Shield, Lock, Send, MessageCircle, Reply } from 'lucide-react';
-import axios from 'axios';
+import api from '../../utils/api';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from 'react-router-dom';
@@ -21,8 +21,6 @@ const Community = () => {
   const [replyText, setReplyText] = useState({});
   const [reportReason, setReportReason] = useState('');
   const [reportingPost, setReportingPost] = useState(null);
-
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   const categories = [
     'General Support',
@@ -52,13 +50,6 @@ const Community = () => {
     const uniqueNumber = (absHash % 90000) + 10000;
     
     return `Anonymous #${uniqueNumber}`;
-  };
-
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
-    return {
-      'Authorization': token ? `Bearer ${token}` : ''
-    };
   };
 
   // Fetch posts on mount
@@ -116,13 +107,11 @@ const Community = () => {
 
   const fetchPosts = async () => {
     try {
-      const response = await axios.get(`${API_URL}/community/posts`, {
-        headers: getAuthHeaders()
-      });
-      setPosts(response.data);
+      const response = await api.get('/community/posts');
+      setPosts(response.data || response);
     } catch (error) {
       console.error('Fetch posts error:', error);
-      toast.error('Failed to load posts');
+      toast.error(error.response?.data?.message || 'Failed to load posts');
     }
   };
 
@@ -142,11 +131,9 @@ const Community = () => {
         return;
       }
 
-      await axios.post(`${API_URL}/community/posts`, {
+      await api.post('/community/posts', {
         content: newPost.trim(),
         category: selectedCategory
-      }, {
-        headers: getAuthHeaders()
       });
 
       toast.success('Your post has been submitted for review. It will appear once approved by moderators.');
@@ -158,7 +145,7 @@ const Community = () => {
       if (error.response?.status === 401) {
         toast.error('Session expired. Please log in again.');
       } else {
-        toast.error('Failed to submit post. Please try again.');
+        toast.error(error.response?.data?.message || 'Failed to submit post. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -173,18 +160,17 @@ const Community = () => {
     }
 
     try {
-      const response = await axios.post(`${API_URL}/community/posts/${postId}/comments`, {
+      const response = await api.post(`/community/posts/${postId}/comments`, {
         body: comment.trim()
-      }, {
-        headers: getAuthHeaders()
       });
 
-      setPosts(posts.map(p => p._id === postId ? response.data.post : p));
+      const updatedPost = response.data?.post || response.post || response;
+      setPosts(posts.map(p => p._id === postId ? updatedPost : p));
       setCommentText({ ...commentText, [postId]: '' });
       toast.success('Comment added');
     } catch (error) {
       console.error('Add comment error:', error);
-      toast.error('Failed to add comment');
+      toast.error(error.response?.data?.message || 'Failed to add comment');
     }
   };
 
@@ -196,18 +182,18 @@ const Community = () => {
     }
 
     try {
-      const response = await axios.post(
-        `${API_URL}/community/posts/${postId}/comments/${commentId}/replies`,
-        { body: reply.trim() },
-        { headers: getAuthHeaders() }
+      const response = await api.post(
+        `/community/posts/${postId}/comments/${commentId}/replies`,
+        { body: reply.trim() }
       );
 
-      setPosts(posts.map(p => p._id === postId ? response.data.post : p));
+      const updatedPost = response.data?.post || response.post || response;
+      setPosts(posts.map(p => p._id === postId ? updatedPost : p));
       setReplyText({ ...replyText, [commentId]: '' });
       toast.success('Reply added');
     } catch (error) {
       console.error('Add reply error:', error);
-      toast.error('Failed to add reply');
+      toast.error(error.response?.data?.message || 'Failed to add reply');
     }
   };
 
@@ -218,10 +204,8 @@ const Community = () => {
     }
 
     try {
-      await axios.post(`${API_URL}/community/posts/${reportingPost}/report`, {
+      await api.post(`/community/posts/${reportingPost}/report`, {
         reason: reportReason.trim()
-      }, {
-        headers: getAuthHeaders()
       });
 
       toast.success('Report submitted. Thank you for helping maintain our community standards.');
@@ -229,7 +213,7 @@ const Community = () => {
       setReportReason('');
     } catch (error) {
       console.error('Report error:', error);
-      toast.error(error.response?.data?.error || 'Failed to submit report');
+      toast.error(error.response?.data?.error || error.response?.data?.message || 'Failed to submit report');
     }
   };
 

@@ -1,89 +1,128 @@
-// src/utils/api.js
-// Centralized API client with automatic JWT token handling
+// utils/api.js
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-/**
- * Makes an authenticated API request with automatic token handling
- */
-const apiRequest = async (endpoint, options = {}) => {
-  const token = localStorage.getItem('token');
-  
-  const config = {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    credentials: 'include',
-  };
-
-  // Add Authorization header if token exists
-  if (token) {
-    config.headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  // Remove Content-Type for FormData
-  if (options.body instanceof FormData) {
-    delete config.headers['Content-Type'];
-  } else if (options.body && typeof options.body === 'object') {
-    config.body = JSON.stringify(options.body);
-  }
-
-  try {
-    const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
-    const response = await fetch(url, config);
-    
-    // Handle 401 Unauthorized - token expired or invalid
-    if (response.status === 401) {
-      console.error('401 Unauthorized - clearing token and redirecting to login');
-      localStorage.removeItem('token');
-      
-      // Only redirect if not already on login page
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
-      }
-      throw new Error('Session expired. Please login again.');
-    }
-
-    // Handle 403 Forbidden
-    if (response.status === 403) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.msg || 'Access denied. Insufficient permissions.');
-    }
-
-    // Parse response
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data.msg || data.error || data.message || `Request failed with status ${response.status}`);
-    }
-
-    return data;
-  } catch (error) {
-    console.error('API Request Error:', error);
-    throw error;
-  }
+// Helper to get the base URL without /api
+export const getBaseUrl = () => {
+  return API_URL.replace('/api', '');
 };
 
-// Convenience methods
-const api = {
-  get: (endpoint, options = {}) => 
-    apiRequest(endpoint, { ...options, method: 'GET' }),
+// Helper to construct proper image URLs
+export const getImageUrl = (imagePath) => {
+  if (!imagePath) return null;
   
-  post: (endpoint, body, options = {}) => 
-    apiRequest(endpoint, { ...options, method: 'POST', body }),
+  // If it's already a full URL, return as-is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
   
-  put: (endpoint, body, options = {}) => 
-    apiRequest(endpoint, { ...options, method: 'PUT', body }),
+  const baseUrl = getBaseUrl();
   
-  delete: (endpoint, options = {}) => 
-    apiRequest(endpoint, { ...options, method: 'DELETE' }),
+  // Ensure path starts with /
+  const cleanPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+  
+  // Construct full URL
+  return `${baseUrl}${cleanPath}`;
+};
 
-  // For file uploads (multipart/form-data)
-  upload: (endpoint, formData, options = {}) => 
-    apiRequest(endpoint, { ...options, method: 'POST', body: formData }),
+const api = {
+  get: async (endpoint) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Request failed');
+    }
+    
+    return response.json();
+  },
+
+  post: async (endpoint, data) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include',
+      body: JSON.stringify(data)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Request failed');
+    }
+    
+    return response.json();
+  },
+
+  put: async (endpoint, data) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include',
+      body: JSON.stringify(data)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Request failed');
+    }
+    
+    return response.json();
+  },
+
+  delete: async (endpoint) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Request failed');
+    }
+    
+    return response.json();
+  },
+
+  upload: async (endpoint, formData) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : ''
+        // Don't set Content-Type for FormData - browser sets it with boundary
+      },
+      credentials: 'include',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Request failed');
+    }
+    
+    return response.json();
+  }
 };
 
 export default api;
-export { api, apiRequest };

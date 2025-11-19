@@ -5,6 +5,7 @@ import { HiMenu } from 'react-icons/hi';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import logoHeader from '../assets/logo-header.png';
+import api from '../utils/api';
 
 const Header = ({ toggleSidebar, unreadCount }) => {
   const location = useLocation();
@@ -15,45 +16,27 @@ const Header = ({ toggleSidebar, unreadCount }) => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const toast = useToast();
 
-  // Fetch current user data
-  const fetchUser = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          setUser(null);
-          localStorage.removeItem('token');
-          return;
-        }
-        throw new Error('Failed to fetch user data');
-      }
-
-      const data = await response.json();
-      setUser(data.user);
-    } catch (err) {
-      console.error('Header user fetch error');
+  // Fetch user
+const fetchUser = async () => {
+  try {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
       setUser(null);
-    } finally {
       setLoading(false);
+      return;
     }
-  };
+
+    const data = await api.get('/auth/me');
+    setUser(data.user);
+  } catch (err) {
+    console.error('Header user fetch error:', err);
+    setUser(null);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Initial fetch on mount
   useEffect(() => {

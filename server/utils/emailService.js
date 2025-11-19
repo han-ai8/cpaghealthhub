@@ -1,4 +1,6 @@
 // server/utils/emailService.js
+import dotenv from "dotenv";
+dotenv.config();
 import { Resend } from 'resend';
 
 // Initialize Resend with API key
@@ -16,8 +18,6 @@ const verifyEmailConfig = () => {
     return false;
   }
   
-  console.log('✅ Resend email service configured');
-  console.log('📧 From email:', process.env.RESEND_FROM_EMAIL);
   return true;
 };
 
@@ -32,8 +32,6 @@ export const generateVerificationCode = () => {
 // Send verification email
 export const sendVerificationEmail = async (email, code, name) => {
   try {
-    console.log('🔍 Sending verification email to:', email);
-    console.log('🔑 Verification code:', code);
     
     const { data, error } = await resend.emails.send({
       from: `HealthHub <${process.env.RESEND_FROM_EMAIL}>`,
@@ -62,15 +60,11 @@ export const sendVerificationEmail = async (email, code, name) => {
     });
 
     if (error) {
-      console.error('❌ Resend error:', error);
-      console.error('❌ Error details:', JSON.stringify(error, null, 2));
       throw new Error(`Resend API error: ${error.message || JSON.stringify(error)}`);
     }
 
-    console.log('✅ Verification email sent! ID:', data?.id);
     return true;
   } catch (error) {
-    console.error('❌ Failed to send verification email:', error);
     throw error; // Re-throw to be caught by registration handler
   }
 };
@@ -170,7 +164,6 @@ export const sendPasswordResetEmail = async (email, code, name) => {
       throw new Error(`Failed to send password reset email: ${error.message}`);
     }
 
-    console.log('✅ Password reset email sent successfully:', data?.id);
     return true;
   } catch (error) {
     console.error('❌ Send password reset email error:', error);
@@ -264,15 +257,11 @@ export const sendWelcomeEmail = async (email, name) => {
     });
 
     if (error) {
-      console.error('❌ Resend error:', error);
       // Don't throw - welcome email is optional
       return false;
     }
-
-    console.log('✅ Welcome email sent successfully:', data?.id);
     return true;
   } catch (error) {
-    console.error('❌ Send welcome email error:', error);
     // Don't throw - welcome email is optional
     return false;
   }

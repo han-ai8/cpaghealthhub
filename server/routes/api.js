@@ -54,7 +54,6 @@ router.post('/announcements', isAuthenticated, isAdminRole, upload.single('image
     const userIds = allUsers.map(u => u._id);
     
     await notificationService.notifyNewAnnouncement(announcement, userIds);
-    console.log(`✅ Sent ${userIds.length} notifications for new announcement`);
 
     res.json(announcement);
   } catch (err) {
@@ -132,7 +131,6 @@ router.post('/posts', isAuthenticated, isAdminRole, upload.single('image'), asyn
       const userIds = allUsers.map(u => u._id);
       
       await notificationService.notifyNewPost(post, userIds);
-      console.log(`✅ Sent ${userIds.length} notifications for new post`);
     }
 
     res.json(post);
@@ -220,12 +218,10 @@ router.put('/posts/:id/save', isAuthenticated, isUserRole, async (req, res) => {
     if (isSaved) {
       user.savedPosts = user.savedPosts.filter(savedPost => savedPost._id.toString() !== postId);
       await user.save();
-      console.log('Post unsaved for user:', userId);
       res.json({ message: 'Post unsaved', saved: false, post });
     } else {
       user.savedPosts.push(post._id);
       await user.save();
-      console.log('Post saved for user:', userId);
       res.json({ message: 'Post saved', saved: true, post });
     }
   } catch (err) {
@@ -241,29 +237,26 @@ router.get('/posts/saved', isAuthenticated, isUserRole, async (req, res) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
     const userId = req.user.id;
-    console.log('Fetching saved posts for user ID:', userId);
 
     const user = await User.findById(userId).populate('savedPosts', 'content image author status createdAt likes comments _id');
     if (!user) {
-      console.log('User not found for saved posts:', userId);
       return res.status(401).json({ error: 'User not found' });
     }
 
     let savedPosts = user.savedPosts || [];
-    console.log('Raw saved posts from DB (pre-filter/sort):', savedPosts.length, 'Sample:', savedPosts[0] ? { id: savedPosts[0]._id, status: savedPosts[0].status } : 'None');
-
+    
     try {
       savedPosts = savedPosts.sort((a, b) => {
         const dateA = new Date(a.createdAt);
         const dateB = new Date(b.createdAt);
         return dateB - dateA;
       });
-      console.log('After sort:', savedPosts.length, 'First post date:', savedPosts[0]?.createdAt);
+      
     } catch (sortErr) {
       console.error('Sort error (falling back to unsorted):', sortErr);
     }
 
-    console.log('Final saved posts sent to frontend:', savedPosts.length);
+    
     res.json(savedPosts);
   } catch (err) {
     console.error('Saved posts route error:', err);
@@ -331,7 +324,7 @@ router.post('/announcements/:id/comments', isAuthenticated, isUserRole, async (r
     announcement.comments.push(comment);
     await announcement.save();
 
-    console.log('Comment added to announcement:', req.params.id, 'by', comment.author);
+    
     res.json({ message: 'Comment added', announcement });
   } catch (err) {
     console.error('Add announcement comment error:', err);
@@ -360,7 +353,7 @@ router.post('/posts/:id/comments', isAuthenticated, isUserRole, async (req, res)
     post.comments.push(comment);
     await post.save();
 
-    console.log('Comment added to post:', req.params.id, 'by', comment.author);
+   
     res.json({ message: 'Comment added', post });
   } catch (err) {
     console.error('Add post comment error:', err);
@@ -404,7 +397,6 @@ router.delete('/announcements/:id/comments/:commentId', isAuthenticated, isAdmin
     );
     
     await announcement.save();
-    console.log('Comment deleted from announcement:', req.params.id);
     res.json({ message: 'Comment deleted', announcement });
   } catch (err) {
     console.error('Delete announcement comment error:', err);
@@ -424,7 +416,6 @@ router.delete('/posts/:id/comments/:commentId', isAuthenticated, isAdminRole, as
     );
     
     await post.save();
-    console.log('Comment deleted from post:', req.params.id);
     res.json({ message: 'Comment deleted', post });
   } catch (err) {
     console.error('Delete post comment error:', err);
@@ -612,7 +603,6 @@ router.put('/announcements/:id/like', isAuthenticated, isUserRole, async (req, r
       );
       announcement.likes = Math.max(0, (announcement.likes || 0) - 1);
       await announcement.save();
-      console.log('Announcement unliked by user:', userId);
       res.json({ message: 'Unliked', liked: false, announcement });
     } else {
       announcement.likedBy.push(userId);
@@ -630,7 +620,6 @@ router.put('/announcements/:id/like', isAuthenticated, isUserRole, async (req, r
 router.put('/posts/:id/like', isAuthenticated, isUserRole, async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
-      console.error('Like route - req.user missing');
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
@@ -857,7 +846,6 @@ router.post('/community/posts/:id/comments/:commentId/replies', isAuthenticated,
     comment.replies.push(reply);
     await post.save();
 
-    console.log('✅ Reply added to comment:', req.params.commentId);
     
     // Populate for response
     const populatedPost = await CommunityPost.findById(post._id).populate('author', 'name username');
@@ -900,7 +888,6 @@ router.post('/community/posts/:id/report', isAuthenticated, isUserRole, async (r
     post.reports.push(report);
     await post.save();
 
-    console.log('Post reported by user:', req.user.id);
     res.json({ message: 'Report submitted. Thank you for helping maintain our community.', post });
   } catch (err) {
     console.error('Report post error:', err);
@@ -920,7 +907,6 @@ router.post('/community/posts/:id/report', isAuthenticated, isUserRole, async (r
 // GET: Admin/Content Moderator - Fetch all community posts (all statuses)
 router.get('/admin/community/posts', isAuthenticated, isContentModerator, async (req, res) => {
   try {
-    console.log('📋 Fetching community posts for:', req.user.role);
     
     const posts = await CommunityPost.find()
       .populate('author', 'name email')
@@ -932,12 +918,6 @@ router.get('/admin/community/posts', isAuthenticated, isContentModerator, async 
     const rejectedPosts = posts.filter(p => p.status === 'rejected');
     const reportedPosts = posts.filter(p => p.reports.some(r => r.status === 'pending'));
 
-    console.log('✅ Community posts fetched:', {
-      pending: pendingPosts.length,
-      approved: approvedPosts.length,
-      rejected: rejectedPosts.length,
-      reported: reportedPosts.length
-    });
 
     res.json({ 
       pendingPosts, 
@@ -968,7 +948,7 @@ router.put('/admin/community/posts/:id/status', isAuthenticated, isContentModera
     post.status = status;
     await post.save();
 
-    console.log(`✅ ${req.user.role} ${status} community post:`, req.params.id);
+   
     res.json({ message: `Post ${status}`, post });
   } catch (err) {
     console.error('❌ Update post status error:', err);
@@ -984,7 +964,6 @@ router.delete('/admin/community/posts/:id', isAuthenticated, isContentModerator,
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    console.log('✅ Community post deleted by:', req.user.role, req.params.id);
     res.json({ message: 'Post deleted' });
   } catch (err) {
     console.error('❌ Delete post error:', err);
@@ -1015,20 +994,20 @@ router.put('/admin/community/posts/:id/reports/:reportId', isAuthenticated, isCo
     if (deletePost) {
       // Action: Delete Post - Remove the post entirely
       await CommunityPost.findByIdAndDelete(req.params.id);
-      console.log('✅ Reported post deleted by:', req.user.role, req.params.id);
+      
       return res.json({ message: 'Post deleted successfully' });
     } else if (status === 'rejected') {
       // Action: Reject Report - Mark the report as rejected (post is fine, keep it)
       report.status = 'rejected';
       await post.save();
-      console.log(`✅ Report rejected by:`, req.user.role, req.params.reportId);
+      
       return res.json({ message: 'Report rejected', post });
     } else {
       // Action: Reject Post - Mark the report as resolved AND the post as rejected
       report.status = 'resolved';
       post.status = 'rejected'; // ✅ This is the key fix!
       await post.save();
-      console.log(`✅ Post rejected based on report by:`, req.user.role, req.params.id);
+      
       return res.json({ message: 'Post rejected', post });
     }
   } catch (err) {
@@ -1050,7 +1029,7 @@ router.delete('/admin/community/posts/:id/comments/:commentId', isAuthenticated,
     );
 
     await post.save();
-    console.log('✅ Comment deleted from community post by:', req.user.role, req.params.id);
+    
     res.json({ message: 'Comment deleted', post });
   } catch (err) {
     console.error('❌ Delete comment error:', err);
@@ -1216,7 +1195,7 @@ router.put('/appointments/:id', isAuthenticated, isUserRole, async (req, res) =>
     }
     
     await appointment.save();
-    console.log('Appointment updated by user:', req.user.id);
+   
     res.json({ message: 'Appointment updated successfully', appointment });
   } catch (err) {
     console.error('Update appointment error:', err);
@@ -1251,8 +1230,7 @@ router.delete('/appointments/:id', isAuthenticated, isUserRole, async (req, res)
     appointment.status = 'cancelled';
     appointment.cancelledAt = new Date();
     await appointment.save();
-    
-    console.log('Appointment cancelled by user:', req.user.id);
+   
     res.json({ message: 'Appointment cancelled successfully' });
   } catch (err) {
     console.error('Cancel appointment error:', err);
@@ -1295,7 +1273,7 @@ router.post('/appointments/:id/cancel-request', isAuthenticated, isUserRole, asy
     };
     
     await appointment.save();
-    console.log('Cancellation request submitted by user:', req.user.id);
+    
     res.json({ 
       message: 'Cancellation request submitted. Admin will contact you soon.', 
       appointment 
@@ -1367,7 +1345,7 @@ router.put('/admin/appointments/:id/status', isAuthenticated, isAdminRole, async
     }
     
     await appointment.save();
-    console.log(`Admin updated appointment status to ${status}:`, req.params.id);
+    
     res.json({ message: `Appointment ${status}`, appointment });
   } catch (err) {
     console.error('Admin update status error:', err);
@@ -1401,7 +1379,7 @@ router.put('/admin/appointments/:id/cancel-request', isAuthenticated, isAdminRol
     }
     
     await appointment.save();
-    console.log('Admin responded to cancellation request:', req.params.id);
+    
     res.json({ 
       message: `Cancellation request ${approve ? 'approved' : 'denied'}`, 
       appointment 
@@ -1421,7 +1399,7 @@ router.delete('/admin/appointments/:id', isAuthenticated, isAdminRole, async (re
       return res.status(404).json({ error: 'Appointment not found' });
     }
     
-    console.log('Admin deleted appointment:', req.params.id);
+    
     res.json({ message: 'Appointment deleted successfully' });
   } catch (err) {
     console.error('Admin delete appointment error:', err);

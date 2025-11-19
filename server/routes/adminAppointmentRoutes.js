@@ -326,7 +326,6 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     const appointmentId = req.params.id;
 
     if (!caseManagerId) {
-      console.log('❌ FAILED: No case manager ID provided');
       return res.status(400).json({ 
         error: 'Case manager ID is required' 
       });

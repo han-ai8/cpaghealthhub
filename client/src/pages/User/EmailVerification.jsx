@@ -3,6 +3,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { HiOutlineMail, HiOutlineCheckCircle } from 'react-icons/hi';
+import api from '../../utils/api';
+
+import healthhubLogo from '../../assets/HEALTHUB.png';
 
 export default function EmailVerification() {
   const [code, setCode] = useState(['', '', '', '', '', '']);
@@ -92,7 +95,7 @@ export default function EmailVerification() {
     setError('');
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/user/verify-email`, {
+      const response = await api.get('/auth/user/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -141,7 +144,7 @@ export default function EmailVerification() {
     setSuccess('');
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/user/resend-verification`, {
+      const response = await api.get('/auth/user/resend-verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -191,7 +194,7 @@ export default function EmailVerification() {
         <div className="w-full max-w-md mx-auto space-y-6">
           <div className="text-center">
             <img 
-              src="/src/assets/HEALTHUB.png" 
+              src={healthhubLogo} 
               alt="HealthHub Logo" 
               className="rounded-lg w-500 h-300 hover:scale-105 mb-4 mx-auto" 
             />

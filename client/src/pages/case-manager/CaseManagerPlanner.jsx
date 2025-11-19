@@ -120,7 +120,6 @@ const CaseManagerPlanner = () => {
         setAppointments(data.appointments);
         setStats(data.stats);
         setLastUpdate(new Date());
-        console.log('✅ Planner data updated');
       }
     } catch (err) {
       console.error('Error fetching planner:', err);
@@ -137,7 +136,6 @@ const CaseManagerPlanner = () => {
       if (response.ok) {
         const data = await response.json();
         setBookedSlots(data);
-        console.log('✅ Booked slots loaded:', data.length);
       }
     } catch (err) {
       console.error('Error fetching booked slots:', err);
@@ -152,7 +150,6 @@ const CaseManagerPlanner = () => {
       if (response.ok) {
         const data = await response.json();
         setClinicSchedule(data);
-        console.log('✅ Clinic schedule loaded:', data.length, 'entries');
       }
     } catch (err) {
       console.error('❌ Error fetching clinic schedule:', err);
@@ -182,7 +179,6 @@ const CaseManagerPlanner = () => {
     });
     
     if (closure) {
-      console.log(`❌ Date ${dateStr} is closed: ${closure.title}`);
       return false;
     }
     
@@ -195,7 +191,6 @@ const CaseManagerPlanner = () => {
     });
     
     if (specialOpening) {
-      console.log(`✅ Date ${dateStr} is special opening: ${specialOpening.title}`);
       return true;
     }
     

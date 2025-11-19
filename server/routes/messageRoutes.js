@@ -70,18 +70,15 @@ async function calculateAndEmitUnreadCount(userId, io) {
 // ============================================
 router.get('/conversation', isAuthenticated, async (req, res) => {
   try {
-    console.log('═══════════════════════════════════');
-    console.log('📡 GET /api/messages/conversation');
     const userId = req.user.id;
     const userRole = req.user.role;
-    console.log('👤 User ID:', userId);
-    console.log('🏷️ User Role:', userRole);
+    
 
     let conversationQuery;
     
     if (userRole === 'case_manager' || userRole === 'admin') {
       const { userId: targetUserId } = req.query;
-      console.log('🎯 Target User ID (from query):', targetUserId);
+      
       
       if (!targetUserId) {
         console.log('❌ Missing userId parameter for case manager');
@@ -94,7 +91,7 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
       // Verify assignment
       const verification = await verifyCaseManagerAssignment(targetUserId, userId);
       if (!verification.valid) {
-        console.log('❌ Authorization failed:', verification.error);
+        console.error('❌ Case manager not authorized to access user conversation:', verification.error);
         return res.status(403).json({
           success: false,
           message: verification.error
@@ -106,7 +103,6 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
       const userDoc = await User.findById(userId).select('assignedCaseManager');
       
       if (!userDoc || !userDoc.assignedCaseManager) {
-        console.log('❌ No case manager assigned to user:', userId);
         return res.status(404).json({ 
           success: false, 
           message: 'No case manager assigned. You can only message after a case manager is assigned to you.',
@@ -115,7 +111,7 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
       }
       
       const caseManagerId = userDoc.assignedCaseManager.toString();
-      console.log('✅ Case Manager ID:', caseManagerId);
+  
       
       conversationQuery = { 
         userId: userId, 
@@ -123,28 +119,22 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
       };
     }
 
-    console.log('🔍 Conversation Query:', conversationQuery);
 
     const conversationId = [
       conversationQuery.userId.toString(), 
       conversationQuery.caseManagerId.toString()
     ].sort().join('_');
     
-    console.log('🆔 Generated Conversation ID:', conversationId);
-
     // Get or create conversation
     let conversation = await Conversation.findOne(conversationQuery);
     
     if (!conversation) {
-      console.log('📝 Creating new conversation');
       conversation = await Conversation.create({
         ...conversationQuery,
         lastMessage: '',
         lastMessageTime: new Date()
       });
-      console.log('✅ Conversation created:', conversation._id);
     } else {
-      console.log('✅ Conversation found:', conversation._id);
     }
 
     // Get messages
@@ -158,7 +148,6 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
     );
 
     if (unreadMessages.length > 0) {
-      console.log(`📖 Auto-marking ${unreadMessages.length} messages as read`);
       
       await Message.updateMany(
         { 
@@ -179,7 +168,6 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
         { [`unreadCount.${userRoleType}`]: 0 }
       );
 
-      console.log(`✅ Marked ${unreadMessages.length} messages as read`);
       
       // ✅ NEW: Emit updated unread count after auto-marking as read
       const io = req.app.get('io');
@@ -195,9 +183,6 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
       });
     }
 
-    console.log('📨 Messages found:', messages.length);
-    console.log('═══════════════════════════════════');
-
     res.json({
       success: true,
       conversation,
@@ -206,7 +191,6 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
       markedAsRead: unreadMessages.length
     });
   } catch (error) {
-    console.error('❌ GET conversation error:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Failed to fetch conversation',
@@ -220,21 +204,14 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
 // ============================================
 router.post('/send', isAuthenticated, async (req, res) => {
   try {
-    console.log('═══════════════════════════════════');
-    console.log('📡 POST /api/messages/send');
     
     const { receiverId, text } = req.body;
     const senderId = req.user.id;
     const senderRole = req.user.role;
     const isFromCaseManager = senderRole === 'case_manager' || senderRole === 'admin';
 
-    console.log('📤 Sender ID:', senderId);
-    console.log('📥 Receiver ID:', receiverId);
-    console.log('💬 Text:', text?.substring(0, 50) + '...');
-    console.log('🏷️ Sender Role:', senderRole);
 
     if (!text || !receiverId) {
-      console.log('❌ Missing required fields');
       return res.status(400).json({ 
         success: false, 
         message: 'Text and receiverId are required' 
@@ -242,7 +219,6 @@ router.post('/send', isAuthenticated, async (req, res) => {
     }
 
     if (!text.trim()) {
-      console.log('❌ Empty message');
       return res.status(400).json({ 
         success: false, 
         message: 'Message cannot be empty' 
@@ -253,7 +229,6 @@ router.post('/send', isAuthenticated, async (req, res) => {
     if (isFromCaseManager) {
       const verification = await verifyCaseManagerAssignment(receiverId, senderId);
       if (!verification.valid) {
-        console.log('❌ Case manager not authorized:', verification.error);
         return res.status(403).json({
           success: false,
           message: 'You can only message users assigned to you'
@@ -263,7 +238,6 @@ router.post('/send', isAuthenticated, async (req, res) => {
       const userDoc = await User.findById(senderId).select('assignedCaseManager');
       
       if (!userDoc || !userDoc.assignedCaseManager) {
-        console.log('❌ User has no assigned case manager');
         return res.status(403).json({
           success: false,
           message: 'You can only message after a case manager is assigned to you',
@@ -274,7 +248,6 @@ router.post('/send', isAuthenticated, async (req, res) => {
       const assignedCaseManagerId = userDoc.assignedCaseManager.toString();
       
       if (assignedCaseManagerId !== receiverId.toString()) {
-        console.log('❌ User trying to message non-assigned case manager');
         return res.status(403).json({
           success: false,
           message: 'You can only message your assigned case manager'
@@ -282,13 +255,11 @@ router.post('/send', isAuthenticated, async (req, res) => {
       }
     }
 
-    console.log('✅ Authorization passed - proceeding with message');
 
     const conversationId = [senderId.toString(), receiverId.toString()]
       .sort()
       .join('_');
     
-    console.log('🆔 Conversation ID:', conversationId);
 
     // Create message
     const message = await Message.create({
@@ -298,8 +269,6 @@ router.post('/send', isAuthenticated, async (req, res) => {
       text: text.trim(),
       isFromCaseManager
     });
-
-    console.log('✅ Message created:', message._id);
 
     // Update or create conversation
     const conversation = await Conversation.findOneAndUpdate(
@@ -322,12 +291,9 @@ router.post('/send', isAuthenticated, async (req, res) => {
       { upsert: true, new: true }
     );
 
-    console.log('✅ Conversation updated:', conversation._id);
-
     // Emit socket event
     const io = req.app.get('io');
     if (io) {
-      console.log('📡 Emitting socket event to room:', receiverId.toString());
       
       // ✅ Emit new message event
       if (io.emitNewMessage) {
@@ -365,17 +331,12 @@ router.post('/send', isAuthenticated, async (req, res) => {
 // ============================================
 router.get('/conversations', isAuthenticated, async (req, res) => {
   try {
-    console.log('═══════════════════════════════════');
-    console.log('📡 GET /api/messages/conversations');
     
     const caseManagerId = req.user.id;
     const userRole = req.user.role;
 
-    console.log('👤 Case Manager ID:', caseManagerId);
-    console.log('🏷️ Role:', userRole);
 
     if (userRole !== 'case_manager' && userRole !== 'admin') {
-      console.log('❌ Access denied - not a case manager');
       return res.status(403).json({ 
         success: false, 
         message: 'Access denied. Only case managers can view all conversations.' 
@@ -388,7 +349,6 @@ router.get('/conversations', isAuthenticated, async (req, res) => {
       role: 'user'
     }).select('_id username email fullName');
 
-    console.log(`✅ Found ${assignedUsers.length} assigned users`);
 
     // Get existing conversations
     const existingConversations = await Conversation.find({ 
@@ -435,11 +395,6 @@ router.get('/conversations', isAuthenticated, async (req, res) => {
       return new Date(b.lastMessageTime) - new Date(a.lastMessageTime);
     });
 
-    console.log(`✅ Total conversations: ${allConversations.length}`);
-    console.log(`   - Existing: ${existingConversations.length}`);
-    console.log(`   - New assignments: ${newConversations.length}`);
-    console.log('═══════════════════════════════════');
-
     res.json({ 
       success: true, 
       conversations: allConversations,
@@ -464,14 +419,10 @@ router.get('/conversations', isAuthenticated, async (req, res) => {
 // ============================================
 router.put('/read', isAuthenticated, async (req, res) => {
   try {
-    console.log('═══════════════════════════════════');
-    console.log('📡 PUT /api/messages/read');
     
     const userId = req.user.id;
     const { conversationId } = req.body;
 
-    console.log('👤 User ID:', userId);
-    console.log('🆔 Conversation ID:', conversationId);
 
     if (!conversationId) {
       return res.status(400).json({ 
@@ -489,8 +440,6 @@ router.put('/read', isAuthenticated, async (req, res) => {
       { isRead: true }
     );
 
-    console.log('✅ Marked', result.modifiedCount, 'messages as read');
-
     const userRole = req.user.role === 'case_manager' || req.user.role === 'admin' 
       ? 'caseManager' 
       : 'user';
@@ -504,8 +453,6 @@ router.put('/read', isAuthenticated, async (req, res) => {
       },
       { [`unreadCount.${userRole}`]: 0 }
     );
-
-    console.log('✅ Reset unread count for', userRole);
     
     // ✅ NEW: Emit updated unread count after marking as read
     const io = req.app.get('io');

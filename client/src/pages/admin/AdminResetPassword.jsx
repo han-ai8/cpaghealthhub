@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
+import api from '../../utils/api';
 
 export default function AdminResetPassword() {
   const [searchParams] = useSearchParams();
@@ -29,8 +30,8 @@ export default function AdminResetPassword() {
 
   const verifyToken = async (tokenToVerify) => {
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/auth/admin/verify-reset-token/${tokenToVerify}`
+      const res = await api.get(
+        `/auth/admin/verify-reset-token/${tokenToVerify}`
       );
       const data = await res.json();
 
@@ -65,7 +66,7 @@ export default function AdminResetPassword() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/admin/reset-password`, {
+      const res = await api.get('/auth/admin/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword })

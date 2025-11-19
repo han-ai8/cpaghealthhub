@@ -1,14 +1,14 @@
 // Profile.jsx - COMPLETE UPDATED VERSION
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../components/ConfirmModal';
 import { Eye, EyeOff } from 'lucide-react';
 import userPfp from '../../assets/userPfp.png';
+import api from '../../utils/api';
 
 const Profile = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const toast = useToast();
   const { confirm } = useConfirm();
   
@@ -28,36 +28,15 @@ const Profile = () => {
     confirmPassword: ''
   });
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : ''
-    };
-  };
-
+  // Fetch saved posts
   const fetchSavedPosts = async () => {
     try {
       setSavedLoading(true);
-      const response = await fetch(`${API_URL}/posts/saved`, {
-        credentials: 'include',
-        headers: getAuthHeaders()
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setSavedPosts(data);
-      } else if (response.status === 401) {
-        setSavedPosts([]);
-        navigate('/user/login');
-      } else {
-        throw new Error('Failed to load saved posts');
-      }
+      const response = await api.get('/posts/saved');
+      setSavedPosts(response.data || response);
     } catch (err) {
       console.error('Fetch saved posts error:', err);
-      toast.error(`Failed to load saved posts: ${err.message}`);
+      toast.error(err.response?.data?.message || err.message);
       setSavedPosts([]);
     } finally {
       setSavedLoading(false);
@@ -77,31 +56,19 @@ const Profile = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        setLoading(true);
-        const response = await fetch(`${API_URL}/auth/me`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: getAuthHeaders()
-        });
-        
-        if (!response.ok) {
-          if (response.status === 401) {
-            toast.error('Please log in to view your profile');
-            navigate('/user/login');
-            return;
-          }
-          throw new Error('Failed to load profile');
-        }
-        
-        const data = await response.json();
-        setUser(data.user);
+        const response = await api.get('/auth/me');
+        const userData = response.data?.user || response.user || response;
+        setUser(userData);
         setEditForm({
-          name: data.user.name || '',
-          username: data.user.username
+          name: userData.name || '',
+          username: userData.username
         });
       } catch (err) {
         console.error('Profile fetch error:', err);
-        toast.error(err.message);
+        toast.error(err.response?.data?.message || err.message);
+        if (err.response?.data?.message?.includes('login') || err.message.includes('login')) {
+          navigate('/user/login');
+        }
       } finally {
         setLoading(false);
       }
@@ -117,49 +84,23 @@ const Profile = () => {
     setEditing(!editing);
   };
 
+  // Save profile
   const handleSaveProfile = async () => {
-    if (user.role !== 'user') {
-      toast.error('Only regular users can edit profile here');
-      return;
-    }
-
-    if (editForm.name.trim() === '' || editForm.username.trim() === '') {
-      toast.warning('Name and username are required');
-      return;
-    }
-
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/auth/profile`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        credentials: 'include',
-        body: JSON.stringify(editForm)
+      const response = await api.put('/auth/profile', {
+        name: editForm.name,
+        username: editForm.username
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        if (data.msg === 'Username already taken') {
-          toast.error('Username is not available. Please choose another');
-        } else if (data.msg === 'Alias already taken') {
-          toast.error('Alias is not available. Please choose another');
-        } else if (data.errors) {
-          const errorMsg = data.errors.map(e => e.msg).join(', ');
-          toast.error(`Validation error: ${errorMsg}`);
-        } else {
-          toast.error('Failed to update profile: ' + (data.msg || 'Unknown error'));
-        }
-        return;
-      }
-
-      const data = await response.json();
-      setUser(data.user);
-      setEditForm({ name: data.user.name, username: data.user.username });
+      
+      const userData = response.data?.user || response.user || response;
+      setUser(userData);
+      setEditForm({ name: userData.name, username: userData.username });
       setEditing(false);
       toast.success('Profile updated successfully!');
       window.dispatchEvent(new CustomEvent('userUpdated'));
     } catch (err) {
-      toast.error('Error updating profile: ' + err.message);
+      toast.error(err.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }
@@ -179,85 +120,17 @@ const Profile = () => {
     }
   };
 
+  // Change password
   const handleSavePassword = async () => {
-    // Validation
-    if (!passwordForm.currentPassword) {
-      toast.error('Please enter your current password');
-      return;
-    }
-    
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast.error('New passwords do not match!');
-      return;
-    }
-    
-    if (passwordForm.newPassword.length < 6) {
-      toast.error('New password must be at least 6 characters!');
-      return;
-    }
-
-    if (passwordForm.currentPassword === passwordForm.newPassword) {
-      toast.error('New password must be different from current password');
-      return;
-    }
-
     try {
       setLoading(true);
       
-      // Debug logging
-      const token = localStorage.getItem('token');
-      console.log('🔐 Password change attempt');
-      console.log('Token exists:', !!token);
-      console.log('API URL:', `${API_URL}/auth/password`);
-      
-      const response = await fetch(`${API_URL}/auth/password`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        credentials: 'include',
-        body: JSON.stringify({
-          currentPassword: passwordForm.currentPassword,
-          newPassword: passwordForm.newPassword,
-          confirmPassword: passwordForm.confirmPassword
-        })
+      await api.put('/auth/password', {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+        confirmPassword: passwordForm.confirmPassword
       });
-
-      console.log('Response status:', response.status);
-
-      let data;
-      try {
-        data = await response.json();
-        console.log('Response data:', data);
-      } catch (parseError) {
-        console.error('Failed to parse response:', parseError);
-        toast.error('Server error: Invalid response format');
-        return;
-      }
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          toast.error('Session expired. Please login again.');
-          setTimeout(() => {
-            localStorage.removeItem('token');
-            navigate('/user/login');
-          }, 2000);
-          return;
-        }
-        
-        if (response.status === 500) {
-          console.error('Server error details:', data);
-          toast.error('Server error: ' + (data.msg || data.error || 'Please try again later'));
-          return;
-        }
-        
-        if (data.msg) {
-          toast.error(data.msg);
-        } else {
-          toast.error('Failed to change password: ' + (data.error || 'Unknown error'));
-        }
-        return;
-      }
-
-      console.log('✅ Password changed successfully');
+      
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setChangingPassword(false);
       toast.success('Password changed successfully! Please login again for security.');
@@ -267,8 +140,8 @@ const Profile = () => {
         navigate('/user/login');
       }, 2000);
     } catch (err) {
-      console.error('❌ Password change error:', err);
-      toast.error('Network error: ' + err.message);
+      console.error('Password change error:', err);
+      toast.error(err.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }
@@ -279,29 +152,16 @@ const Profile = () => {
     setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
   };
 
+  // Unsave post
   const handleUnsave = async (postId) => {
     try {
-      const response = await fetch(`${API_URL}/posts/${postId}/save`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: getAuthHeaders()
-      });
-      
-      if (!response.ok) {
-        if (response.status === 401) {
-          toast.error('Please login to manage saved posts');
-          return;
-        }
-        const errData = await response.json();
-        throw new Error(errData.error || 'Unsave failed');
-      }
-      
-      const data = await response.json();
+      const response = await api.put(`/posts/${postId}/save`);
+      const data = response.data || response;
       await fetchSavedPosts();
       toast.success(data.message || (data.saved ? 'Post saved!' : 'Post unsaved!'));
     } catch (err) {
       console.error('Unsave error:', err);
-      toast.error(err.message || 'Unsave failed');
+      toast.error(err.response?.data?.message || err.message);
     }
   };
 
@@ -609,7 +469,7 @@ const Profile = () => {
                   </p>
                   {post.image && (
                     <img 
-                      src={`${API_URL.replace('/api', '')}${post.image}`}
+                      src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${post.image}`}
                       alt="Post" 
                       className="w-full h-32 object-cover rounded mt-2 mb-2" 
                       onError={(e) => e.target.style.display = 'none'}

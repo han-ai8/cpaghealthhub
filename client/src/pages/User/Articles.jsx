@@ -1,6 +1,6 @@
 // User/pages/Articles.jsx
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../utils/api';
 import { useNavigate } from 'react-router-dom';
 
 const Articles = () => {
@@ -15,7 +15,7 @@ const Articles = () => {
 
   const fetchArticles = async () => {
     try {
-      const response = await axios.get('/api/articles');
+      const response = await api.get('/api/articles');
       setArticles(response.data);
       setLoading(false);
     } catch (err) {
