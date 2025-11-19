@@ -5,7 +5,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
+  "start": "node server/socket/socket.js"
     "server": "nodemon server.js"
   },
   "keywords": [],
@@ -30,4 +30,5 @@
     "nodemon": "^3.1.10"
     "socket.io": "^4.7.2"
   }
+  
 }
