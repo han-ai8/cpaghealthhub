@@ -172,8 +172,8 @@ app.use((req, res) => {
 // ============================================
 // START SERVER
 // ============================================
-const PORT = process.env.PORT || 5000;
-
+const PORT = process.env.PORT || 10000;
+app. listen, () => console.log("Server running"));
 server.listen(PORT, () => {
   console.log('\n🚀 HealthHub Server Started');
   console.log(`📡 Server running on port ${PORT}`);
