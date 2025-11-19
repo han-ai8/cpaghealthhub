@@ -267,4 +267,9 @@ export const sendWelcomeEmail = async (email, name) => {
   }
 };
 
-export default resend;
+export {
+  generateVerificationCode,
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  sendWelcomeEmail
+};
