@@ -1,4 +1,3 @@
-// server/utils/emailService.js
 import dotenv from "dotenv";
 dotenv.config();
 import { Resend } from 'resend';
@@ -32,7 +31,6 @@ export const generateVerificationCode = () => {
 // Send verification email
 export const sendVerificationEmail = async (email, code, name) => {
   try {
-    
     const { data, error } = await resend.emails.send({
       from: `HealthHub <${process.env.RESEND_FROM_EMAIL}>`,
       to: email,
@@ -65,7 +63,7 @@ export const sendVerificationEmail = async (email, code, name) => {
 
     return true;
   } catch (error) {
-    throw error; // Re-throw to be caught by registration handler
+    throw error;
   }
 };
 
@@ -160,18 +158,17 @@ export const sendPasswordResetEmail = async (email, code, name) => {
     });
 
     if (error) {
-      console.error('❌ Resend error:', error);
       throw new Error(`Failed to send password reset email: ${error.message}`);
     }
 
     return true;
+
   } catch (error) {
-    console.error('❌ Send password reset email error:', error);
     throw new Error('Failed to send password reset email');
   }
 };
 
-// Send welcome email (optional - bonus feature)
+// Send welcome email
 export const sendWelcomeEmail = async (email, name) => {
   try {
     const { data, error } = await resend.emails.send({
@@ -256,20 +253,10 @@ export const sendWelcomeEmail = async (email, name) => {
       `,
     });
 
-    if (error) {
-      // Don't throw - welcome email is optional
-      return false;
-    }
+    if (error) return false;
     return true;
+
   } catch (error) {
-    // Don't throw - welcome email is optional
     return false;
   }
-};
-
-export {
-  generateVerificationCode,
-  sendVerificationEmail,
-  sendPasswordResetEmail,
-  sendWelcomeEmail
 };
