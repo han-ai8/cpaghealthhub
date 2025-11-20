@@ -149,6 +149,10 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 40a5421203b80bb99dd548c2ff8185128bbbf2da
 userSchema.virtual('isLocked').get(function () {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 });

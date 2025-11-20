@@ -31,6 +31,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const server = http.createServer(app);
 const io = initializeSocket(server);
+app.set('io', io);
+
 
 const notificationService = new NotificationService(io);
 
@@ -171,7 +173,7 @@ app.use((req, res) => {
 // ============================================
 // START SERVER
 // ============================================
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 
 server.listen(PORT, () => {
   console.log('\n🚀 HealthHub Server Started');
