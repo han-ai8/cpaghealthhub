@@ -1,7 +1,7 @@
 // server/utils/emailService.js
 import dotenv from "dotenv";
 dotenv.config();
-import { Resend } from "resend";
+import { Resend } from 'resend';
 
 // Initialize Resend with API key
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -9,15 +9,15 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // Verify Resend configuration on startup
 const verifyEmailConfig = () => {
   if (!process.env.RESEND_API_KEY) {
-    console.error("⚠️ RESEND_API_KEY is not set in environment variables");
+    console.error('⚠️ RESEND_API_KEY is not set in environment variables');
     return false;
   }
-
+  
   if (!process.env.RESEND_FROM_EMAIL) {
-    console.error("⚠️ RESEND_FROM_EMAIL is not set in environment variables");
+    console.error('⚠️ RESEND_FROM_EMAIL is not set in environment variables');
     return false;
   }
-
+  
   return true;
 };
 
@@ -32,10 +32,11 @@ export const generateVerificationCode = () => {
 // Send verification email
 export const sendVerificationEmail = async (email, code, name) => {
   try {
+    
     const { data, error } = await resend.emails.send({
       from: `HealthHub <${process.env.RESEND_FROM_EMAIL}>`,
       to: email,
-      subject: "Email Verification - HealthHub",
+      subject: 'Email Verification - HealthHub',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: #667eea; color: white; padding: 30px; border-radius: 10px; text-align: center;">
@@ -58,20 +59,23 @@ export const sendVerificationEmail = async (email, code, name) => {
       `,
     });
 
-    if (error) throw new Error(`Resend API error: ${error.message || JSON.stringify(error)}`);
+    if (error) {
+      throw new Error(`Resend API error: ${error.message || JSON.stringify(error)}`);
+    }
+
     return true;
   } catch (error) {
-    throw error;
+    throw error; // Re-throw to be caught by registration handler
   }
 };
 
-// Send password reset email
+// Send password reset code
 export const sendPasswordResetEmail = async (email, code, name) => {
   try {
     const { data, error } = await resend.emails.send({
       from: `HealthHub CPAG <${process.env.RESEND_FROM_EMAIL}>`,
       to: email,
-      subject: "Password Reset Code - HealthHub",
+      subject: 'Password Reset Code - HealthHub',
       html: `
         <!DOCTYPE html>
         <html>
@@ -155,21 +159,25 @@ export const sendPasswordResetEmail = async (email, code, name) => {
       `,
     });
 
-    if (error) throw new Error(`Failed to send password reset email: ${error.message}`);
-    return true;
+    if (error) {
+      console.error('❌ Resend error:', error);
+      throw new Error(`Failed to send password reset email: ${error.message}`);
+    }
 
+    return true;
   } catch (error) {
+    console.error('❌ Send password reset email error:', error);
     throw new Error('Failed to send password reset email');
   }
 };
 
-// Send welcome email
+// Send welcome email (optional - bonus feature)
 export const sendWelcomeEmail = async (email, name) => {
   try {
     const { data, error } = await resend.emails.send({
       from: `HealthHub CPAG <${process.env.RESEND_FROM_EMAIL}>`,
       to: email,
-      subject: "Welcome to HealthHub! 🏥",
+      subject: 'Welcome to HealthHub! 🏥',
       html: `
         <!DOCTYPE html>
         <html>
@@ -248,10 +256,20 @@ export const sendWelcomeEmail = async (email, name) => {
       `,
     });
 
-    if (error) return false;
+    if (error) {
+      // Don't throw - welcome email is optional
+      return false;
+    }
     return true;
-
   } catch (error) {
+    // Don't throw - welcome email is optional
     return false;
   }
+};
+
+export {
+  generateVerificationCode,
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  sendWelcomeEmail
 };
