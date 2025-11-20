@@ -270,6 +270,4 @@ export const sendWelcomeEmail = async (email, name) => {
 export {
   generateVerificationCode,
   sendVerificationEmail,
-  sendPasswordResetEmail,
-  sendWelcomeEmail
 };
