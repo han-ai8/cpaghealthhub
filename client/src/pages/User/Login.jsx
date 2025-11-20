@@ -1,4 +1,4 @@
-// Login.jsx - Updated with better email verification handling
+// Login.jsx - FIXED VERSION
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -25,7 +25,6 @@ export default function Login() {
     } else {
       setForm(prev => ({ ...prev, [name]: value }));
     }
-    // Clear error and verification prompt when user types
     setError('');
     setShowVerificationPrompt(false);
   };
@@ -37,65 +36,39 @@ export default function Login() {
     setLoading(true);
     
     try {
-      
-      const res = await api.get('/auth/user/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(form),
-      });
-      
-      const data = await res.json();
+      // ✅ FIXED: Use api.post() for POST requests
+      const data = await api.post('/auth/user/login', form);
 
-      if (res.ok) {
-        if (data.token) {
-          localStorage.setItem('token', data.token);
-        }
-        
-        await checkSession();
-        toast.success('Welcome! Login successful.');
-        
-        setTimeout(() => {
-          navigate('/user/home');
-        }, 1000);
-      } else {
-        // ✅ Handle email verification requirement
-        if (res.status === 403 && data.requiresVerification) {
-          setShowVerificationPrompt(true);
-          setError(data.msg || 'Please verify your email before logging in');
-          toast.error('Please verify your email before logging in');
-          // Store email for verification page
-          localStorage.setItem('verificationEmail', form.email);
-        }
-        // ✅ Handle rate limiting
-        else if (res.status === 429) {
-          if (data.locked) {
-            setError('Account locked for 24 hours due to too many failed attempts.');
-            toast.error('Account locked for 24 hours!');
-          } else if (data.delay) {
-            setError(data.msg);
-            toast.error(data.msg);
-          }
-        } else {
-          let errorMsg = data.msg || 'Login failed';
-          
-          // Show remaining attempts
-          if (data.remainingAttempts !== undefined) {
-            errorMsg += ` (${data.remainingAttempts} attempts remaining)`;
-          }
-          
-          if (data.warning) {
-            toast.warning(data.warning);
-          }
-          
-          setError(errorMsg);
-          toast.error(errorMsg);
-        }
+      // ✅ Token is already stored by api.post if present
+      if (data.token) {
+        localStorage.setItem('token', data.token);
       }
+      
+      await checkSession();
+      toast.success('Welcome! Login successful.');
+      
+      setTimeout(() => {
+        navigate('/user/home');
+      }, 1000);
     } catch (err) {
-      toast.error('Login error:', err);
-      setError('Network error. Please try again.');
-      toast.error('Network error. Please try again.');
+      console.error('Login error:', err);
+      const errorMsg = err.message || 'Login failed';
+      
+      // ✅ Handle email verification requirement
+      if (errorMsg.includes('verify') || errorMsg.includes('verification')) {
+        setShowVerificationPrompt(true);
+        setError('Please verify your email before logging in');
+        toast.error('Please verify your email before logging in');
+        localStorage.setItem('verificationEmail', form.email);
+      }
+      // ✅ Handle rate limiting
+      else if (errorMsg.includes('locked') || errorMsg.includes('attempts')) {
+        setError(errorMsg);
+        toast.error(errorMsg);
+      } else {
+        setError(errorMsg);
+        toast.error(errorMsg);
+      }
     } finally {
       setLoading(false);
     }

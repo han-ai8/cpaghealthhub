@@ -13,7 +13,7 @@ import {
   ChevronRight,
   ZoomIn
 } from "lucide-react";
-import axios from "axios";
+import api from '../../utils/api';
 
 /**
  * CommunityForum.upgraded.jsx
@@ -206,131 +206,109 @@ const CommunityForum = () => {
   const removeToast = (id) => setToasts((s) => s.filter((t) => t.id !== id));
 
   const fetchPosts = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get("/api/admin/community/posts", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setPosts(response.data);
-    } catch (error) {
-      console.error("Fetch admin posts error:", error);
-      pushToast("Failed to fetch posts", "error", error?.message || "");
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  try {
+    const response = await api.get('/admin/community/posts');
+    setPosts(response);
+  } catch (error) {
+    console.error('Fetch admin posts error:', error);
+    pushToast('Failed to fetch posts', 'error', error?.message || '');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleApproveReject = async (postId, status) => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      await axios.put(
-        `/api/admin/community/posts/${postId}/status`,
-        { status },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      pushToast(`Post ${status}`);
-      await fetchPosts();
-    } catch (error) {
-      console.error("Update post status error:", error);
-      pushToast("Failed to update post", "error", error?.message || "");
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  try {
+    await api.put(`/admin/community/posts/${postId}/status`, { status });
+    pushToast(`Post ${status}`);
+    await fetchPosts();
+  } catch (error) {
+    console.error('Update post status error:', error);
+    pushToast('Failed to update post', 'error', error?.message || '');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleDeletePost = (postId) => {
     setConfirmAction({ type: "delete_post", payload: { postId } });
   };
 
-  const confirmDeletePost = async (postId) => {
-    setConfirmAction(null);
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      await axios.delete(`/api/admin/community/posts/${postId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      pushToast("Post deleted successfully");
-      await fetchPosts();
-    } catch (error) {
-      console.error("Delete post error:", error);
-      pushToast("Failed to delete post", "error", error?.message || "");
-    } finally {
-      setLoading(false);
-    }
-  };
+ const confirmDeletePost = async (postId) => {
+  setConfirmAction(null);
+  setLoading(true);
+  try {
+    await api.delete(`/admin/community/posts/${postId}`);
+    pushToast('Post deleted successfully');
+    await fetchPosts();
+  } catch (error) {
+    console.error('Delete post error:', error);
+    pushToast('Failed to delete post', 'error', error?.message || '');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleReportAction = (postId, reportId, action) => {
     setConfirmAction({ type: "report_action", payload: { postId, reportId, action } });
   };
 
-  const confirmReportAction = async ({ postId, reportId, action }) => {
-    setConfirmAction(null);
-    setLoading(true);
-    
-    try {
-      const token = localStorage.getItem("token");
-      
-      // ✅ Updated: Three different actions
-      if (action === "delete") {
-        // Delete the post entirely
-        await axios.put(
-          `/api/admin/community/posts/${postId}/reports/${reportId}`,
-          { status: "resolved", deletePost: true },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        pushToast("Post deleted successfully");
-      } else if (action === "reject_post") {
-        // Reject the post (move to rejected status)
-        await axios.put(
-          `/api/admin/community/posts/${postId}/reports/${reportId}`,
-          { status: "resolved", deletePost: false },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        pushToast("Post rejected successfully");
-      } else {
-        // Reject the report (keep post as is)
-        await axios.put(
-          `/api/admin/community/posts/${postId}/reports/${reportId}`,
-          { status: "rejected", deletePost: false },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        pushToast("Report dismissed - Post kept");
-      }
-      
-      await fetchPosts();
-      setSelectedPost(null);
-    } catch (error) {
-      console.error("Handle report error:", error);
-      pushToast("Failed to process report", "error", error?.message || "");
-    } finally {
-      setLoading(false);
+ const confirmReportAction = async ({ postId, reportId, action }) => {
+  setConfirmAction(null);
+  setLoading(true);
+  
+  try {
+    if (action === 'delete') {
+      await api.put(
+        `/admin/community/posts/${postId}/reports/${reportId}`,
+        { status: 'resolved', deletePost: true }
+      );
+      pushToast('Post deleted successfully');
+    } else if (action === 'reject_post') {
+      await api.put(
+        `/admin/community/posts/${postId}/reports/${reportId}`,
+        { status: 'resolved', deletePost: false }
+      );
+      pushToast('Post rejected successfully');
+    } else {
+      await api.put(
+        `/admin/community/posts/${postId}/reports/${reportId}`,
+        { status: 'rejected', deletePost: false }
+      );
+      pushToast('Report dismissed - Post kept');
     }
-  };
+    
+    await fetchPosts();
+    setSelectedPost(null);
+  } catch (error) {
+    console.error('Handle report error:', error);
+    pushToast('Failed to process report', 'error', error?.message || '');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleDeleteComment = (postId, commentId) => {
     setConfirmAction({ type: "delete_comment", payload: { postId, commentId } });
   };
 
-  const confirmDeleteComment = async ({ postId, commentId }) => {
-    setConfirmAction(null);
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      await axios.delete(`/api/admin/community/posts/${postId}/comments/${commentId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      pushToast("Comment deleted successfully");
-      await fetchPosts();
-    } catch (error) {
-      console.error("Delete comment error:", error);
-      pushToast("Failed to delete comment", "error", error?.message || "");
-    } finally {
-      setLoading(false);
-    }
-  };
+ const confirmDeleteComment = async ({ postId, commentId }) => {
+  setConfirmAction(null);
+  setLoading(true);
+  try {
+    await api.delete(`/admin/community/posts/${postId}/comments/${commentId}`);
+    pushToast('Comment deleted successfully');
+    await fetchPosts();
+  } catch (error) {
+    console.error('Delete comment error:', error);
+    pushToast('Failed to delete comment', 'error', error?.message || '');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const statusBadge = (post) => {
     const base = "px-3 py-1 rounded-full text-xs font-medium";

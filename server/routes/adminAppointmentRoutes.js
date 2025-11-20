@@ -2,6 +2,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import Appointment from '../models/appointment.js';
+import Conversation from '../models/Conversation.js';
 import User from '../models/User.js';
 import { isAuthenticated, isCaseManager, isAdmin } from '../middleware/auth.js';
 
@@ -315,12 +316,10 @@ router.get('/my-assigned', isAuthenticated, isCaseManager, async (req, res) => {
   }
 });
 
-// ============================================
-// ASSIGN CASE MANAGER - Admin Only
-// ============================================
+
+// Update the ASSIGN CASE MANAGER route
 router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    
     const { caseManagerId } = req.body;
     const adminId = req.user.id;
     const appointmentId = req.params.id;
@@ -332,14 +331,12 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     }
 
     if (!mongoose.Types.ObjectId.isValid(caseManagerId)) {
-      
       return res.status(400).json({ 
         error: 'Invalid case manager ID format' 
       });
     }
     
     if (!mongoose.Types.ObjectId.isValid(appointmentId)) {
-      
       return res.status(400).json({ 
         error: 'Invalid appointment ID format' 
       });
@@ -351,10 +348,8 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     });
 
     if (!caseManager) {
-      
       const userExists = await User.findById(caseManagerId);
       if (userExists) {
-        
         return res.status(400).json({ 
           error: `User found but role is '${userExists.role}', not 'case_manager'` 
         });
@@ -374,18 +369,15 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     const appointment = await Appointment.findById(appointmentId);
     
     if (!appointment) {
-      
       return res.status(404).json({ 
         error: 'Appointment not found' 
       });
     }
-    
-    
 
-    if (appointment.assignedCaseManager) {
-
-      console.log('');
-    }
+    const userId = appointment.user;
+    const oldCaseManagerId = appointment.assignedCaseManager;
+    
+    // Update appointment
     const oldStatus = appointment.status;
     
     appointment.assignedCaseManager = caseManagerId;
@@ -394,16 +386,14 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     
     if (appointment.status === 'pending') {
       appointment.status = 'confirmed';
-
     }
 
     await appointment.save();
 
-    console.log('');
+    console.log('✅ Appointment updated with new case manager');
+    
+    // ✅ UPDATE USER'S ASSIGNED CASE MANAGER
     try {
-      const userId = appointment.user;
-      
-      
       const updatedUser = await User.findByIdAndUpdate(
         userId,
         { assignedCaseManager: caseManagerId },
@@ -411,13 +401,95 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
       ).select('username email assignedCaseManager');
       
       if (updatedUser) {
-        console.log('');
+        console.log('✅ User assignedCaseManager updated to:', caseManagerId);
       } else {
-        console.log('⚠️');
+        console.log('⚠️ User not found for update');
       }
     } catch (userUpdateErr) {
-      console.error('⚠️');
+      console.error('⚠️ Failed to update user assignedCaseManager:', userUpdateErr);
     }
+
+    // ✅ FIX: UPDATE OR CREATE CONVERSATION
+    try {
+      // Check if there's an existing conversation with the OLD case manager
+      if (oldCaseManagerId) {
+        const oldConversation = await Conversation.findOne({
+          userId: userId,
+          caseManagerId: oldCaseManagerId
+        });
+
+        if (oldConversation) {
+          console.log('📝 Found old conversation with previous case manager');
+          
+          // Archive the old conversation
+          await Conversation.findByIdAndUpdate(oldConversation._id, {
+            status: 'archived'
+          });
+          
+          console.log('✅ Old conversation archived');
+        }
+      }
+
+      // Check if there's already a conversation with the NEW case manager
+      let newConversation = await Conversation.findOne({
+        userId: userId,
+        caseManagerId: caseManagerId
+      });
+
+      if (newConversation) {
+        console.log('📝 Found existing conversation with new case manager');
+        
+        // Reactivate it if archived
+        if (newConversation.status === 'archived') {
+          newConversation.status = 'active';
+          await newConversation.save();
+          console.log('✅ Conversation reactivated');
+        }
+      } else {
+        // Create a new conversation
+        newConversation = await Conversation.create({
+          userId: userId,
+          caseManagerId: caseManagerId,
+          lastMessage: 'New case manager assigned',
+          lastMessageTime: new Date(),
+          status: 'active',
+          unreadCount: {
+            user: 0,
+            caseManager: 0
+          }
+        });
+        
+        console.log('✅ New conversation created with new case manager');
+      }
+
+      // ✅ Emit socket notification to both user and case manager
+      const io = req.app.get('io');
+      if (io) {
+        // Notify user about case manager assignment
+        io.to(userId.toString()).emit('caseManagerAssigned', {
+          caseManager: {
+            id: caseManagerId,
+            name: caseManager.name || caseManager.username
+          },
+          message: 'A case manager has been assigned to you'
+        });
+
+        // Notify case manager about new assignment
+        io.to(caseManagerId.toString()).emit('userAssigned', {
+          user: {
+            id: userId,
+            username: updatedUser?.username
+          },
+          appointment: appointment
+        });
+
+        console.log('✅ Socket notifications sent');
+      }
+    } catch (conversationErr) {
+      console.error('⚠️ Failed to update conversation:', conversationErr);
+      // Don't fail the whole request if conversation update fails
+    }
+
     await appointment.populate([
       { path: 'user', select: 'name email username fullName age gender location' },
       { path: 'assignedCaseManager', select: 'name username email' },
@@ -431,7 +503,7 @@ router.put('/appointments/:id/assign', isAuthenticated, isAdmin, async (req, res
     });
     
   } catch (err) {
-    
+    console.error('❌ Assign case manager error:', err);
     res.status(500).json({ 
       error: 'Failed to assign case manager',
       details: err.message,

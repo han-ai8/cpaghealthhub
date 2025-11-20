@@ -35,22 +35,31 @@ const Community = () => {
 
   // Anonymous name generator (client-side)
   const generateAnonymousName = (userId) => {
-    if (!userId) return 'Anonymous User';
-    
-    const idStr = userId.toString();
-    let hash = 0;
-    
-    for (let i = 0; i < idStr.length; i++) {
-      const char = idStr.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    
-    const absHash = Math.abs(hash);
-    const uniqueNumber = (absHash % 90000) + 10000;
-    
-    return `Anonymous #${uniqueNumber}`;
-  };
+  if (!userId) return 'Anonymous User';
+  
+  // ✅ Handle both ObjectId and populated user object
+  let idStr;
+  if (typeof userId === 'object' && userId._id) {
+    // If it's a populated object, use the _id
+    idStr = userId._id.toString();
+  } else {
+    // If it's already an ObjectId string
+    idStr = userId.toString();
+  }
+  
+  let hash = 0;
+  
+  for (let i = 0; i < idStr.length; i++) {
+    const char = idStr.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  
+  const absHash = Math.abs(hash);
+  const uniqueNumber = (absHash % 90000) + 10000;
+  
+  return `Anonymous #${uniqueNumber}`;
+};
 
   // Fetch posts on mount
   useEffect(() => {

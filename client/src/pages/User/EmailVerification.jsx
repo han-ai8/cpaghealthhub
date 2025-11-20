@@ -1,4 +1,4 @@
-// EmailVerification.jsx - User side email verification
+// EmailVerification.jsx - FIXED VERSION
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
@@ -21,7 +21,6 @@ export default function EmailVerification() {
   const toast = useToast();
 
   useEffect(() => {
-    // Get email from navigation state or localStorage
     const emailFromState = location.state?.email;
     const emailFromStorage = localStorage.getItem('verificationEmail');
     
@@ -36,7 +35,6 @@ export default function EmailVerification() {
     }
   }, [location, navigate]);
 
-  // Countdown for resend button
   useEffect(() => {
     if (resendCooldown > 0) {
       const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
@@ -45,14 +43,12 @@ export default function EmailVerification() {
   }, [resendCooldown]);
 
   const handleChange = (index, value) => {
-    // Only allow numbers
     if (!/^\d*$/.test(value)) return;
 
     const newCode = [...code];
     newCode[index] = value;
     setCode(newCode);
 
-    // Auto-focus next input
     if (value && index < 5) {
       document.getElementById(`code-${index + 1}`)?.focus();
     }
@@ -61,7 +57,6 @@ export default function EmailVerification() {
   };
 
   const handleKeyDown = (index, e) => {
-    // Handle backspace
     if (e.key === 'Backspace' && !code[index] && index > 0) {
       document.getElementById(`code-${index - 1}`)?.focus();
     }
@@ -95,42 +90,27 @@ export default function EmailVerification() {
     setError('');
 
     try {
-      const response = await api.get('/auth/user/verify-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          email,
-          code: verificationCode,
-        }),
+      // ✅ FIXED: Use api.post() for POST requests
+      const data = await api.post('/auth/user/verify-email', {
+        email,
+        code: verificationCode,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess('Email verified successfully! Redirecting...');
-        toast.success('Email verified successfully!');
-        
-        // Store token if provided
-        if (data.token) {
-          localStorage.setItem('token', data.token);
-        }
-        
-        // Clear verification email
-        localStorage.removeItem('verificationEmail');
-
-        // Redirect to login
-        setTimeout(() => {
-          navigate('/user/login');
-        }, 1500);
-      } else {
-        const errorMsg = data.msg || data.message || 'Verification failed. Please try again.';
-        setError(errorMsg);
-        toast.error(errorMsg);
+      setSuccess('Email verified successfully! Redirecting...');
+      toast.success('Email verified successfully!');
+      
+      if (data.token) {
+        localStorage.setItem('token', data.token);
       }
+      
+      localStorage.removeItem('verificationEmail');
+
+      setTimeout(() => {
+        navigate('/user/login');
+      }, 1500);
     } catch (err) {
       console.error('Verification error:', err);
-      const errorMsg = 'Network error. Please try again.';
+      const errorMsg = err.message || 'Verification failed. Please try again.';
       setError(errorMsg);
       toast.error(errorMsg);
     } finally {
@@ -144,29 +124,17 @@ export default function EmailVerification() {
     setSuccess('');
 
     try {
-      const response = await api.get('/auth/user/resend-verification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email }),
-      });
+      // ✅ FIXED: Use api.post() for POST requests
+      await api.post('/auth/user/resend-verification', { email });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess('New verification code sent to your email!');
-        toast.success('New verification code sent!');
-        setResendCooldown(60); // 60 seconds cooldown
-        setCode(['', '', '', '', '', '']); // Clear input
-        document.getElementById('code-0')?.focus();
-      } else {
-        const errorMsg = data.msg || data.message || 'Failed to resend code';
-        setError(errorMsg);
-        toast.error(errorMsg);
-      }
+      setSuccess('New verification code sent to your email!');
+      toast.success('New verification code sent!');
+      setResendCooldown(60);
+      setCode(['', '', '', '', '', '']);
+      document.getElementById('code-0')?.focus();
     } catch (err) {
       console.error('Resend error:', err);
-      const errorMsg = 'Network error. Please try again.';
+      const errorMsg = err.message || 'Failed to resend code';
       setError(errorMsg);
       toast.error(errorMsg);
     } finally {

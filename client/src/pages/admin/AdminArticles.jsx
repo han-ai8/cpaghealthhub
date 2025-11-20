@@ -1,6 +1,7 @@
-// Admin/pages/AdminArticles.jsx
+// Admin/pages/AdminArticles.jsx - FIXED VERSION
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const AdminArticles = () => {
   const [articles, setArticles] = useState([]);
@@ -17,11 +18,28 @@ const AdminArticles = () => {
     published: true
   });
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : ''
+    };
+  };
+
   // Fetch all articles
   const fetchArticles = async () => {
     try {
-      const response = await axios.get('/api/articles/admin/all');
-      setArticles(response.data);
+      // ✅ FIXED: Removed duplicate /api prefix
+      const response = await fetch(`${API_URL}/articles/admin/all`, {
+        headers: getAuthHeaders()
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch articles');
+      }
+      
+      const data = await response.json();
+      setArticles(data);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching articles:', error);
@@ -75,13 +93,28 @@ const AdminArticles = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      let response;
       if (editMode) {
-        await axios.put(`/api/articles/admin/update/${currentArticle._id}`, formData);
-        alert('✅ Article updated successfully!');
+        // ✅ FIXED: Removed duplicate /api prefix
+        response = await fetch(`${API_URL}/articles/admin/update/${currentArticle._id}`, {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(formData)
+        });
       } else {
-        await axios.post('/api/articles/admin/create', formData);
-        alert('✅ Article created successfully!');
+        // ✅ FIXED: Removed duplicate /api prefix
+        response = await fetch(`${API_URL}/articles/admin/create`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(formData)
+        });
       }
+
+      if (!response.ok) {
+        throw new Error('Failed to save article');
+      }
+
+      alert(editMode ? '✅ Article updated successfully!' : '✅ Article created successfully!');
       setShowModal(false);
       fetchArticles();
     } catch (error) {
@@ -94,7 +127,16 @@ const AdminArticles = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this article?')) {
       try {
-        await axios.delete(`/api/articles/admin/delete/${id}`);
+        // ✅ FIXED: Removed duplicate /api prefix
+        const response = await fetch(`${API_URL}/articles/admin/delete/${id}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to delete article');
+        }
+
         alert('✅ Article deleted successfully!');
         fetchArticles();
       } catch (error) {
@@ -173,7 +215,7 @@ const AdminArticles = () => {
               <tbody>
                 {articles.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="text-center py-12"> {/* Updated colSpan to 6 since Views column removed */}
+                    <td colSpan="6" className="text-center py-12">
                       <div className="flex flex-col items-center gap-3">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

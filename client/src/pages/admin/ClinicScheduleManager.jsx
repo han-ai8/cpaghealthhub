@@ -1,7 +1,7 @@
 // src/pages/admin/ClinicScheduleManager.jsx
 import { useState, useEffect } from 'react';
 import { Calendar, Plus, X, Edit, Trash2, Power, AlertCircle } from 'lucide-react';
-import axios from 'axios';
+import api from '../../utils/api';
 
 const ClinicScheduleManager = () => {
   const [schedules, setSchedules] = useState([]);
@@ -23,74 +23,57 @@ const ClinicScheduleManager = () => {
     fetchSchedules();
   }, []);
 
-  const fetchSchedules = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/clinic-schedule', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setSchedules(response.data);
-    } catch (err) {
-      setError('Failed to fetch schedules');
+ const fetchSchedules = async () => {
+  try {
+    const response = await api.get('/clinic-schedule');
+    setSchedules(response);
+  } catch (err) {
+    setError('Failed to fetch schedules');
+  }
+};
+
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError('');
+
+  try {
+    if (editingSchedule) {
+      await api.put(`/clinic-schedule/${editingSchedule._id}`, formData);
+    } else {
+      await api.post('/clinic-schedule', formData);
     }
-  };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+    await fetchSchedules();
+    handleCloseModal();
+  } catch (err) {
+    setError(err.message || 'Failed to save schedule');
+  } finally {
+    setLoading(false);
+  }
+};
 
-    try {
-      const token = localStorage.getItem('token');
-      
-      if (editingSchedule) {
-        await axios.put(
-          `http://localhost:5000/api/clinic-schedule/${editingSchedule._id}`,
-          formData,
-          { headers: { Authorization: `Bearer ${token}` }}
-        );
-      } else {
-        await axios.post(
-          'http://localhost:5000/api/clinic-schedule',
-          formData,
-          { headers: { Authorization: `Bearer ${token}` }}
-        );
-      }
+ const handleDelete = async (id) => {
+  if (!confirm('Are you sure you want to delete this schedule?')) return;
 
-      await fetchSchedules();
-      handleCloseModal();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save schedule');
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    await api.delete(`/clinic-schedule/${id}`);
+    await fetchSchedules();
+  } catch (err) {
+    setError('Failed to delete schedule');
+  }
+};
 
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this schedule?')) return;
+const handleToggle = async (id) => {
+  try {
+    await api.put(`/clinic-schedule/${id}/toggle`, {});
+    await fetchSchedules();
+  } catch (err) {
+    setError('Failed to toggle schedule status');
+  }
+};
 
-    try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/clinic-schedule/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      await fetchSchedules();
-    } catch (err) {
-      setError('Failed to delete schedule');
-    }
-  };
 
-  const handleToggle = async (id) => {
-    try {
-      const token = localStorage.getItem('token');
-      await axios.patch(`http://localhost:5000/api/clinic-schedule/${id}/toggle`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      await fetchSchedules();
-    } catch (err) {
-      setError('Failed to toggle schedule status');
-    }
-  };
 
   const handleEdit = (schedule) => {
     setEditingSchedule(schedule);

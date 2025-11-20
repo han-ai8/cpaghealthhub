@@ -1,4 +1,4 @@
-// User/pages/ArticleDetail.jsx
+// User/pages/ArticleDetail.jsx - FIXED VERSION
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
@@ -16,8 +16,9 @@ const ArticleDetail = () => {
 
   const fetchArticle = async () => {
     try {
-      const response = await api.get(`/api/articles/${id}`);
-      setArticle(response.data);
+      // ✅ FIXED: Removed /api prefix since it's already in API_URL
+      const response = await api.get(`/articles/${id}`);
+      setArticle(response);
       setLoading(false);
     } catch (err) {
       setError('Failed to load article');

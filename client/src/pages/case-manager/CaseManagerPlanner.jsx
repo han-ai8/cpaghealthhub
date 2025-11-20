@@ -5,6 +5,7 @@ import SessionTimelineModal from '../../components/SessionTimelineModal';
 import UnifiedSessionHistoryModal from '../../components/UnifiedSessionHistoryModal';
 import { useAuth } from '../../context/AuthContext';
 import PrintableCompletionReport from '../../components/PrintableCompletionReport';
+import api from '../../utils/api';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const parseDate = (dateString) => {
@@ -96,7 +97,6 @@ const CaseManagerPlanner = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      console.log('🔄 Auto-refreshing case manager planner...');
       fetchPlanner();
       fetchClinicSchedule(); // ✅ NEW: Include in auto-refresh
     }, 30000);
@@ -104,57 +104,42 @@ const CaseManagerPlanner = () => {
   }, [sortBy, statusFilter]);
 
   const fetchPlanner = async () => {
-    setLoading(true);
-    try {
-      const query = new URLSearchParams({
-        sortBy,
-        ...(statusFilter && { status: statusFilter })
-      });
+  setLoading(true);
+  try {
+    const query = new URLSearchParams({
+      sortBy,
+      ...(statusFilter && { status: statusFilter })
+    });
 
-      const response = await fetch(`${API_URL}/admin/planner?${query}`, {
-        headers: getAuthHeaders()
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAppointments(data.appointments);
-        setStats(data.stats);
-        setLastUpdate(new Date());
-      }
-    } catch (err) {
-      console.error('Error fetching planner:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const data = await api.get(`/admin/planner?${query}`);
+    setAppointments(data.appointments);
+    setStats(data.stats);
+    setLastUpdate(new Date());
+  } catch (err) {
+    console.error('Error fetching planner:', err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchBookedSlots = async () => {
-    try {
-      const response = await fetch(`${API_URL}/appointments/booked-slots`, {
-        headers: getAuthHeaders()
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setBookedSlots(data);
-      }
-    } catch (err) {
-      console.error('Error fetching booked slots:', err);
-    }
-  };
+  try {
+    const data = await api.get('/appointments/booked-slots');
+    setBookedSlots(data);
+  } catch (err) {
+    console.error('Error fetching booked slots:', err);
+  }
+};
 
   // ✅ NEW: Fetch clinic schedule
   const fetchClinicSchedule = async () => {
-    try {
-      console.log('📅 Fetching clinic schedule for case manager...');
-      const response = await fetch(`${API_URL}/clinic-schedule/active`);
-      if (response.ok) {
-        const data = await response.json();
-        setClinicSchedule(data);
-      }
-    } catch (err) {
-      console.error('❌ Error fetching clinic schedule:', err);
-    }
-  };
+  try {
+    const data = await api.get('/clinic-schedule/active');
+    setClinicSchedule(data);
+  } catch (err) {
+    console.error('❌ Error fetching clinic schedule:', err);
+  }
+};
 
   // ✅ NEW: Check if date is available based on clinic schedule
   const isDateAvailable = (date) => {
@@ -196,7 +181,6 @@ const CaseManagerPlanner = () => {
     
     // Sunday is closed by default
     if (dayOfWeek === 0) {
-      console.log(`❌ Date ${dateStr} is Sunday - closed`);
       return false;
     }
     
@@ -258,68 +242,59 @@ const CaseManagerPlanner = () => {
     fetchBookedSlots();
   };
 
-  // ✅ UPDATED: Handle edit appointment with clinic schedule validation
   const handleEditAppointment = async () => {
-    if (!editAppointmentForm.date || !editAppointmentForm.time) {
-      alert('Please select both date and time');
+  if (!editAppointmentForm.date || !editAppointmentForm.time) {
+    alert('Please select both date and time');
+    return;
+  }
+
+  const formattedDate = formatDateString(new Date(editAppointmentForm.date));
+
+  if (!isDateAvailable(new Date(editAppointmentForm.date))) {
+    alert('❌ The selected date is not available (holiday/closure). Please select another date.');
+    return;
+  }
+
+  const conflicts = getConflictingAppointments(
+    formattedDate, 
+    editAppointmentForm.time,
+    selectedPatient._id
+  );
+
+  if (conflicts.length > 0) {
+    const conflictNames = conflicts.map(c => c.userName).join(', ');
+    if (!confirm(`⚠️ This time slot is already booked by: ${conflictNames}\n\nDo you want to continue anyway?`)) {
       return;
     }
+  }
 
-    const formattedDate = formatDateString(new Date(editAppointmentForm.date));
-
-    // ✅ NEW: Check if date is available (not a holiday/closure)
-    if (!isDateAvailable(new Date(editAppointmentForm.date))) {
-      alert('❌ The selected date is not available (holiday/closure). Please select another date.');
-      return;
-    }
-
-    // Check for conflicts
-    const conflicts = getConflictingAppointments(
-      formattedDate, 
-      editAppointmentForm.time,
-      selectedPatient._id
+  try {
+    setLoading(true);
+    const data = await api.put(
+      `/admin/appointments/${selectedPatient._id}/reschedule`,
+      {
+        date: formattedDate,
+        time: editAppointmentForm.time,
+        note: editAppointmentForm.note
+      }
     );
 
-    if (conflicts.length > 0) {
-      const conflictNames = conflicts.map(c => c.userName).join(', ');
-      if (!confirm(`⚠️ This time slot is already booked by: ${conflictNames}\n\nDo you want to continue anyway?`)) {
-        return;
-      }
+    if (data.success) {
+      alert('✅ Appointment updated successfully!');
+      setShowEditModal(false);
+      setEditAppointmentForm({ date: '', time: '', note: '' });
+      await fetchPlanner();
+      await fetchBookedSlots();
+    } else {
+      alert(`❌ Error: ${data.error || 'Failed to update appointment'}`);
     }
-
-    try {
-      setLoading(true);
-      const response = await fetch(
-        `${API_URL}/admin/appointments/${selectedPatient._id}/reschedule`,
-        {
-          method: 'PUT',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            date: formattedDate,
-            time: editAppointmentForm.time,
-            note: editAppointmentForm.note
-          })
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        alert('✅ Appointment updated successfully!');
-        setShowEditModal(false);
-        setEditAppointmentForm({ date: '', time: '', note: '' });
-        fetchPlanner();
-        fetchBookedSlots();
-      } else {
-        alert(`❌ Error: ${data.error || 'Failed to update appointment'}`);
-      }
-    } catch (error) {
-      console.error('Error updating appointment:', error);
-      alert('Failed to update appointment. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (error) {
+    console.error('Error updating appointment:', error);
+    alert(`Failed to update appointment: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const openNextSessionModal = () => {
     if (!canSetNewSession(selectedPatient)) {
@@ -357,192 +332,162 @@ const CaseManagerPlanner = () => {
   };
 
   const handleUpdateSessionSummary = async () => {
-    if (!sessionSummaryForm.notes) {
-      alert('Please enter session notes');
-      return;
+  if (!sessionSummaryForm.notes) {
+    alert('Please enter session notes');
+    return;
+  }
+
+  try {
+    setLoading(true);
+    const data = await api.put(
+      `/sessions/appointments/${selectedPatient._id}/session-notes/${selectedNoteIndex}`,
+      sessionSummaryForm
+    );
+
+    if (data.success) {
+      alert('✅ Session summary updated successfully');
+      setShowViewSessionModal(false);
+      setSessionSummaryForm({ notes: '', sessionSummary: '', progress: 'good' });
+      await fetchPlanner();
+    } else {
+      alert(`❌ Error: ${data.error || 'Failed to update summary'}`);
     }
+  } catch (error) {
+    console.error('Error updating session summary:', error);
+    alert(`Failed to update session summary: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
+ const openCompleteModal = async () => {
+  try {
+    setLoading(true);
+    const data = await api.get(
+      `/sessions/patients/${selectedPatient.user._id}/program-report`
+    );
 
-    try {
-      setLoading(true);
-      const response = await fetch(
-        `${API_URL}/sessions/appointments/${selectedPatient._id}/session-notes/${selectedNoteIndex}`,
-        {
-          method: 'PUT',
-          headers: getAuthHeaders(),
-          body: JSON.stringify(sessionSummaryForm)
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        alert('✅ Session summary updated successfully');
-        setShowViewSessionModal(false);
-        setSessionSummaryForm({ notes: '', sessionSummary: '', progress: 'good' });
-        fetchPlanner();
-      } else {
-        alert(`❌ Error: ${data.error || 'Failed to update summary'}`);
-      }
-    } catch (error) {
-      console.error('Error updating session summary:', error);
-      alert('Failed to update session summary. Please try again.');
-    } finally {
-      setLoading(false);
+    if (data.success) {
+      setProgramReport(data.report);
+      setShowCompleteModal(true);
+      setShowPatientModal(false);
     }
-  };
+  } catch (error) {
+    console.error('Error generating report:', error);
+    alert('Failed to generate program report');
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const openCompleteModal = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(
-        `${API_URL}/sessions/patients/${selectedPatient.user._id}/program-report`,
-        {
-          headers: getAuthHeaders()
-        }
-      );
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setProgramReport(data.report);
-          setShowCompleteModal(true);
-          setShowPatientModal(false);
-        }
-      }
-    } catch (error) {
-      console.error('Error generating report:', error);
-      alert('Failed to generate program report');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ✅ UPDATED: Handle set next session with clinic schedule validation
   const handleSetNextSession = async () => {
-    if (!nextSessionForm.date || !nextSessionForm.time) {
-      alert('Please select both date and time');
-      return;
-    }
+  if (!nextSessionForm.date || !nextSessionForm.time) {
+    alert('Please select both date and time');
+    return;
+  }
 
-    const formattedDate = formatDateString(new Date(nextSessionForm.date));
+  const formattedDate = formatDateString(new Date(nextSessionForm.date));
 
-    // ✅ NEW: Check if date is available (not a holiday/closure)
-    if (!isDateAvailable(new Date(nextSessionForm.date))) {
-      alert('❌ The selected date is not available (holiday/closure). Please select another date.');
-      return;
-    }
+  // ✅ Check if date is available (not a holiday/closure)
+  if (!isDateAvailable(new Date(nextSessionForm.date))) {
+    alert('❌ The selected date is not available (holiday/closure). Please select another date.');
+    return;
+  }
 
-    // Check for conflicts using the formatted date
-    const conflicts = getConflictingAppointments(formattedDate, nextSessionForm.time);
-    if (conflicts.length > 0) {
-      const conflictNames = conflicts.map(c => c.userName).join(', ');
-      alert(`⚠️ This time slot is already booked by: ${conflictNames}\n\nPlease select another time.`);
-      return;
-    }
+  // Check for conflicts using the formatted date
+  const conflicts = getConflictingAppointments(formattedDate, nextSessionForm.time);
+  if (conflicts.length > 0) {
+    const conflictNames = conflicts.map(c => c.userName).join(', ');
+    alert(`⚠️ This time slot is already booked by: ${conflictNames}\n\nPlease select another time.`);
+    return;
+  }
 
-    try {
-      setLoading(true);
-      const response = await fetch(
-        `${API_URL}/sessions/appointments/${selectedPatient._id}/next-session`,
-        {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            date: formattedDate,
-            time: nextSessionForm.time,
-            note: nextSessionForm.note
-          })
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        alert(`✅ ${data.message}`);
-        setShowNextSessionModal(false);
-        setNextSessionForm({ date: '', time: '', note: '' });
-        fetchPlanner();
-        fetchBookedSlots();
-      } else {
-        alert(`❌ Error: ${data.error || 'Failed to create session'}`);
+  try {
+    setLoading(true);
+    
+    // ✅ Use api.js instead of raw fetch
+    const data = await api.post(
+      `/sessions/appointments/${selectedPatient._id}/next-session`,
+      {
+        date: formattedDate,
+        time: nextSessionForm.time,
+        note: nextSessionForm.note
       }
-    } catch (error) {
-      console.error('Error creating next session:', error);
-      alert('Failed to create next session. Please try again.');
-    } finally {
-      setLoading(false);
+    );
+
+    if (data.success) {
+      alert(`✅ ${data.message}`);
+      setShowNextSessionModal(false);
+      setNextSessionForm({ date: '', time: '', note: '' });
+      await fetchPlanner();
+      await fetchBookedSlots();
+    } else {
+      alert(`❌ Error: ${data.error || 'Failed to create session'}`);
     }
-  };
+  } catch (error) {
+    console.error('Error creating next session:', error);
+    alert(`Failed to create next session: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleAddSessionSummary = async () => {
-    if (!sessionSummaryForm.notes) {
-      alert('Please enter session notes');
-      return;
+  if (!sessionSummaryForm.notes) {
+    alert('Please enter session notes');
+    return;
+  }
+
+  try {
+    setLoading(true);
+    const data = await api.post(
+      `/sessions/appointments/${selectedPatient._id}/session-summary`,
+      sessionSummaryForm
+    );
+
+    if (data.success) {
+      alert('✅ Session summary added successfully');
+      setShowSessionSummaryModal(false);
+      setSessionSummaryForm({ notes: '', sessionSummary: '', progress: 'good' });
+      await fetchPlanner();
+    } else {
+      alert(`❌ Error: ${data.error || 'Failed to add summary'}`);
     }
+  } catch (error) {
+    alert(`Failed to add session summary: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
-    try {
-      setLoading(true);
-      const response = await fetch(
-        `${API_URL}/sessions/appointments/${selectedPatient._id}/session-summary`,
-        {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify(sessionSummaryForm)
-        }
-      );
+ const handleCompleteProgram = async () => {
+  if (!confirm('Are you sure you want to mark this patient\'s program as complete? This will generate a final report.')) {
+    return;
+  }
 
-      const data = await response.json();
+  try {
+    setLoading(true);
+    const data = await api.post(
+      `/sessions/appointments/${selectedPatient._id}/complete-program`,
+      { completionNotes }
+    );
 
-      if (response.ok && data.success) {
-        alert('✅ Session summary added successfully');
-        setShowSessionSummaryModal(false);
-        setSessionSummaryForm({ notes: '', sessionSummary: '', progress: 'good' });
-        fetchPlanner();
-      } else {
-        alert(`❌ Error: ${data.error || 'Failed to add summary'}`);
-      }
-    } catch (error) {
-      console.error('Error adding session summary:', error);
-      alert('Failed to add session summary. Please try again.');
-    } finally {
-      setLoading(false);
+    if (data.success) {
+      alert('✅ Patient program completed successfully!');
+      setShowCompleteModal(false);
+      setShowPrintModal(true);
+      setCompletionNotes('');
+      await fetchPlanner();
+    } else {
+      alert(`❌ Error: ${data.error || 'Failed to complete program'}`);
     }
-  };
-
-  const handleCompleteProgram = async () => {
-    if (!confirm('Are you sure you want to mark this patient\'s program as complete? This will generate a final report.')) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const response = await fetch(
-        `${API_URL}/sessions/appointments/${selectedPatient._id}/complete-program`,
-        {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({ completionNotes })
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        alert('✅ Patient program completed successfully!');
-        setShowCompleteModal(false);
-        setShowPrintModal(true);
-        setCompletionNotes('');
-        fetchPlanner();
-      } else {
-        alert(`❌ Error: ${data.error || 'Failed to complete program'}`);
-      }
-    } catch (error) {
-      console.error('Error completing program:', error);
-      alert('Failed to complete program. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (error) {
+    console.error('Error completing program:', error);
+    alert(`Failed to complete program: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handlePrintReport = () => {
     window.print();

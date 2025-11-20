@@ -1,11 +1,13 @@
 // ForgotPassword.jsx - User side password reset
+// ForgotPassword.jsx - User side password reset
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { Eye, EyeOff, Lock, CheckCircle } from 'lucide-react';
+import api from '../../utils/api'; // ✅ ADD THIS
 
 export default function ForgotPassword() {
-  const [step, setStep] = useState(1); // 1: Email, 2: Code & New Password
+  const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     email: '',
     code: ['', '', '', '', '', ''],
@@ -22,7 +24,7 @@ export default function ForgotPassword() {
   const navigate = useNavigate();
   const toast = useToast();
 
-  // Step 1: Send Reset Code
+  // ✅ FIXED: Step 1 - Use api utility
   const handleSendCode = async (e) => {
     e.preventDefault();
 
@@ -36,30 +38,19 @@ export default function ForgotPassword() {
     setError('');
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/user/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email: formData.email }),
+      const data = await api.post('/auth/user/forgot-password', { 
+        email: formData.email 
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess('Reset code sent to your email!');
-        toast.success('Reset code sent to your email!');
-        setTimeout(() => {
-          setStep(2);
-          setSuccess('');
-        }, 1500);
-      } else {
-        const errorMsg = data.msg || data.message || 'Failed to send reset code';
-        setError(errorMsg);
-        toast.error(errorMsg);
-      }
+      setSuccess('Reset code sent to your email!');
+      toast.success('Reset code sent to your email!');
+      setTimeout(() => {
+        setStep(2);
+        setSuccess('');
+      }, 1500);
     } catch (err) {
       console.error('Forgot password error:', err);
-      const errorMsg = 'Network error. Please try again.';
+      const errorMsg = err.message || 'Failed to send reset code';
       setError(errorMsg);
       toast.error(errorMsg);
     } finally {
@@ -67,7 +58,7 @@ export default function ForgotPassword() {
     }
   };
 
-  // Step 2: Verify Code and Reset Password
+  // ✅ FIXED: Step 2 - Use api utility
   const handleResetPassword = async (e) => {
     e.preventDefault();
 
@@ -101,33 +92,20 @@ export default function ForgotPassword() {
     setError('');
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/user/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          email: formData.email,
-          code,
-          newPassword: formData.newPassword,
-        }),
+      const data = await api.post('/auth/user/reset-password', {
+        email: formData.email,
+        code,
+        newPassword: formData.newPassword,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess('Password reset successful! Redirecting to login...');
-        toast.success('Password reset successful!');
-        setTimeout(() => {
-          navigate('/user/login');
-        }, 2000);
-      } else {
-        const errorMsg = data.msg || data.message || 'Password reset failed';
-        setError(errorMsg);
-        toast.error(errorMsg);
-      }
+      setSuccess('Password reset successful! Redirecting to login...');
+      toast.success('Password reset successful!');
+      setTimeout(() => {
+        navigate('/user/login');
+      }, 2000);
     } catch (err) {
       console.error('Reset password error:', err);
-      const errorMsg = 'Network error. Please try again.';
+      const errorMsg = err.message || 'Password reset failed';
       setError(errorMsg);
       toast.error(errorMsg);
     } finally {

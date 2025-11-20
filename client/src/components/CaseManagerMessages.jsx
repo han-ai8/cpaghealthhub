@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageCircle, Send, Clock, User, X, Menu } from 'lucide-react';
-import axios from 'axios';
-import socketService from '../services/socketService'; // ✅ Using your existing service
+import api from '../utils/api';
+import socketService from '../services/socketService'; 
 import { useUserProfile } from '../hooks/useUserProfile';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const CaseManagerMessages = () => {
   const [conversations, setConversations] = useState([]);
@@ -69,16 +67,14 @@ const CaseManagerMessages = () => {
   // ✅ Fetch total unread count
   const fetchTotalUnreadCount = async () => {
     try {
-      const res = await axios.get(`${API_URL}/messages/unread-count`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
-      });
+      const data = await api.get('/messages/unread-count');
       
-      if (res.data?.success) {
-        setTotalUnreadCount(res.data.unreadCount || 0);
-        console.log('📬 Total unread count:', res.data.unreadCount);
+      if (data?.success) {
+        setTotalUnreadCount(data.unreadCount || 0);
+        console.log('📬 Total unread count:', data.unreadCount);
       }
     } catch (err) {
-      console.warn('Failed to fetch total unread count', err?.response?.data || err.message);
+      console.warn('Failed to fetch total unread count', err?.message || err);
     }
   };
 
@@ -109,40 +105,57 @@ const CaseManagerMessages = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const fetchConversations = async () => {
-    try {
-      const res = await axios.get(`${API_URL}/messages/conversations`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
-      });
-      if (res.data?.success) {
-        setConversations(res.data.conversations || []);
-        
-        // ✅ Calculate total unread count from conversations
-        const total = (res.data.conversations || []).reduce((sum, conv) => {
-          return sum + (conv.unreadCount?.caseManager || 0);
-        }, 0);
-        setTotalUnreadCount(total);
-      }
-    } catch (err) {
-      console.error('Error fetching conversations', err?.response?.data || err.message);
+const fetchConversations = async () => {
+  try {
+    console.log('🔍 Fetching conversations...');
+    const data = await api.get('/messages/conversations');
+    
+    console.log('✅ Conversations response:', data);
+    
+    if (data?.success) {
+      setConversations(data.conversations || []);
+      
+      const total = (data.conversations || []).reduce((sum, conv) => {
+        return sum + (conv.unreadCount?.caseManager || 0);
+      }, 0);
+      setTotalUnreadCount(total);
+      
+      console.log('✅ Conversations loaded:', data.conversations?.length);
+    } else {
+      console.warn('⚠️ Unexpected response format:', data);
+      setConversations([]);
     }
-  };
+  } catch (err) {
+    console.error('❌ Error fetching conversations:', err);
+    console.error('❌ Error status:', err?.status);
+    console.error('❌ Error data:', err?.data); // ✅ Now you'll see server error details
+    
+    // Show error to user if it's a specific issue
+    if (err?.status === 403) {
+      console.error('Access denied - not a case manager');
+    } else if (err?.status === 500) {
+      console.error('Server error:', err?.data?.error || err?.message);
+    }
+    
+    setConversations([]);
+  }
+};
+
 
   const fetchMessages = async (userId) => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_URL}/messages/conversation?userId=${userId}`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
-      });
-      if (res.data?.success) {
-        setMessages(res.data.messages || []);
+      const data = await api.get(`/messages/conversation?userId=${userId}`);
+      
+      if (data?.success) {
+        setMessages(data.messages || []);
         markAsRead();
-        fetchTotalUnreadCount(); // ✅ Update unread count after reading
+        fetchTotalUnreadCount();
       } else {
         setMessages([]);
       }
     } catch (err) {
-      console.error('Error fetching messages', err?.response?.data || err.message);
+      console.error('Error fetching messages', err?.message || err);
       setMessages([]);
     } finally {
       setLoading(false);
@@ -156,20 +169,19 @@ const CaseManagerMessages = () => {
     setNewMessage('');
 
     try {
-      const res = await axios.post(
-        `${API_URL}/messages/send`,
-        { receiverId: selectedConversation.userId._id, text },
-        { headers: { Authorization: `Bearer ${getToken()}` } }
-      );
+      const data = await api.post('/messages/send', {
+        receiverId: selectedConversation.userId._id,
+        text
+      });
 
-      if (res.data?.success) {
-        setMessages((prev) => [...prev, res.data.message]);
+      if (data?.success) {
+        setMessages((prev) => [...prev, data.message]);
         fetchConversations();
       } else {
         throw new Error('Failed to send');
       }
     } catch (err) {
-      console.error('Send message error', err?.response?.data || err.message);
+      console.error('Send message error', err?.message || err);
       setNewMessage(text);
       alert('Message failed to send. Please try again.');
     }
@@ -179,24 +191,29 @@ const CaseManagerMessages = () => {
     if (!selectedConversation || !caseManager?._id) return;
     try {
       const conversationId = [caseManager._id, selectedConversation.userId._id].sort().join('_');
-      await axios.put(
-        `${API_URL}/messages/read`,
-        { conversationId },
-        { headers: { Authorization: `Bearer ${getToken()}` } }
-      );
+      await api.put('/messages/read', { conversationId });
+      
       fetchConversations();
-      fetchTotalUnreadCount(); // ✅ Update unread count
+      fetchTotalUnreadCount();
     } catch (err) {
       console.error('Mark read failed', err);
     }
   };
 
-  const selectConversation = (conv) => {
-    setSelectedConversation(conv);
-    if (window.innerWidth < 768) setSidebarOpen(false);
-    setMessages([]);
+const selectConversation = (conv) => {
+  setSelectedConversation(conv);
+  if (window.innerWidth < 768) setSidebarOpen(false);
+  setMessages([]);
+  
+  // ✅ Only fetch messages if conversation exists (not a new placeholder)
+  if (conv._id && !conv.isNew) {
     fetchMessages(conv.userId._id);
-  };
+  } else {
+    // For new conversations, just set empty messages
+    setMessages([]);
+    console.log('📝 New conversation selected - no messages to fetch yet');
+  }
+};
 
   const handleTyping = () => {
     if (!selectedConversation || !caseManager?._id) return;
@@ -341,11 +358,15 @@ const CaseManagerMessages = () => {
               <p className="text-xs text-center mt-2 text-gray-400">Users will appear here when they message you</p>
             </div>
           ) : (
-            conversations.map((conv) => (
+            conversations.map((conv, index) => (
               <button
-                key={conv._id}
+                key={conv._id || `new-user-${conv.userId?._id || index}`} // ✅ FIXED KEY
                 onClick={() => selectConversation(conv)}
-                className={`w-full text-left p-3 border-b flex items-center gap-3 hover:bg-gray-50 transition-all ${selectedConversation?._id === conv._id ? 'bg-blue-50 border-l-4 border-l-blue-600' : ''}`}
+                className={`w-full text-left p-3 border-b flex items-center gap-3 hover:bg-gray-50 transition-all ${
+                  selectedConversation?.userId?._id === conv.userId?._id 
+                    ? 'bg-blue-50 border-l-4 border-l-blue-600' 
+                    : ''
+                }`}
               >
                 <div className="w-11 h-11 bg-gray-100 rounded-full flex items-center justify-center shrink-0">
                   <User className="w-5 h-5 text-gray-600" />
@@ -354,12 +375,22 @@ const CaseManagerMessages = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <div className="truncate">
-                      <div className="text-sm font-semibold text-gray-900 truncate">{conv.userId?.username || 'Anonymous'}</div>
-                      <div className="text-xs text-gray-500 truncate">{conv.lastMessage || 'No messages yet'}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-semibold text-gray-900 truncate">
+                          {conv.userId?.username || conv.userId?.fullName || 'Anonymous'}
+                        </div>
+                        {conv.isNew && (
+                          <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                            New
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {conv.lastMessage || 'No messages yet'}
+                      </div>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="text-xs text-gray-500">{formatDateLabel(conv.lastMessageTime)}</div>
-                      {/* ✅ Individual conversation unread badge */}
                       {conv.unreadCount?.caseManager > 0 && (
                         <div className="mt-2 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-xs font-semibold h-6 w-6">
                           {conv.unreadCount.caseManager}
@@ -404,13 +435,34 @@ const CaseManagerMessages = () => {
                   <User className="w-6 h-6 text-gray-600" />
                 </div>
                 <div>
-                  <div className="font-semibold text-sm">{selectedConversation.userId?.username || 'Anonymous'}</div>
-                  <div className="text-xs text-gray-500">{selectedConversation.userId?.email || ''}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-semibold text-sm">
+                      {selectedConversation.userId?.username || 'Anonymous'}
+                    </div>
+                    {selectedConversation.isNew && (
+                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                        New Assignment
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {selectedConversation.userId?.email || ''}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="text-xs text-gray-500">Last: {formatDateLabel(selectedConversation.lastMessageTime)}</div>
-                <button onClick={() => { setSelectedConversation(null); if (window.innerWidth < 768) setSidebarOpen(true); }} className="p-2 rounded-md bg-gray-100">
+                {!selectedConversation.isNew && (
+                  <div className="text-xs text-gray-500">
+                    Last: {formatDateLabel(selectedConversation.lastMessageTime)}
+                  </div>
+                )}
+                <button 
+                  onClick={() => { 
+                    setSelectedConversation(null); 
+                    if (window.innerWidth < 768) setSidebarOpen(true); 
+                  }} 
+                  className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 transition"
+                >
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -419,12 +471,18 @@ const CaseManagerMessages = () => {
             {/* Messages list */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
               {loading ? (
-                <div className="flex items-center justify-center h-full"><div className="text-gray-500">Loading messages...</div></div>
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-gray-500">Loading messages...</div>
+                </div>
               ) : messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center text-gray-500">
                     <MessageCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No messages yet — say hi 👋</p>
+                    <p className="text-sm">
+                      {selectedConversation.isNew 
+                        ? '👋 Start a conversation with this newly assigned user'
+                        : 'No messages yet — say hi 👋'}
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -473,7 +531,11 @@ const CaseManagerMessages = () => {
                   value={newMessage}
                   onChange={(e) => { setNewMessage(e.target.value); handleTyping(); }}
                   onKeyDown={handleKeyDown}
-                  placeholder="Write a message... (Enter to send, Shift+Enter for new line)"
+                  placeholder={
+                    selectedConversation.isNew 
+                      ? "Write the first message to this user..." 
+                      : "Write a message... (Enter to send, Shift+Enter for new line)"
+                  }
                   className="flex-1 px-3 py-3 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent max-h-36"
                   rows={2}
                 />
@@ -492,7 +554,7 @@ const CaseManagerMessages = () => {
                   <button
                     onClick={() => { setNewMessage(''); }}
                     title="Clear"
-                    className="p-2 rounded-md bg-gray-100"
+                    className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 transition"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -506,7 +568,6 @@ const CaseManagerMessages = () => {
               <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
               <h3 className="text-lg font-semibold mb-2">Select a conversation</h3>
               <p className="text-sm">Pick a user from the list to start chatting.</p>
-              {/* ✅ Show unread count in empty state */}
               {totalUnreadCount > 0 && (
                 <div className="mt-4">
                   <span className="inline-flex items-center gap-2 bg-red-50 text-red-700 px-4 py-2 rounded-full text-sm font-medium">

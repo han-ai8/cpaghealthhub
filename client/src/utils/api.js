@@ -1,127 +1,213 @@
-// utils/api.js
+// src/utils/api.js - UPDATED WITH BETTER ERROR HANDLING
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-// Helper to get the base URL without /api
-export const getBaseUrl = () => {
-  return API_URL.replace('/api', '');
-};
-
-// Helper to construct proper image URLs
 export const getImageUrl = (imagePath) => {
   if (!imagePath) return null;
   
-  // If it's already a full URL, return as-is
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
   
-  const baseUrl = getBaseUrl();
-  
-  // Ensure path starts with /
+  const baseUrl = API_URL.replace('/api', '');
   const cleanPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
   
-  // Construct full URL
   return `${baseUrl}${cleanPath}`;
 };
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': token ? `Bearer ${token}` : ''
+  };
+};
+
 const api = {
-  get: async (endpoint) => {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include'
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Request failed');
+  async get(endpoint) {
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      });
+
+      // ✅ IMPROVED: Get error details from server
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        
+        console.error('❌ API Error Response:', errorData);
+        
+        const error = new Error(errorData.message || `Request failed with status ${response.status}`);
+        error.status = response.status;
+        error.data = errorData;
+        throw error;
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('❌ API Request Failed:', {
+        endpoint,
+        error: error.message,
+        status: error.status,
+        data: error.data
+      });
+      throw error;
     }
-    
-    return response.json();
   },
 
-  post: async (endpoint, data) => {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
-      body: JSON.stringify(data)
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Request failed');
+  async post(endpoint, data) {
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        
+        console.error('❌ API Error Response:', errorData);
+        
+        const error = new Error(errorData.message || `Request failed with status ${response.status}`);
+        error.status = response.status;
+        error.data = errorData;
+        throw error;
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('❌ API Request Failed:', {
+        endpoint,
+        error: error.message,
+        status: error.status,
+        data: error.data
+      });
+      throw error;
     }
-    
-    return response.json();
   },
 
-  put: async (endpoint, data) => {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
-      body: JSON.stringify(data)
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Request failed');
+  async put(endpoint, data) {
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        
+        console.error('❌ API Error Response:', errorData);
+        
+        const error = new Error(errorData.message || `Request failed with status ${response.status}`);
+        error.status = response.status;
+        error.data = errorData;
+        throw error;
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('❌ API Request Failed:', {
+        endpoint,
+        error: error.message,
+        status: error.status,
+        data: error.data
+      });
+      throw error;
     }
-    
-    return response.json();
   },
 
-  delete: async (endpoint) => {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include'
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Request failed');
+  async delete(endpoint) {
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        
+        console.error('❌ API Error Response:', errorData);
+        
+        const error = new Error(errorData.message || `Request failed with status ${response.status}`);
+        error.status = response.status;
+        error.data = errorData;
+        throw error;
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('❌ API Request Failed:', {
+        endpoint,
+        error: error.message,
+        status: error.status,
+        data: error.data
+      });
+      throw error;
     }
-    
-    return response.json();
   },
 
-  upload: async (endpoint, formData) => {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : ''
-        // Don't set Content-Type for FormData - browser sets it with boundary
-      },
-      credentials: 'include',
-      body: formData
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Request failed');
+  async upload(endpoint, formData) {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        credentials: 'include',
+        body: formData
+      });
+
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        
+        console.error('❌ API Error Response:', errorData);
+        
+        const error = new Error(errorData.message || `Request failed with status ${response.status}`);
+        error.status = response.status;
+        error.data = errorData;
+        throw error;
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('❌ API Request Failed:', {
+        endpoint,
+        error: error.message,
+        status: error.status,
+        data: error.data
+      });
+      throw error;
     }
-    
-    return response.json();
   }
 };
 

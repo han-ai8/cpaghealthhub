@@ -1,9 +1,9 @@
-// routes/messageRoutes.js - ENHANCED with auto-read and chat widget visibility
+// routes/messageRoutes.js - COMPLETE FIXED VERSION
 import express from 'express';
 import Message from '../models/Message.js';
 import Conversation from '../models/Conversation.js';
 import User from '../models/User.js';
-import { isAuthenticated } from '../middleware/auth.js';
+import { isAuthenticated, isAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -31,11 +31,6 @@ async function verifyCaseManagerAssignment(userId, caseManagerId) {
 // ============================================
 // 📊 HELPER: Calculate and Emit Unread Count
 // ============================================
-/**
- * Calculate total unread count for a user and emit via socket
- * @param {string} userId - The user ID to calculate unread count for
- * @param {object} io - Socket.io instance
- */
 async function calculateAndEmitUnreadCount(userId, io) {
   try {
     const user = await User.findById(userId);
@@ -53,7 +48,6 @@ async function calculateAndEmitUnreadCount(userId, io) {
       return sum + (conv.unreadCount[userRole] || 0);
     }, 0);
 
-    // Emit via socket using the helper function
     if (io && io.emitUnreadCountUpdate) {
       await io.emitUnreadCountUpdate(userId, totalUnread);
     }
@@ -66,32 +60,32 @@ async function calculateAndEmitUnreadCount(userId, io) {
 }
 
 // ============================================
-// GET CONVERSATION - ✅ AUTO-MARK AS READ
+// GET CONVERSATION - ✅ AUTO-MARK AS READ (ADD THIS!)
 // ============================================
 router.get('/conversation', isAuthenticated, async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role;
-    
+
+    console.log('📨 GET /conversation called:', { userId, userRole });
 
     let conversationQuery;
     
     if (userRole === 'case_manager' || userRole === 'admin') {
       const { userId: targetUserId } = req.query;
       
+      console.log('🔍 Case manager requesting conversation with user:', targetUserId);
       
       if (!targetUserId) {
-        console.log('❌ Missing userId parameter for case manager');
         return res.status(400).json({ 
           success: false, 
           message: 'userId query parameter required for case managers' 
         });
       }
 
-      // Verify assignment
       const verification = await verifyCaseManagerAssignment(targetUserId, userId);
       if (!verification.valid) {
-        console.error('❌ Case manager not authorized to access user conversation:', verification.error);
+        console.error('❌ Case manager not authorized:', verification.error);
         return res.status(403).json({
           success: false,
           message: verification.error
@@ -105,49 +99,50 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
       if (!userDoc || !userDoc.assignedCaseManager) {
         return res.status(404).json({ 
           success: false, 
-          message: 'No case manager assigned. You can only message after a case manager is assigned to you.',
+          message: 'No case manager assigned',
           noAssignment: true
         });
       }
       
       const caseManagerId = userDoc.assignedCaseManager.toString();
-  
-      
       conversationQuery = { 
         userId: userId, 
         caseManagerId: caseManagerId 
       };
     }
 
+    console.log('🔍 Looking for conversation:', conversationQuery);
 
     const conversationId = [
       conversationQuery.userId.toString(), 
       conversationQuery.caseManagerId.toString()
     ].sort().join('_');
     
-    // Get or create conversation
     let conversation = await Conversation.findOne(conversationQuery);
     
     if (!conversation) {
+      console.log('📝 Creating new conversation');
       conversation = await Conversation.create({
         ...conversationQuery,
         lastMessage: '',
         lastMessageTime: new Date()
       });
-    } else {
     }
 
-    // Get messages
+    console.log('✅ Conversation found/created:', conversation._id);
+
     const messages = await Message.find({ conversationId })
       .sort({ createdAt: 1 })
       .limit(100);
 
-    // ✅ AUTO-MARK MESSAGES AS READ when conversation is opened
+    console.log(`✅ Found ${messages.length} messages`);
+
     const unreadMessages = messages.filter(
       msg => msg.receiverId.toString() === userId && !msg.isRead
     );
 
     if (unreadMessages.length > 0) {
+      console.log(`📖 Marking ${unreadMessages.length} messages as read`);
       
       await Message.updateMany(
         { 
@@ -158,7 +153,6 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
         { isRead: true }
       );
 
-      // Reset unread count in conversation
       const userRoleType = userRole === 'case_manager' || userRole === 'admin' 
         ? 'caseManager' 
         : 'user';
@@ -168,14 +162,11 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
         { [`unreadCount.${userRoleType}`]: 0 }
       );
 
-      
-      // ✅ NEW: Emit updated unread count after auto-marking as read
       const io = req.app.get('io');
       if (io) {
         await calculateAndEmitUnreadCount(userId, io);
       }
       
-      // Update the messages array to reflect read status
       messages.forEach(msg => {
         if (msg.receiverId.toString() === userId) {
           msg.isRead = true;
@@ -191,6 +182,7 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
       markedAsRead: unreadMessages.length
     });
   } catch (error) {
+    console.error('❌ Get conversation error:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Failed to fetch conversation',
@@ -200,16 +192,136 @@ router.get('/conversation', isAuthenticated, async (req, res) => {
 });
 
 // ============================================
-// 🔒 SEND MESSAGE - WITH AUTHORIZATION
+// GET ALL CONVERSATIONS - ✅ FIXED NULL USERID ISSUE
+// ============================================
+router.get('/conversations', isAuthenticated, async (req, res) => {
+  try {
+    console.log('📨 GET /conversations called');
+    console.log('User:', {
+      id: req.user.id,
+      role: req.user.role
+    });
+    
+    const caseManagerId = req.user.id;
+    const userRole = req.user.role;
+
+    if (userRole !== 'case_manager' && userRole !== 'admin') {
+      console.log('❌ Access denied - not case manager/admin');
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Access denied. Only case managers can view all conversations.' 
+      });
+    }
+
+    console.log('✅ Authorization passed');
+
+    const assignedUsers = await User.find({
+      assignedCaseManager: caseManagerId,
+      role: 'user'
+    }).select('_id username email fullName');
+
+    console.log(`📋 Found ${assignedUsers.length} assigned users`);
+
+    const existingConversations = await Conversation.find({ 
+      caseManagerId,
+      userId: { $ne: null, $exists: true },
+      status: 'active'
+    })
+      .populate('userId', 'username email fullName')
+      .sort({ lastMessageTime: -1 })
+      .limit(50)
+      .lean();
+
+    console.log(`💬 Found ${existingConversations.length} existing conversations`);
+
+    const validConversations = existingConversations.filter(conv => {
+      if (!conv.userId || !conv.userId._id) {
+        console.warn('⚠️ Skipping conversation with missing user:', conv._id);
+        return false;
+      }
+      return true;
+    });
+
+    console.log(`✅ Valid conversations after filtering: ${validConversations.length}`);
+
+    const existingUserIds = validConversations.map(
+      conv => conv.userId._id.toString()
+    );
+
+    const usersWithoutConversations = assignedUsers.filter(
+      user => !existingUserIds.includes(user._id.toString())
+    );
+
+    console.log(`👤 Found ${usersWithoutConversations.length} users without conversations`);
+
+    const newConversations = usersWithoutConversations.map(user => ({
+      _id: null,
+      userId: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName
+      },
+      caseManagerId,
+      lastMessage: 'No messages yet - Start the conversation',
+      lastMessageTime: new Date(0),
+      unreadCount: { user: 0, caseManager: 0 },
+      status: 'active',
+      isNew: true
+    }));
+
+    const allConversations = [
+      ...validConversations.map(conv => ({
+        ...conv,
+        isNew: false
+      })),
+      ...newConversations
+    ].sort((a, b) => {
+      if (a.isNew && !b.isNew) return -1;
+      if (!a.isNew && b.isNew) return 1;
+      return new Date(b.lastMessageTime) - new Date(a.lastMessageTime);
+    });
+
+    console.log(`✅ Returning ${allConversations.length} total conversations`);
+
+    res.json({ 
+      success: true, 
+      conversations: allConversations,
+      stats: {
+        total: allConversations.length,
+        existing: validConversations.length,
+        newAssignments: newConversations.length,
+        skipped: existingConversations.length - validConversations.length
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get conversations error:', error);
+    console.error('Error stack:', error.stack);
+    
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch conversations',
+      error: error.message
+    });
+  }
+});
+
+// ============================================
+// 🔒 SEND MESSAGE - WITH AUTHORIZATION (FIXED)
 // ============================================
 router.post('/send', isAuthenticated, async (req, res) => {
   try {
-    
     const { receiverId, text } = req.body;
     const senderId = req.user.id;
     const senderRole = req.user.role;
     const isFromCaseManager = senderRole === 'case_manager' || senderRole === 'admin';
 
+    console.log('📨 Send message called:', {
+      senderId,
+      receiverId,
+      isFromCaseManager,
+      textLength: text?.length
+    });
 
     if (!text || !receiverId) {
       return res.status(400).json({ 
@@ -229,6 +341,7 @@ router.post('/send', isAuthenticated, async (req, res) => {
     if (isFromCaseManager) {
       const verification = await verifyCaseManagerAssignment(receiverId, senderId);
       if (!verification.valid) {
+        console.error('❌ Case manager not authorized:', verification.error);
         return res.status(403).json({
           success: false,
           message: 'You can only message users assigned to you'
@@ -238,6 +351,7 @@ router.post('/send', isAuthenticated, async (req, res) => {
       const userDoc = await User.findById(senderId).select('assignedCaseManager');
       
       if (!userDoc || !userDoc.assignedCaseManager) {
+        console.error('❌ User has no assigned case manager');
         return res.status(403).json({
           success: false,
           message: 'You can only message after a case manager is assigned to you',
@@ -248,6 +362,7 @@ router.post('/send', isAuthenticated, async (req, res) => {
       const assignedCaseManagerId = userDoc.assignedCaseManager.toString();
       
       if (assignedCaseManagerId !== receiverId.toString()) {
+        console.error('❌ User trying to message wrong case manager');
         return res.status(403).json({
           success: false,
           message: 'You can only message your assigned case manager'
@@ -255,11 +370,24 @@ router.post('/send', isAuthenticated, async (req, res) => {
       }
     }
 
+    // ✅ FIX: Properly determine userId and caseManagerId
+    let userId, caseManagerId;
+    
+    if (isFromCaseManager) {
+      userId = receiverId;
+      caseManagerId = senderId;
+    } else {
+      userId = senderId;
+      caseManagerId = receiverId;
+    }
+
+    console.log('✅ Conversation participants:', { userId, caseManagerId });
 
     const conversationId = [senderId.toString(), receiverId.toString()]
       .sort()
       .join('_');
-    
+
+    console.log('📝 Creating message with conversationId:', conversationId);
 
     // Create message
     const message = await Message.create({
@@ -270,47 +398,59 @@ router.post('/send', isAuthenticated, async (req, res) => {
       isFromCaseManager
     });
 
-    // Update or create conversation
-    const conversation = await Conversation.findOneAndUpdate(
-      {
-        $or: [
-          { userId: senderId, caseManagerId: receiverId },
-          { userId: receiverId, caseManagerId: senderId }
-        ]
-      },
-      {
-        $set: {
-          lastMessage: text.trim().substring(0, 100),
-          lastMessageTime: new Date(),
-          status: 'active' // Ensure conversation is active
+    console.log('✅ Message created:', message._id);
+
+    // ✅ FIX: Update or create conversation with correct userId and caseManagerId
+    try {
+      console.log('🔄 Updating conversation...');
+      
+      const conversation = await Conversation.findOneAndUpdate(
+        {
+          userId: userId,
+          caseManagerId: caseManagerId
         },
-        $inc: {
-          [isFromCaseManager ? 'unreadCount.user' : 'unreadCount.caseManager']: 1
+        {
+          $set: {
+            lastMessage: text.trim().substring(0, 100),
+            lastMessageTime: new Date(),
+            status: 'active'
+          },
+          $inc: {
+            [isFromCaseManager ? 'unreadCount.user' : 'unreadCount.caseManager']: 1
+          }
+        },
+        { 
+          upsert: true, 
+          new: true,
+          setDefaultsOnInsert: true
         }
-      },
-      { upsert: true, new: true }
-    );
+      );
+
+      console.log('✅ Conversation updated:', conversation._id);
+    } catch (convError) {
+      console.error('❌ Conversation update error:', convError);
+      // Don't fail message send if conversation update fails
+    }
 
     // Emit socket event
     const io = req.app.get('io');
     if (io) {
-      
-      // ✅ Emit new message event
-      if (io.emitNewMessage) {
-        await io.emitNewMessage(receiverId, message);
-      } else {
-        // Fallback for old socket structure
-        io.to(receiverId.toString()).emit('newMessage', { 
-          message, 
-          conversationId 
-        });
+      try {
+        if (io.emitNewMessage) {
+          await io.emitNewMessage(receiverId, message);
+        } else {
+          io.to(receiverId.toString()).emit('newMessage', { 
+            message, 
+            conversationId 
+          });
+        }
+        
+        await calculateAndEmitUnreadCount(receiverId, io);
+        console.log('✅ Socket events emitted');
+      } catch (socketError) {
+        console.error('⚠️ Socket error (non-critical):', socketError);
       }
-      
-      // ✅ NEW: Emit unread count update to receiver
-      await calculateAndEmitUnreadCount(receiverId, io);
     }
-
-    console.log('═══════════════════════════════════');
 
     res.status(201).json({ 
       success: true, 
@@ -327,102 +467,12 @@ router.post('/send', isAuthenticated, async (req, res) => {
 });
 
 // ============================================
-// GET ALL CONVERSATIONS - ✅ WITH NEWLY ASSIGNED USERS
-// ============================================
-router.get('/conversations', isAuthenticated, async (req, res) => {
-  try {
-    
-    const caseManagerId = req.user.id;
-    const userRole = req.user.role;
-
-
-    if (userRole !== 'case_manager' && userRole !== 'admin') {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Access denied. Only case managers can view all conversations.' 
-      });
-    }
-
-    // ✅ Get all users assigned to this case manager
-    const assignedUsers = await User.find({
-      assignedCaseManager: caseManagerId,
-      role: 'user'
-    }).select('_id username email fullName');
-
-
-    // Get existing conversations
-    const existingConversations = await Conversation.find({ 
-      caseManagerId,
-      status: 'active'
-    })
-      .populate('userId', 'username email fullName')
-      .sort({ lastMessageTime: -1 })
-      .limit(50);
-
-    const existingUserIds = existingConversations.map(
-      conv => conv.userId._id.toString()
-    );
-
-    // ✅ Find users without conversations yet
-    const usersWithoutConversations = assignedUsers.filter(
-      user => !existingUserIds.includes(user._id.toString())
-    );
-
-    // ✅ Create placeholder conversations for newly assigned users
-    const newConversations = usersWithoutConversations.map(user => ({
-      _id: null,
-      userId: user,
-      caseManagerId,
-      lastMessage: 'No messages yet',
-      lastMessageTime: new Date(0), // Old date so it appears at bottom
-      unreadCount: { user: 0, caseManager: 0 },
-      status: 'active',
-      isNew: true // Flag to indicate this is a new assignment
-    }));
-
-    // Combine and sort
-    const allConversations = [
-      ...existingConversations.map(conv => ({
-        ...conv.toObject(),
-        isNew: false
-      })),
-      ...newConversations
-    ].sort((a, b) => {
-      // Show new assignments at the top
-      if (a.isNew && !b.isNew) return -1;
-      if (!a.isNew && b.isNew) return 1;
-      // Then sort by last message time
-      return new Date(b.lastMessageTime) - new Date(a.lastMessageTime);
-    });
-
-    res.json({ 
-      success: true, 
-      conversations: allConversations,
-      stats: {
-        total: allConversations.length,
-        existing: existingConversations.length,
-        newAssignments: newConversations.length
-      }
-    });
-  } catch (error) {
-    console.error('❌ Get conversations error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch conversations',
-      error: error.message 
-    });
-  }
-});
-
-// ============================================
-// MARK MESSAGES AS READ (Manual)
+// MARK MESSAGES AS READ
 // ============================================
 router.put('/read', isAuthenticated, async (req, res) => {
   try {
-    
     const userId = req.user.id;
     const { conversationId } = req.body;
-
 
     if (!conversationId) {
       return res.status(400).json({ 
@@ -454,13 +504,10 @@ router.put('/read', isAuthenticated, async (req, res) => {
       { [`unreadCount.${userRole}`]: 0 }
     );
     
-    // ✅ NEW: Emit updated unread count after marking as read
     const io = req.app.get('io');
     if (io) {
       await calculateAndEmitUnreadCount(userId, io);
     }
-    
-    console.log('═══════════════════════════════════');
 
     res.json({ 
       success: true, 
@@ -548,6 +595,59 @@ router.get('/check-availability', isAuthenticated, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to check messaging availability',
+      error: error.message
+    });
+  }
+});
+
+// ============================================
+// CLEANUP ROUTE - Remove Invalid Conversations (Run Once)
+// ============================================
+router.post('/conversations/cleanup', isAuthenticated, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+
+    console.log('🧹 Starting conversation cleanup...');
+    
+    const invalidConversations = await Conversation.find({
+      $or: [
+        { userId: null },
+        { userId: { $exists: false } }
+      ]
+    });
+    
+    console.log(`Found ${invalidConversations.length} invalid conversations`);
+    
+    const result = await Conversation.deleteMany({
+      $or: [
+        { userId: null },
+        { userId: { $exists: false } }
+      ]
+    });
+    
+    console.log(`✅ Deleted ${result.deletedCount} invalid conversations`);
+    
+    res.json({
+      success: true,
+      message: 'Cleanup completed',
+      deleted: result.deletedCount,
+      details: invalidConversations.map(c => ({
+        _id: c._id,
+        caseManagerId: c.caseManagerId,
+        lastMessage: c.lastMessage
+      }))
+    });
+    
+  } catch (error) {
+    console.error('❌ Cleanup error:', error);
+    res.json({
+      success: false,
+      message: 'Cleanup failed',
       error: error.message
     });
   }

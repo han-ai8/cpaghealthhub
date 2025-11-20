@@ -47,6 +47,25 @@ export const createArticle = async (req, res) => {
   try {
     const { title, content, excerpt, category, author, published } = req.body;
     
+    // Validation
+    if (!title || title.trim().length < 10) {
+      return res.status(400).json({ 
+        message: 'Title must be at least 10 characters long' 
+      });
+    }
+    
+    if (!content || content.trim().length < 100) {
+      return res.status(400).json({ 
+        message: 'Content must be at least 100 characters long' 
+      });
+    }
+
+    if (!excerpt || excerpt.trim().length < 20) {
+      return res.status(400).json({ 
+        message: 'Excerpt must be at least 20 characters long' 
+      });
+    }
+
     const article = new Article({
       title,
       content,
@@ -69,7 +88,11 @@ export const createArticle = async (req, res) => {
 
     res.status(201).json(savedArticle);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error('Create article error:', error);
+    res.status(500).json({ 
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 

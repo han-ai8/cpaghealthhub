@@ -48,14 +48,14 @@ const Layout = ({ children }) => {
   };
 
   const fetchUnreadCount = async () => {
-    try {
-      // ✅ FIXED: api.get returns JSON directly, not response.data
-      const data = await api.get('/notifications/unread-count');
-      setUnreadCount(data.count || 0);
-    } catch (error) {
-      console.error('Error fetching unread count:', error);
-    }
-  };
+  try {
+    // ✅ CORRECT - api.get returns data directly
+    const data = await api.get('/notifications/unread-count');
+    setUnreadCount(data.count || 0);
+  } catch (error) {
+    console.error('Error fetching unread count:', error);
+  }
+};
 
   useEffect(() => {
     

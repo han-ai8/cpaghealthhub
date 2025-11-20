@@ -4,7 +4,6 @@ dotenv.config();
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
-
 import session from 'express-session';
 import MongoStore from 'connect-mongo';
 import connectDB from './configs/db.js';
@@ -23,10 +22,8 @@ import sessionRoutes from './routes/sessionManagement.js';
 import hivAnalyticsRoutes from './routes/hivAnalytics.js';
 import NotificationService from './services/notificationService.js'; 
 import adminManagementRoutes from './routes/adminManagement.js';
-
 import path from 'path';
 import { fileURLToPath } from 'url';
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,70 +44,72 @@ await connectDB();
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ============================================
-// CORS CONFIGURATION
+// CORS CONFIGURATION - FIXED
 // ============================================
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5000',
+  'https://cpaghealthhub-qyuh.onrender.com',
+  'https://api.cpaghealthhub.com',
+  'https://www.cpaghealthhub.com',
+  'https://cpaghealthhub.com'
+];
+
 app.use(cors({
   origin: function (origin, callback) {
-    // Get allowed origins from environment variable or use defaults
-    const allowedOrigins = process.env.CORS_ORIGINS 
-      ? process.env.CORS_ORIGINS.split(',')
-      : [
-          'https://cpaghealthhub-qyuh.onrender.com',
-          'https://api.cpaghealthhub.com',
-          'https://www.cpaghealthhub.com',
-          'https://cpaghealthhub.com',
-          'http://localhost:5173',
-          'http://localhost:5000'
-        ];
-    
-    // Allow requests with no origin (like mobile apps or curl requests)
+    // Allow requests with no origin (like mobile apps, Postman, curl)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      return callback(null, origin);
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
     } else {
       console.log('❌ Blocked origin:', origin);
-      return callback(new Error('Not allowed by CORS'));
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Origin']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['set-cookie']
 }));
+
 
 // Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ============================================
-// SESSION CONFIGURATION
+// SESSION CONFIGURATION - FIXED DATABASE CASE
 // ============================================
-app.use((req, res, next) => {
-  const isAdminRoute = req.path.startsWith('/api/admin') || 
-                       req.path.startsWith('/api/auth/admin');
-  
-  const isProduction = process.env.NODE_ENV === 'production';
-  
-  const sessionConfig = {
-    secret: process.env.SESSION_SECRET || 'your-secret-key-change-this',
-    resave: false,
-    saveUninitialized: false,
-    store: MongoStore.create({
-      mongoUrl: process.env.MONGODB_URL || 'mongodb+srv://leoStack:leoStack783@cluster0.hbbl7hg.mongodb.net',
-      collectionName: isAdminRoute ? 'admin_sessions' : 'user_sessions'
-    }),
-    cookie: {
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-      httpOnly: true,
-      secure: isProduction, // true in production for HTTPS
-      sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-origin in production
-      domain: isProduction ? '.cpaghealthhub.com' : undefined // Share across subdomains
-    },
-    name: isAdminRoute ? 'admin.sid' : 'user.sid'
-  };
-  
-  session(sessionConfig)(req, res, next);
-});
+const mongoUrl = process.env.MONGODB_URI || process.env.MONGODB_URL;
+
+if (!mongoUrl) {
+  console.error('❌ MONGODB_URI is not defined!');
+  process.exit(1);
+}
+
+// Ensure the database name matches the existing case (HealthHub not healthhub)
+const correctedMongoUrl = mongoUrl.replace(/\/healthhub(\?|$)/, '/HealthHub$1');
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key-change-this-in-production',
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: correctedMongoUrl,
+    collectionName: 'sessions',
+    ttl: 7 * 24 * 60 * 60 // 7 days
+  }),
+  cookie: {
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax'
+  },
+  name: 'sessionId'
+}));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -180,14 +179,7 @@ server.listen(PORT, () => {
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔌 Socket.io initialized and ready`);
   console.log(`🔔 Notification service initialized`);
-  
-  if (process.env.NODE_ENV === 'production') {
-    console.log(`🌐 Frontend: https://www.cpaghealthhub.com`);
-    console.log(`🔗 API: https://api.cpaghealthhub.com`);
-  } else {
-    console.log(`🌐 Frontend: http://localhost:5173`);
-    console.log(`🔗 API: http://localhost:${PORT}`);
-  }
+  console.log(`🔗 Allowed origins:`, allowedOrigins);
   console.log('\n');
 });
 

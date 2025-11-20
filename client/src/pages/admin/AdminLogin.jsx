@@ -1,4 +1,4 @@
-// AdminLogin.jsx - WITH FORGOT PASSWORD FOR ADMIN ONLY
+// AdminLogin.jsx - FIXED VERSION
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -36,68 +36,56 @@ export default function AdminLogin() {
     setLoading(true);
     
     try {
+      // ✅ FIXED: Use api.post() for POST requests
+      const data = await api.post('/auth/admin/login', form);
       
-      const res = await api.get('/auth/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(form),
-      });
-      
-      const data = await res.json();
-
-      if (res.ok) {
-        if (data.token) {
-          localStorage.setItem('token', data.token);
-        }
-        
-        await checkSession();
-        
-        const roleNames = {
-          admin: 'Administrator',
-          case_manager: 'Case Manager',
-          content_moderator: 'Content Moderator'
-        };
-        
-        toast.success(`Welcome back, ${roleNames[data.user.role]}!`);
-        
-        setTimeout(() => {
-          if (data.user.role === 'admin') {
-            navigate('/admin/dashboard');
-          } else if (data.user.role === 'case_manager') {
-            navigate('/admin/planner');
-          } else if (data.user.role === 'content_moderator') {
-            navigate('/admin/community');
-          }
-        }, 1000);
-      } else {
-        if (res.status === 429) {
-          if (data.locked) {
-            setError('Account locked for 24 hours due to too many failed attempts. Please contact the administrator.');
-            toast.error('Account locked! Contact administrator.');
-          } else if (data.delay) {
-            setError(data.msg);
-            toast.error(data.msg);
-          }
-        } else {
-          setError(data.msg || 'Login failed');
-          
-          if (data.remainingAttempts !== undefined) {
-            setRemainingAttempts(data.remainingAttempts);
-            
-            if (data.warning) {
-              setWarning(data.warning);
-              toast.warning(data.warning);
-            }
-          }
-          
-          toast.error(data.msg || 'Invalid credentials');
-        }
+      // Token is already stored by api.post if present
+      if (data.token) {
+        localStorage.setItem('token', data.token);
       }
+      
+      await checkSession();
+      
+      const roleNames = {
+        admin: 'Administrator',
+        case_manager: 'Case Manager',
+        content_moderator: 'Content Moderator'
+      };
+      
+      toast.success(`Welcome back, ${roleNames[data.user.role]}!`);
+      
+      setTimeout(() => {
+        if (data.user.role === 'admin') {
+          navigate('/admin/dashboard');
+        } else if (data.user.role === 'case_manager') {
+          navigate('/admin/planner');
+        } else if (data.user.role === 'content_moderator') {
+          navigate('/admin/community');
+        }
+      }, 1000);
     } catch (err) {
       console.error('Login error:', err);
-      setError('Network error. Please try again.');
-      toast.error('Network error. Please try again.');
+      const errorMsg = err.message || 'Login failed';
+      
+      // ✅ Handle rate limiting
+      if (errorMsg.includes('locked')) {
+        setError('Account locked for 24 hours due to too many failed attempts. Please contact the administrator.');
+        toast.error('Account locked! Contact administrator.');
+      } else if (errorMsg.includes('delay') || errorMsg.includes('wait')) {
+        setError(errorMsg);
+        toast.error(errorMsg);
+      } else if (errorMsg.includes('attempts')) {
+        setError(errorMsg);
+        toast.error(errorMsg);
+        // Try to extract remaining attempts from error message
+        const attemptsMatch = errorMsg.match(/(\d+)\s+attempts?\s+remaining/i);
+        if (attemptsMatch) {
+          setRemainingAttempts(parseInt(attemptsMatch[1]));
+        }
+      } else {
+        setError(errorMsg);
+        toast.error(errorMsg);
+      }
     } finally {
       setLoading(false);
     }

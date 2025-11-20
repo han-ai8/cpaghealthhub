@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, X, MessageCircle, Shield, Clock, AlertCircle, ChevronDown, CircleDot } from 'lucide-react';
-import axios from 'axios';
-import socketService from '../services/socketService'; // ✅ Using your existing service
+import api from '../utils/api'; // ✅ Using your api.js utility
+import socketService from '../services/socketService';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -17,47 +17,34 @@ export default function ChatWidget({ user }) {
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
   const assignedCaseManagerId = user?.assignedCaseManager?._id || user?.assignedCaseManager;
- 
-  const getToken = () => localStorage.getItem('token');
-
-  // --- Debug logs ---
-  useEffect(() => {
-  }, [user]);
 
   // ✅ Connect to socket and set up listeners
   useEffect(() => {
     const userId = user?._id || user?.id;
     if (!userId) return;
 
-    // Connect socket
     socketService.connect(userId);
 
-    // ✅ Listen for new messages
     const handleNewMessage = ({ message }) => {
       setMessages(prev => [...prev, message]);
       
-      // Update unread count if chat is closed or minimized
       if (!isChatOpen || isMinimized) {
         setUnreadCount(prev => prev + 1);
       }
     };
 
-    // ✅ Listen for typing indicator
     const handleTyping = ({ isTyping: typing }) => {
       setIsTyping(typing);
     };
 
-    // ✅ Listen for unread count updates
     const handleUnreadCountUpdate = ({ unreadCount: count }) => {
       setUnreadCount(count);
     };
 
-    // Register listeners
     socketService.on('newMessage', handleNewMessage);
     socketService.on('userTyping', handleTyping);
     socketService.on('unreadCountUpdated', handleUnreadCountUpdate);
 
-    // Cleanup
     return () => {
       socketService.off('newMessage', handleNewMessage);
       socketService.off('userTyping', handleTyping);
@@ -71,7 +58,6 @@ export default function ChatWidget({ user }) {
 
     fetchUnreadCount();
 
-    // Poll for unread count every 30 seconds
     const interval = setInterval(() => {
       if (!isChatOpen) {
         fetchUnreadCount();
@@ -81,17 +67,14 @@ export default function ChatWidget({ user }) {
     return () => clearInterval(interval);
   }, [user?._id, user?.assignedCaseManager, isChatOpen]);
 
-  // ✅ Fetch unread count function
+  // ✅ FIXED: Using fetch via api.js instead of axios
   const fetchUnreadCount = async () => {
     if (!user?.assignedCaseManager) return;
     
     try {
-      const res = await axios.get(`${API_URL}/messages/unread-count`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
-      });
-      
-      if (res.data?.success) {
-        setUnreadCount(res.data.unreadCount || 0);
+      const data = await api.get('/messages/unread-count');
+      if (data?.success) {
+        setUnreadCount(data.unreadCount || 0);
       }
     } catch (err) {
       console.error('Failed to fetch unread count', err);
@@ -102,10 +85,8 @@ export default function ChatWidget({ user }) {
   useEffect(() => {
     if (isChatOpen && user?.assignedCaseManager) {
       fetchMessages();
-      // ✅ Reset unread count when opening chat
       setUnreadCount(0);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isChatOpen, isMinimized, user?.assignedCaseManager]);
 
   // Auto-scroll
@@ -113,37 +94,33 @@ export default function ChatWidget({ user }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // --- API calls ---
+  // ✅ FIXED: Using fetch via api.js instead of axios
   const fetchMessages = async () => {
-    if (noCaseManager) {
-      return;
-    }
+    if (!user?.assignedCaseManager) return;
 
     try {
       setLoading(true);
-      const res = await axios.get(`${API_URL}/messages/conversation`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
-      });
+      const data = await api.get('/messages/conversation');
 
-      if (res.data?.success) {
-        setMessages(res.data.messages || []);
+      if (data?.success) {
+        setMessages(data.messages || []);
         markAsRead();
-        // ✅ Fetch updated unread count after marking as read
         fetchUnreadCount();
       } else {
         setMessages([]);
       }
     } catch (err) {
-      console.warn('Failed to fetch messages', err?.response?.data || err.message);
+      console.warn('Failed to fetch messages', err?.message || err);
       setMessages([]);
     } finally {
       setLoading(false);
     }
   };
 
+  // ✅ FIXED: Using fetch via api.js instead of axios
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
-    if (noCaseManager) {
+    if (!user?.assignedCaseManager) {
       alert('You need a case manager assigned to send messages.');
       return;
     }
@@ -152,14 +129,13 @@ export default function ChatWidget({ user }) {
     setNewMessage('');
 
     try {
-      const res = await axios.post(
-        `${API_URL}/messages/send`,
-        { receiverId: assignedCaseManagerId, text },
-        { headers: { Authorization: `Bearer ${getToken()}` } }
-      );
+      const data = await api.post('/messages/send', {
+        receiverId: assignedCaseManagerId,
+        text
+      });
 
-      if (res.data?.success) {
-        setMessages(prev => [...prev, res.data.message]);
+      if (data?.success) {
+        setMessages(prev => [...prev, data.message]);
       }
     } catch (err) {
       console.error('Send failed', err);
@@ -168,17 +144,14 @@ export default function ChatWidget({ user }) {
     }
   };
 
+  // ✅ FIXED: Using fetch via api.js instead of axios
   const markAsRead = async () => {
     const userId = user?._id || user?.id;
     if (!userId || !user?.assignedCaseManager) return;
 
     try {
       const conversationId = [userId, user.assignedCaseManager].sort().join('_');
-      await axios.put(
-        `${API_URL}/messages/read`,
-        { conversationId },
-        { headers: { Authorization: `Bearer ${getToken()}` } }
-      );
+      await api.put('/messages/read', { conversationId });
     } catch (err) {
       console.warn('Mark as read failed', err);
     }
@@ -223,7 +196,7 @@ export default function ChatWidget({ user }) {
 
   const noCaseManager = !user.assignedCaseManager;
 
-  // --- UI ---
+  // --- UI (keeping your existing UI code) ---
   return (
     <div className="fixed bottom-6 right-6 z-50">
       {/* Floating button */}
@@ -235,7 +208,6 @@ export default function ChatWidget({ user }) {
         >
           <MessageCircle className="w-6 h-6" />
 
-          {/* ✅ Badge with unread count */}
           {noCaseManager ? (
             <span className="absolute -top-1 -right-1 bg-yellow-500 text-white text-xs font-semibold rounded-full h-6 w-6 flex items-center justify-center">!</span>
           ) : (
@@ -300,7 +272,6 @@ export default function ChatWidget({ user }) {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {/* ✅ Show unread count in minimized state */}
                 {unreadCount > 0 && (
                   <span className="bg-red-500 text-white text-xs font-semibold rounded-full h-6 min-w-[24px] px-2 flex items-center justify-center">
                     {unreadCount}

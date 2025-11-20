@@ -29,64 +29,65 @@ export default function AdminResetPassword() {
   }, [searchParams, navigate]);
 
   const verifyToken = async (tokenToVerify) => {
-    try {
-      const res = await api.get(
-        `/auth/admin/verify-reset-token/${tokenToVerify}`
-      );
-      const data = await res.json();
+  try {
+    const res = await fetch(
+      `/api/auth/admin/verify-reset-token/${tokenToVerify}`,
+      { method: 'GET' }
+    );
+    const data = await res.json();
 
-      if (res.ok && data.valid) {
-        setValidToken(true);
-      } else {
-        toast.error(data.msg || 'Invalid or expired reset link');
-        setTimeout(() => navigate('/admin/forgot-password'), 2000);
-      }
-    } catch (err) {
-      console.error('Token verification error:', err);
-      toast.error('Network error');
-      setTimeout(() => navigate('/admin/login'), 2000);
-    } finally {
-      setVerifying(false);
+    if (res.ok && data.valid) {
+      setValidToken(true);
+    } else {
+      toast.error(data.msg || 'Invalid or expired reset link');
+      setTimeout(() => navigate('/admin/forgot-password'), 2000);
     }
-  };
+  } catch (err) {
+    console.error('Token verification error:', err);
+    toast.error('Network error');
+    setTimeout(() => navigate('/admin/login'), 2000);
+  } finally {
+    setVerifying(false);
+  }
+};
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
+  if (newPassword !== confirmPassword) {
+    toast.error('Passwords do not match');
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    toast.error('Password must be at least 6 characters');
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const res = await fetch('/api/auth/admin/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      toast.success('Password reset successful!');
+      setTimeout(() => navigate('/admin/login'), 2000);
+    } else {
+      toast.error(data.msg || 'Failed to reset password');
     }
-
-    if (newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const res = await api.get('/auth/admin/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, newPassword })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        toast.success('Password reset successful!');
-        setTimeout(() => navigate('/admin/login'), 2000);
-      } else {
-        toast.error(data.msg || 'Failed to reset password');
-      }
-    } catch (err) {
-      console.error('Reset password error:', err);
-      toast.error('Network error. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (err) {
+    console.error('Reset password error:', err);
+    toast.error('Network error. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (verifying) {
     return (
