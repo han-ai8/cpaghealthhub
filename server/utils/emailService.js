@@ -163,9 +163,8 @@ export const sendWelcomeEmail = async (email, name) => {
 };
 
 // Export all functions
-export {
-  generateVerificationCode,
-  sendVerificationEmail,
-  sendPasswordResetEmail,
-  sendWelcomeEmail
-};
+export const generateVerificationCode = () => { ... };
+export const sendVerificationEmail = async (...) => { ... };
+export const sendPasswordResetEmail = async (...) => { ... };
+export const sendWelcomeEmail = async (...) => { ... };
+
