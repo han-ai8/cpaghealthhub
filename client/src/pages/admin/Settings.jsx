@@ -244,39 +244,39 @@ const Settings = () => {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Settings</h1>
+    <div className="p-4 md:p-6 max-w-4xl mx-auto">
+      <h1 className="text-2xl md:text-3xl font-bold mb-4 md:mb-6">Settings</h1>
       
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6">
         {/* Account Information Card */}
         <div className="card bg-base-100 shadow-xl">
-          <div className="card-body">
-            <h2 className="card-title text-2xl mb-4">Account Information</h2>
+          <div className="card-body p-4 md:p-6">
+            <h2 className="card-title text-xl md:text-2xl mb-3 md:mb-4">Account Information</h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 gap-4 mb-4">
               <div>
                 <label className="label">
-                  <span className="label-text font-semibold">Current Email</span>
+                  <span className="label-text font-semibold text-sm md:text-base">Current Email</span>
                 </label>
                 <input 
                   type="email" 
                   value={user?.email || ''} 
-                  className="input input-bordered w-full bg-base-200" 
+                  className="input input-bordered w-full bg-base-200 text-sm md:text-base" 
                   disabled 
                 />
                 <label className="label">
-                  <span className="label-text-alt text-gray-500">You can change your email below</span>
+                  <span className="label-text-alt text-xs md:text-sm text-gray-500">You can change your email below</span>
                 </label>
               </div>
               
               <div>
                 <label className="label">
-                  <span className="label-text font-semibold">Role</span>
+                  <span className="label-text font-semibold text-sm md:text-base">Role</span>
                 </label>
                 <input 
                   type="text" 
                   value={user?.role || ''} 
-                  className="input input-bordered w-full bg-base-200 capitalize" 
+                  className="input input-bordered w-full bg-base-200 capitalize text-sm md:text-base" 
                   disabled 
                 />
               </div>
@@ -311,9 +311,15 @@ const Settings = () => {
                   required
                 />
                 <label className="label">
-                  <span className="label-text-alt text-gray-500">
-                    3-20 characters. Letters, numbers, underscore, and hyphen only.
+                  <span className="label-text-alt text-xs md:text-sm text-gray-500">
+                    3-20 characters. Letters, numbers, 
                   </span>
+                </label>
+                 <label className="label">
+                  <span className="label-text-alt text-xs md:text-sm text-gray-500">
+                    underscore, and hyphen only.                
+                  </span>
+                  
                 </label>
               </div>
               
@@ -355,7 +361,7 @@ const Settings = () => {
                   required
                 />
                 <label className="label">
-                  <span className="label-text-alt text-gray-500">
+                  <span className="label-text-alt text-xs md:text-sm text-gray-500">
                     You'll use this email to log in from now on
                   </span>
                 </label>
@@ -394,7 +400,7 @@ const Settings = () => {
                   </button>
                 </div>
                 <label className="label">
-                  <span className="label-text-alt text-gray-500">
+                  <span className="label-text-alt text-xs md:text-sm text-gray-500">
                     Required to confirm your identity
                   </span>
                 </label>

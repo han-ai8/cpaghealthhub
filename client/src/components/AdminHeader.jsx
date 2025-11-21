@@ -1,7 +1,7 @@
 // src/components/AdminHeader.jsx
 import { useState } from 'react';
 import { HiMenu, HiX } from 'react-icons/hi';
-
+import logoHeader from '../assets/logo-header.png';
 const AdminHeader = ({ username, onLogout, onMenuToggle, isMenuOpen }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -24,7 +24,7 @@ const AdminHeader = ({ username, onLogout, onMenuToggle, isMenuOpen }) => {
 
         {/* Logo */}
         <img 
-          src="/src/assets/logo-header.png" 
+          src={logoHeader}
           alt="Logo" 
           className="w-20 h-5 md:w-30 md:h-15 lg:w-60 lg:h-10 hover:scale-105 transition-transform duration-200" 
         />

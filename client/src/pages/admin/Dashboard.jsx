@@ -587,60 +587,61 @@ const Dashboard = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-blue-900">Admin Dashboard</h1>
-          <p className="text-sm text-slate-500">Manage announcements, posts and replies.</p>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-900">Admin Dashboard</h1>
+          <p className="text-xs md:text-sm text-slate-500">Manage announcements, posts and replies.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={fetchData} className="inline-flex items-center gap-2 px-3 py-2 rounded bg-blue-600 text-white text-sm shadow-sm">
-            <RefreshCw className="w-4 h-4" /> Refresh
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          <button onClick={fetchData} className="inline-flex items-center gap-2 px-3 py-2 rounded bg-blue-600 text-white text-xs md:text-sm shadow-sm">
+            <RefreshCw className="w-3 h-3 md:w-4 md:h-4" /> Refresh
           </button>
-          <div className="hidden md:flex items-center gap-2 text-sm text-slate-600">
-             Signed in as <span className="ml-2 font-medium">{user?.name || user?.email}</span>
+          <div className="hidden sm:flex items-center gap-2 text-xs md:text-sm text-slate-600">
+            Signed in as <span className="ml-2 font-medium truncate max-w-[150px]">{user?.name || user?.email}</span>
           </div>
         </div>
       </header>
 
       {/* Stats */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <article className="bg-white p-4 rounded-lg shadow-sm flex items-center gap-4">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        {/* Stats cards remain same but adjust padding */}
+        <article className="bg-white p-3 md:p-4 rounded-lg shadow-sm flex items-center gap-3 md:gap-4">
           <div className="p-2 rounded-md bg-green-50">
-            <User className="w-6 h-6 text-green-600" />
+            <User className="w-5 h-5 md:w-6 md:h-6 text-green-600" />
           </div>
           <div>
-            <p className="text-xs text-slate-500">Active Users</p>
-            <p className="text-xl font-semibold text-green-700">{activeCount}</p>
+            <p className="text-xs md:text-sm text-slate-500">Active Users</p>
+            <p className="text-lg md:text-xl font-semibold text-green-700">{activeCount}</p>
           </div>
         </article>
 
-        <article className="bg-white p-4 rounded-lg shadow-sm flex items-center gap-4">
+        <article className="bg-white p-3 md:p-4 rounded-lg shadow-sm flex items-center gap-3 md:gap-4">
           <div className="p-2 rounded-md bg-red-50">
-            <XCircle className="w-6 h-6 text-red-600" />
+            <XCircle className="w-5 h-5 md:w-6 md:h-6 text-red-600" />
           </div>
           <div>
-            <p className="text-xs text-slate-500">Inactive Users</p>
-            <p className="text-xl font-semibold text-red-700">{inactiveCount}</p>
+            <p className="text-xs md:text-sm text-slate-500">Inactive Users</p>
+            <p className="text-lg md:text-xl font-semibold text-red-700">{inactiveCount}</p>
           </div>
         </article>
 
-        <article className="bg-white p-4 rounded-lg shadow-sm flex items-center gap-4">
+        <article className="bg-white p-3 md:p-4 rounded-lg shadow-sm flex items-center gap-3 md:gap-4">
           <div className="p-2 rounded-md bg-blue-50">
-            <MessageCircle className="w-6 h-6 text-blue-600" />
+            <MessageCircle className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
           </div>
           <div>
-            <p className="text-xs text-slate-500">Pending Posts</p>
-            <p className="text-xl font-semibold text-slate-800">{pendingPosts.length}</p>
+            <p className="text-xs md:text-sm text-slate-500">Pending Posts</p>
+            <p className="text-lg md:text-xl font-semibold text-slate-800">{pendingPosts.length}</p>
           </div>
         </article>
 
-        <article className="bg-white p-4 rounded-lg shadow-sm flex items-center gap-4">
+        <article className="bg-white p-3 md:p-4 rounded-lg shadow-sm flex items-center gap-3 md:gap-4">
           <div className="p-2 rounded-md bg-amber-50">
-            <CheckCircle className="w-6 h-6 text-amber-600" />
+            <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-amber-600" />
           </div>
           <div>
-            <p className="text-xs text-slate-500">Pending Replies</p>
-            <p className="text-xl font-semibold text-amber-700">{unrespondedComments}</p>
+            <p className="text-xs md:text-sm text-slate-500">Pending Replies</p>
+            <p className="text-lg md:text-xl font-semibold text-amber-700">{unrespondedComments}</p>
           </div>
         </article>
       </section>

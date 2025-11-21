@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import logoHeader from '../assets/logo-header.png';
 import api from '../utils/api';
+import userProfile from '../assets/userPfp.png';
 
 const Header = ({ toggleSidebar, unreadCount }) => {
   const location = useLocation();
@@ -211,7 +212,7 @@ const fetchUser = async () => {
                 }`}>
                   {isAuthenticated ? (
                     <img
-                      src="/src/assets/userPfp.png"
+                      src={userProfile}
                       alt="Profile Picture"
                       className="w-10 h-10 rounded-full object-cover"
                       onError={(e) => {

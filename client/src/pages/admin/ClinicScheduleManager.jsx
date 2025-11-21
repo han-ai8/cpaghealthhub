@@ -116,19 +116,20 @@ const handleToggle = async (id) => {
       <div className="mb-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
-              <Calendar className="w-8 h-8 text-blue-600" />
-              Clinic Schedule Manager
-            </h1>
-            <p className="text-gray-600 mt-2">Manage clinic closures, holidays, and special openings</p>
-          </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            <Plus className="w-5 h-5" />
-            Add Schedule
-          </button>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 flex items-center gap-2 md:gap-3">
+            <Calendar className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
+            Clinic Schedule Manager
+          </h1>
+          <p className="text-sm md:text-base text-gray-600 mt-2">Manage clinic closures, holidays, and special openings</p>
+        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 px-3 py-2 md:px-4 md:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm md:text-base"
+        >
+          <Plus className="w-4 h-4 md:w-5 md:h-5" />
+          <span className="hidden sm:inline">Add Schedule</span>
+          <span className="sm:hidden">Add</span>
+        </button>
         </div>
       </div>
 
@@ -152,7 +153,7 @@ const handleToggle = async (id) => {
           <div className="divide-y">
             {schedules.map((schedule) => (
               <div key={schedule._id} className="p-4 hover:bg-gray-50 transition">
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-lg font-semibold text-gray-800">{schedule.title}</h3>
@@ -189,24 +190,24 @@ const handleToggle = async (id) => {
                   <div className="flex gap-2 ml-4">
                     <button
                       onClick={() => handleToggle(schedule._id)}
-                      className="p-2 hover:bg-gray-200 rounded-lg transition"
+                      className="p-1.5 md:p-2 hover:bg-gray-200 rounded-lg transition"
                       title={schedule.isActive ? 'Deactivate' : 'Activate'}
                     >
-                      <Power className={`w-5 h-5 ${schedule.isActive ? 'text-green-600' : 'text-gray-400'}`} />
+                      <Power className={`w-4 h-4 md:w-5 md:h-5 ${schedule.isActive ? 'text-green-600' : 'text-gray-400'}`} />
                     </button>
                     <button
                       onClick={() => handleEdit(schedule)}
-                      className="p-2 hover:bg-blue-100 rounded-lg transition"
+                      className="p-1.5 md:p-2 hover:bg-blue-100 rounded-lg transition"
                       title="Edit"
                     >
-                      <Edit className="w-5 h-5 text-blue-600" />
+                      <Edit className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
                     </button>
                     <button
                       onClick={() => handleDelete(schedule._id)}
                       className="p-2 hover:bg-red-100 rounded-lg transition"
                       title="Delete"
                     >
-                      <Trash2 className="w-5 h-5 text-red-600" />
+                      <Trash2 className="w-4 h-4 md:w-5 md:h-5 text-red-600" />
                     </button>
                   </div>
                 </div>

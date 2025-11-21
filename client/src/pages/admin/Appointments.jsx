@@ -320,28 +320,26 @@ const Appointments = () => {
   return (
     <div className="min-h-screen p-6">
       {/* Header */}
-      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Appointment Management</h1>
-            <p className="text-gray-600">Manage appointments and assign case managers</p>
-            <p className="text-sm text-gray-500 mt-2">
-              📡 Real-time updates • Last refresh: {formatLastUpdate()}
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              fetchAppointments();
-              fetchCaseManagers();
-              fetchStats();
-              setLastUpdate(new Date());
-            }}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold px-6 py-3 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200"
-          >
-            <RefreshCw className="w-5 h-5" />
-            Refresh
-          </button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Appointment Management</h1>
+          <p className="text-sm md:text-base text-gray-600">Manage appointments and assign case managers</p>
+          <p className="text-xs md:text-sm text-gray-500 mt-2">
+            📡 Real-time updates • Last refresh: {formatLastUpdate()}
+          </p>
         </div>
+        <button
+          onClick={() => {
+            fetchAppointments();
+            fetchCaseManagers();
+            fetchStats();
+            setLastUpdate(new Date());
+          }}
+          className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold px-4 py-2 md:px-6 md:py-3 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200 text-sm md:text-base"
+        >
+          <RefreshCw className="w-4 h-4 md:w-5 md:h-5" />
+          <span className="hidden sm:inline">Refresh</span>
+        </button>
       </div>
 
       {/* Statistics Cards */}
@@ -408,30 +406,28 @@ const Appointments = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <div className="flex gap-4 flex-wrap">
-          <div className="flex-1 min-w-[200px]">
-            <input
-              type="text"
-              placeholder="Search by user name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[150px]"
-          >
-            <option value="">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+      <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Search by user name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-3 py-2 md:px-4 md:py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base"
+          />
         </div>
+
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="px-3 py-2 md:px-4 md:py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base"
+        >
+          <option value="">All Status</option>
+          <option value="pending">Pending</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
       </div>
 
       {/* Appointments List */}

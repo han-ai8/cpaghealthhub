@@ -297,17 +297,16 @@ const selectConversation = (conv) => {
     <div className="flex h-full bg-gray-50 min-h-[500px] relative">
       {/* ✅ FLOATING CHAT WIDGET BUTTON - FIXED WITH WRAPPER APPROACH */}
       {!sidebarOpen && (
-        <div className="fixed bottom-6 right-6 z-50">
+        <div className="fixed bottom-4 right-4 z-50 md:bottom-6 md:right-6">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="relative bg-gradient-to-br from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-full p-4 shadow-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 transition-transform transform hover:scale-105"
+            className="relative bg-gradient-to-br from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-full p-3 md:p-4 shadow-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 transition-transform transform hover:scale-105"
             aria-label="Open messages"
           >
-            <MessageCircle className="w-6 h-6" />
+            <MessageCircle className="w-5 h-5 md:w-6 md:h-6" />
             
-            {/* ✅ UNREAD COUNT BADGE - NOW PROPERLY POSITIONED */}
             {totalUnreadCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-7 w-7 flex items-center justify-center animate-pulse shadow-lg ring-2 ring-white">
+              <span className="absolute -top-1 -right-1 md:-top-2 md:-right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 md:h-7 md:w-7 flex items-center justify-center animate-pulse shadow-lg ring-2 ring-white">
                 {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
               </span>
             )}
@@ -315,10 +314,22 @@ const selectConversation = (conv) => {
         </div>
       )}
 
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar / Conversations */}
       <aside
-        className={`bg-white border-r transition-all duration-200 ease-in-out ${sidebarOpen ? 'w-80' : 'w-0 overflow-hidden'} hidden md:block`}
-        aria-hidden={!sidebarOpen}
+          className={`
+            fixed md:relative inset-y-0 left-0 z-40
+            bg-white border-r transition-all duration-300 ease-in-out
+            ${sidebarOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full md:translate-x-0'}
+            md:w-80 overflow-hidden
+          `}
+          aria-hidden={!sidebarOpen}
       >
         <div className="p-4 border-b bg-gradient-to-r from-blue-600 to-blue-500 text-white">
           <div className="flex items-center justify-between">

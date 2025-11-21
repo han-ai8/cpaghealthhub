@@ -1,6 +1,6 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
-import bcrypt from 'bcryptjs';
+
 import User from '../models/User.js';
 import { isAuthenticated, isAdminRole } from '../middleware/auth.js';
 import jwt from 'jsonwebtoken';
@@ -9,7 +9,6 @@ import {
   recordFailedAttempt, 
   resetLoginAttempts 
 } from '../middleware/rateLimiter.js';
-import crypto from 'crypto';
 import {
   generateVerificationCode,
   sendVerificationEmail,
@@ -543,10 +542,15 @@ router.post('/user/login', checkLoginAttempts, [
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    // Find user with password field
+    console.log('🔍 Login attempt for:', normalizedEmail); // ✅ Add logging
+    
+    // ✅ CRITICAL: Must select +password to get the password field
     let user = await User.findOne({ email: normalizedEmail }).select('+password');
     
+    console.log('👤 User found:', user ? 'Yes' : 'No'); // ✅ Add logging
+    
     if (!user) {
+      console.log('❌ User not found in database');
       const attemptRecord = await recordFailedAttempt(normalizedEmail);
       const remainingAttempts = 5 - (attemptRecord?.attempts || 0);
       
@@ -557,12 +561,14 @@ router.post('/user/login', checkLoginAttempts, [
     }
 
     if (user.role !== 'user') {
+      console.log('❌ Not a user role:', user.role);
       return res.status(400).json({ 
         msg: 'This account is not a regular user. Please use the admin login page.' 
       });
     }
 
     if (user.isActive === false) {
+      console.log('❌ Account inactive');
       return res.status(403).json({ 
         msg: 'Your account has been deactivated. Please contact support for assistance.',
         accountInactive: true
@@ -571,6 +577,7 @@ router.post('/user/login', checkLoginAttempts, [
 
     // Check email verification BEFORE password check
     if (!user.isEmailVerified) {
+      console.log('❌ Email not verified');
       return res.status(403).json({ 
         msg: 'Please verify your email before logging in',
         requiresVerification: true,
@@ -578,9 +585,20 @@ router.post('/user/login', checkLoginAttempts, [
       });
     }
 
+    // ✅ CRITICAL: Check if password field exists
+    if (!user.password) {
+      console.error('❌ CRITICAL: User has no password field!');
+      return res.status(500).json({ 
+        msg: 'Account data error. Please contact support.' 
+      });
+    }
+
+    console.log('🔐 Comparing passwords...'); // ✅ Add logging
     const isMatch = await user.comparePassword(password);
+    console.log('🔐 Password match:', isMatch); // ✅ Add logging
     
     if (!isMatch) {
+      console.log('❌ Password mismatch');
       const attemptRecord = await recordFailedAttempt(normalizedEmail);
       const remainingAttempts = 5 - (attemptRecord?.attempts || 0);
       
@@ -600,6 +618,7 @@ router.post('/user/login', checkLoginAttempts, [
     }
 
     // ✅ LOGIN SUCCESSFUL
+    console.log('✅ Login successful for:', user.email);
     await resetLoginAttempts(normalizedEmail);
 
     const token = generateToken(user._id, user.role);
@@ -620,7 +639,7 @@ router.post('/user/login', checkLoginAttempts, [
       token
     });
   } catch (err) {
-    console.error('Login error:', err);
+    console.error('💥 Login error:', err);
     console.error('Error stack:', err.stack);
     res.status(500).json({ msg: 'Server error during login' });
   }

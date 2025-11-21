@@ -204,44 +204,60 @@ export default function ClinicFinder() {
   return (
     <div className="min-h-screen border rounded-lg bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-blue-900">Clinic Finder Management</h1>
-            <p className="text-sm text-slate-500 mt-1">Manage HIV Centers — Cavite</p>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-900">Clinic Finder Management</h1>
+            <p className="text-xs md:text-sm text-slate-500 mt-1">Manage HIV Centers — Cavite</p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center bg-white border rounded-lg shadow-sm px-3 py-2">
-              <MapPin size={16} className="text-sky-600 mr-2" />
-              <select
-                value={selectedMunicipality}
-                onChange={handleMunicipalityChange}
-                className="bg-transparent outline-none text-sm"
-                aria-label="Filter by municipality"
-              >
-                <option value="">All Municipalities/Cities</option>
-                {municipalities.map(m => (<option key={m} value={m}>{m}</option>))}
-              </select>
-            </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+    {/* Municipality filter - show on mobile as full width */}
+    <div className="sm:hidden">
+      <select
+        value={selectedMunicipality}
+        onChange={handleMunicipalityChange}
+        className="w-full bg-white border rounded-lg shadow-sm px-3 py-2 text-sm"
+        aria-label="Filter by municipality"
+      >
+        <option value="">All Municipalities/Cities</option>
+        {municipalities.map(m => (<option key={m} value={m}>{m}</option>))}
+      </select>
+    </div>
 
-            <div className="flex items-center bg-white border rounded-lg shadow-sm px-3 py-2">
-              <IconSearch className="text-slate-400 mr-2" />
-              <input
-                value={searchQuery}
-                onChange={handleSearchChange}
-                className="outline-none text-sm w-48 sm:w-72"
-                placeholder="Search by name, address, contact..."
-                aria-label="Search clinics"
-              />
-              
-            </div>
+    {/* Desktop municipality filter */}
+    <div className="hidden sm:flex items-center bg-white border rounded-lg shadow-sm px-3 py-2">
+      <MapPin size={16} className="text-sky-600 mr-2" />
+      <select
+        value={selectedMunicipality}
+        onChange={handleMunicipalityChange}
+        className="bg-transparent outline-none text-sm"
+        aria-label="Filter by municipality"
+      >
+        <option value="">All Municipalities/Cities</option>
+        {municipalities.map(m => (<option key={m} value={m}>{m}</option>))}
+      </select>
+    </div>
 
-            <button
-              onClick={openAddModal}
-              className="inline-flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white px-3 py-2 rounded-lg shadow"
-            >
-              <Plus size={16} /> Add Clinic
-            </button>
+    {/* Search box */}
+    <div className="flex items-center bg-white border rounded-lg shadow-sm px-3 py-2 flex-1 sm:flex-initial">
+      <IconSearch className="text-slate-400 mr-2 flex-shrink-0" />
+      <input
+        value={searchQuery}
+        onChange={handleSearchChange}
+        className="outline-none text-sm w-full sm:w-48 lg:w-72"
+        placeholder="Search..."
+        aria-label="Search clinics"
+      />
+    </div>
+
+    <button
+      onClick={openAddModal}
+      className="inline-flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white px-3 py-2 rounded-lg shadow text-sm md:text-base"
+    >
+      <Plus size={16} className="flex-shrink-0" /> 
+      <span className="hidden sm:inline">Add Clinic</span>
+      <span className="sm:hidden">Add</span>
+    </button>
           </div>
         </header>
 

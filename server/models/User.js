@@ -159,6 +159,12 @@ userSchema.pre('save', async function (next) {
   }
 
   try {
+     // ✅ Check if password is already hashed
+    if (this.password.startsWith('$2a$') || this.password.startsWith('$2b$')) {
+      console.log('⚠️ Password already hashed, skipping');
+      return next();
+    }
+    
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
     next();
