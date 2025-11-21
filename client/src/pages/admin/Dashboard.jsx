@@ -23,7 +23,7 @@ const Dashboard = () => {
   const { confirm } = useConfirm();
 
   // data
-  const [users, setUsers] = useState([]); // still used for stats
+  const [users, setUsers] = useState([]);
   const [announcement, setAnnouncement] = useState(null);
   const [pendingPosts, setPendingPosts] = useState([]);
   const [adminPosts, setAdminPosts] = useState([]);
@@ -51,7 +51,7 @@ const Dashboard = () => {
   // Comments
   const [commentsSortBy, setCommentsSortBy] = useState('createdAt');
   const [commentsSortAsc, setCommentsSortAsc] = useState(false);
-  const [selectedComments, setSelectedComments] = useState({}); // { commentId: { postId, postType } }
+  const [selectedComments, setSelectedComments] = useState({});
   const [commentsSearch, setCommentsSearch] = useState('');
 
   // Pending posts
@@ -140,7 +140,6 @@ const Dashboard = () => {
     }
   };
 
-  // Reply handling (unchanged)
   const submitReply = async (commentId, postId, postType) => {
     const reply = replyText[commentId];
     if (!reply || !reply.trim()) {
@@ -322,34 +321,27 @@ const Dashboard = () => {
     }
   };
 
-  // ---------------------------
-  // Sorting & filtering helpers
-  // ---------------------------
   const sortItems = (items = [], sortBy, asc = true) => {
     const sorted = [...items].sort((a, b) => {
       const aVal = a?.[sortBy] ?? '';
       const bVal = b?.[sortBy] ?? '';
 
-      // try date
       const aDate = Date.parse(aVal);
       const bDate = Date.parse(bVal);
       if (!isNaN(aDate) && !isNaN(bDate)) {
         return asc ? aDate - bDate : bDate - aDate;
       }
 
-      // booleans
       if (typeof aVal === 'boolean' || typeof bVal === 'boolean') {
         const aa = aVal ? 1 : 0;
         const bb = bVal ? 1 : 0;
         return asc ? aa - bb : bb - aa;
       }
 
-      // numbers
       if (!isNaN(Number(aVal)) && !isNaN(Number(bVal))) {
         return asc ? Number(aVal) - Number(bVal) : Number(bVal) - Number(aVal);
       }
 
-      // fallback string
       const sa = String(aVal).toLowerCase();
       const sb = String(bVal).toLowerCase();
       if (sa < sb) return asc ? -1 : 1;
@@ -360,7 +352,6 @@ const Dashboard = () => {
     return sorted;
   };
 
-  // Apply search filters then sort for each list.
   const filteredComments = allComments.filter(c => {
     if (!commentsSearch || commentsSearch.trim() === '') return true;
     const q = commentsSearch.toLowerCase();
@@ -412,11 +403,6 @@ const Dashboard = () => {
     return sortItems(filteredAdmin, adminSortBy, adminSortAsc);
   })();
 
-  // ---------------------------
-  // Selection handlers
-  // ---------------------------
-
-  // Comments selection: store mapping { commentId: { postId, postType } }
   const toggleCommentSelect = (comment) => {
     setSelectedComments(prev => {
       const copy = { ...prev };
@@ -428,6 +414,7 @@ const Dashboard = () => {
       return copy;
     });
   };
+
   const toggleSelectAllComments = () => {
     if (Object.keys(selectedComments).length === displayedComments.length && displayedComments.length > 0) {
       setSelectedComments({});
@@ -438,7 +425,6 @@ const Dashboard = () => {
     }
   };
 
-  // Pending posts selection
   const togglePendingSelect = (id) => {
     setSelectedPendingPosts(prev => {
       const next = new Set(prev);
@@ -447,6 +433,7 @@ const Dashboard = () => {
       return next;
     });
   };
+
   const toggleSelectAllPending = () => {
     if (selectedPendingPosts.size === displayedPending.length && displayedPending.length > 0) {
       setSelectedPendingPosts(new Set());
@@ -455,7 +442,6 @@ const Dashboard = () => {
     }
   };
 
-  // Admin posts selection
   const toggleAdminSelect = (id) => {
     setSelectedAdminPosts(prev => {
       const next = new Set(prev);
@@ -464,6 +450,7 @@ const Dashboard = () => {
       return next;
     });
   };
+
   const toggleSelectAllAdmin = () => {
     if (selectedAdminPosts.size === displayedAdmin.length && displayedAdmin.length > 0) {
       setSelectedAdminPosts(new Set());
@@ -472,11 +459,6 @@ const Dashboard = () => {
     }
   };
 
-  // ---------------------------
-  // Bulk actions
-  // ---------------------------
-
-  // Bulk delete comments
   const bulkDeleteComments = async () => {
     const keys = Object.keys(selectedComments);
     if (keys.length === 0) return;
@@ -504,7 +486,6 @@ const Dashboard = () => {
     }
   };
 
-  // Bulk approve / reject pending posts
   const bulkUpdatePendingStatus = async (status) => {
     if (selectedPendingPosts.size === 0) return;
     const confirmed = await confirm({
@@ -526,7 +507,6 @@ const Dashboard = () => {
     }
   };
 
-  // Bulk delete admin posts
   const bulkDeleteAdminPosts = async () => {
     if (selectedAdminPosts.size === 0) return;
     const confirmed = await confirm({
@@ -579,13 +559,12 @@ const Dashboard = () => {
     );
   }
 
-  // Stats still use users (we didn't remove fetching since stats are part of the original layout)
   const activeCount = users.filter(u => u.active !== false).length;
   const inactiveCount = users.length - activeCount;
   const unrespondedComments = allComments.filter(c => !c.reply).length;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 md:p-6 space-y-4 md:space-y-6">
       {/* Header */}
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
         <div>
@@ -603,82 +582,97 @@ const Dashboard = () => {
       </header>
 
       {/* Stats */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        {/* Stats cards remain same but adjust padding */}
-        <article className="bg-white p-3 md:p-4 rounded-lg shadow-sm flex items-center gap-3 md:gap-4">
-          <div className="p-2 rounded-md bg-green-50">
-            <User className="w-5 h-5 md:w-6 md:h-6 text-green-600" />
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+        <article className="bg-white p-2 sm:p-3 md:p-4 rounded-lg shadow-sm flex items-center gap-2 sm:gap-3 md:gap-4">
+          <div className="p-1.5 sm:p-2 rounded-md bg-green-50">
+            <User className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-green-600" />
           </div>
           <div>
-            <p className="text-xs md:text-sm text-slate-500">Active Users</p>
-            <p className="text-lg md:text-xl font-semibold text-green-700">{activeCount}</p>
+            <p className="text-[10px] sm:text-xs md:text-sm text-slate-500">Active Users</p>
+            <p className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-green-700">{activeCount}</p>
           </div>
         </article>
 
-        <article className="bg-white p-3 md:p-4 rounded-lg shadow-sm flex items-center gap-3 md:gap-4">
-          <div className="p-2 rounded-md bg-red-50">
-            <XCircle className="w-5 h-5 md:w-6 md:h-6 text-red-600" />
+        <article className="bg-white p-2 sm:p-3 md:p-4 rounded-lg shadow-sm flex items-center gap-2 sm:gap-3 md:gap-4">
+          <div className="p-1.5 sm:p-2 rounded-md bg-red-50">
+            <XCircle className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-red-600" />
           </div>
           <div>
-            <p className="text-xs md:text-sm text-slate-500">Inactive Users</p>
-            <p className="text-lg md:text-xl font-semibold text-red-700">{inactiveCount}</p>
+            <p className="text-[10px] sm:text-xs md:text-sm text-slate-500">Inactive Users</p>
+            <p className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-red-700">{inactiveCount}</p>
           </div>
         </article>
 
-        <article className="bg-white p-3 md:p-4 rounded-lg shadow-sm flex items-center gap-3 md:gap-4">
-          <div className="p-2 rounded-md bg-blue-50">
-            <MessageCircle className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
+        <article className="bg-white p-2 sm:p-3 md:p-4 rounded-lg shadow-sm flex items-center gap-2 sm:gap-3 md:gap-4">
+          <div className="p-1.5 sm:p-2 rounded-md bg-blue-50">
+            <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-blue-600" />
           </div>
           <div>
-            <p className="text-xs md:text-sm text-slate-500">Pending Posts</p>
-            <p className="text-lg md:text-xl font-semibold text-slate-800">{pendingPosts.length}</p>
+            <p className="text-[10px] sm:text-xs md:text-sm text-slate-500">Pending Posts</p>
+            <p className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-slate-800">{pendingPosts.length}</p>
           </div>
         </article>
 
-        <article className="bg-white p-3 md:p-4 rounded-lg shadow-sm flex items-center gap-3 md:gap-4">
-          <div className="p-2 rounded-md bg-amber-50">
-            <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-amber-600" />
+        <article className="bg-white p-2 sm:p-3 md:p-4 rounded-lg shadow-sm flex items-center gap-2 sm:gap-3 md:gap-4">
+          <div className="p-1.5 sm:p-2 rounded-md bg-amber-50">
+            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-amber-600" />
           </div>
           <div>
-            <p className="text-xs md:text-sm text-slate-500">Pending Replies</p>
-            <p className="text-lg md:text-xl font-semibold text-amber-700">{unrespondedComments}</p>
+            <p className="text-[10px] sm:text-xs md:text-sm text-slate-500">Pending Replies</p>
+            <p className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-amber-700">{unrespondedComments}</p>
           </div>
         </article>
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Left column: Comments */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-medium text-slate-800">Comments & Replies</h2>
-              <div className="flex items-center gap-2">
+          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm">
+            {/* ✅ MOBILE RESPONSIVE HEADER */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
+              <h2 className="text-base sm:text-lg font-medium text-slate-800">Comments & Replies</h2>
+              
+              {/* ✅ MOBILE RESPONSIVE CONTROLS */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <input
                   type="text"
-                  placeholder="Search comments (author, body, post)..."
+                  placeholder="Search..."
                   value={commentsSearch}
                   onChange={(e) => setCommentsSearch(e.target.value)}
-                  className="text-sm p-1 border rounded"
+                  className="text-xs sm:text-sm p-1.5 sm:p-1 border rounded w-full sm:w-auto"
                 />
-                <select value={commentsSortBy} onChange={(e) => setCommentsSortBy(e.target.value)} className="text-sm p-1 border rounded">
-                  <option value="createdAt">Sort: Date</option>
-                  <option value="author">Sort: Author</option>
-                  <option value="hasReply">Sort: Has Reply</option>
-                </select>
-                <button onClick={() => setCommentsSortAsc(prev => !prev)} className="p-1 rounded border text-sm inline-flex items-center gap-1">
-                  {commentsSortAsc ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  {commentsSortAsc ? 'Asc' : 'Desc'}
-                </button>
-                <button onClick={() => fetchAllComments()} className="text-sm inline-flex items-center gap-2 px-2 py-1 rounded bg-blue-100 text-blue-700">
-                  <RefreshCw className="w-4 h-4" /> Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                  <select 
+                    value={commentsSortBy} 
+                    onChange={(e) => setCommentsSortBy(e.target.value)} 
+                    className="text-xs sm:text-sm p-1.5 sm:p-1 border rounded flex-1 sm:flex-none"
+                  >
+                    <option value="createdAt">Date</option>
+                    <option value="author">Author</option>
+                    <option value="hasReply">Reply</option>
+                  </select>
+                  <button 
+                    onClick={() => setCommentsSortAsc(prev => !prev)} 
+                    className="p-1.5 sm:p-1 rounded border text-xs sm:text-sm inline-flex items-center gap-1"
+                  >
+                    {commentsSortAsc ? <ChevronUp className="w-3 h-3 sm:w-4 sm:h-4" /> : <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" />}
+                    <span className="hidden sm:inline">{commentsSortAsc ? 'Asc' : 'Desc'}</span>
+                  </button>
+                  <button 
+                    onClick={() => fetchAllComments()} 
+                    className="text-xs sm:text-sm inline-flex items-center gap-1 sm:gap-2 px-2 py-1.5 sm:py-1 rounded bg-blue-100 text-blue-700"
+                  >
+                    <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Refresh</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Select All + Bulk Actions */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <label className="inline-flex items-center gap-2 text-sm">
+            {/* ✅ MOBILE RESPONSIVE SELECT ALL & BULK ACTIONS */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 mb-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex items-center gap-2 text-xs sm:text-sm">
                   <input
                     type="checkbox"
                     checked={Object.keys(selectedComments).length > 0 && Object.keys(selectedComments).length === displayedComments.length && displayedComments.length > 0}
@@ -687,25 +681,30 @@ const Dashboard = () => {
                   <span>Select All</span>
                 </label>
                 {Object.keys(selectedComments).length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <button onClick={bulkDeleteComments} className="inline-flex items-center gap-2 px-2 py-1 rounded bg-red-600 text-white text-sm">
-                      <Trash2 className="w-4 h-4" /> Delete Selected ({Object.keys(selectedComments).length})
-                    </button>
-                  </div>
+                  <button 
+                    onClick={bulkDeleteComments} 
+                    className="inline-flex items-center gap-1 sm:gap-2 px-2 py-1 rounded bg-red-600 text-white text-xs sm:text-sm"
+                  >
+                    <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" /> 
+                    <span className="hidden sm:inline">Delete Selected</span>
+                    <span className="sm:hidden">Delete</span>
+                    ({Object.keys(selectedComments).length})
+                  </button>
                 )}
               </div>
-              <div className="text-sm text-slate-500">{allComments.length} total</div>
+              <div className="text-xs sm:text-sm text-slate-500">{allComments.length} total</div>
             </div>
 
             {displayedComments.length === 0 ? (
-              <p className="text-sm text-slate-500">No comments yet.</p>
+              <p className="text-xs sm:text-sm text-slate-500">No comments yet.</p>
             ) : (
               <ul className="space-y-3">
                 {displayedComments.map(comment => (
-                  <li key={comment._id} className="border rounded p-3 bg-slate-50">
-                    <div className="flex justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
+                  <li key={comment._id} className="border rounded p-2 sm:p-3 bg-slate-50">
+                    {/* ✅ MOBILE RESPONSIVE COMMENT HEADER */}
+                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                           <label className="inline-flex items-center gap-2">
                             <input
                               type="checkbox"
@@ -713,54 +712,64 @@ const Dashboard = () => {
                               onChange={() => toggleCommentSelect(comment)}
                             />
                           </label>
-                          <p className="font-medium text-slate-800">{comment.author}</p>
-                          <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">{comment.postType}</span>
-                          {!comment.reply && <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">Needs Reply</span>}
+                          <p className="font-medium text-slate-800 text-xs sm:text-sm">{comment.author}</p>
+                          <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded bg-blue-100 text-blue-700">{comment.postType}</span>
+                          {!comment.reply && <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded bg-amber-100 text-amber-700">Needs Reply</span>}
                         </div>
-                        <p className="text-xs text-slate-500 mt-1">{new Date(comment.createdAt).toLocaleString()}</p>
-                        <p className="text-sm text-slate-600 italic mt-1">On: {comment.postTitle} — {comment.postContent}</p>
+                        <p className="text-[10px] sm:text-xs text-slate-500 mt-1">{new Date(comment.createdAt).toLocaleString()}</p>
+                        <p className="text-xs sm:text-sm text-slate-600 italic mt-1 break-words">On: {comment.postTitle} — {comment.postContent}</p>
                       </div>
 
-                      <div className="flex flex-col items-end gap-2">
-                        <div className="flex gap-2">
-                          <button onClick={() => deleteComment(comment._id, comment.postId, comment.postType)} className="inline-flex items-center gap-2 px-2 py-1 rounded bg-red-600 text-white text-xs">
-                            <Trash2 className="w-3 h-3" /> Delete
-                          </button>
-                        </div>
+                      {/* ✅ MOBILE RESPONSIVE DELETE BUTTON */}
+                      <div className="flex items-start gap-2">
+                        <button 
+                          onClick={() => deleteComment(comment._id, comment.postId, comment.postType)} 
+                          className="inline-flex items-center gap-1 sm:gap-2 px-2 py-1 rounded bg-red-600 text-white text-[10px] sm:text-xs"
+                        >
+                          <Trash2 className="w-3 h-3" /> 
+                          <span className="hidden sm:inline">Delete</span>
+                        </button>
                       </div>
                     </div>
 
-                    <div className="mt-3 bg-white rounded p-3 border">
-                      <p className="text-sm text-slate-700">{comment.body}</p>
+                    {/* ✅ MOBILE RESPONSIVE COMMENT BODY */}
+                    <div className="mt-2 sm:mt-3 bg-white rounded p-2 sm:p-3 border">
+                      <p className="text-xs sm:text-sm text-slate-700 break-words">{comment.body}</p>
                     </div>
 
+                    {/* ✅ MOBILE RESPONSIVE REPLY DISPLAY */}
                     {comment.reply && !expandedComments[comment._id] && (
-                      <div className="mt-3 bg-blue-50 p-3 rounded border-l-4 border-blue-400">
-                        <p className="text-sm font-semibold text-blue-800">{comment.reply.author}</p>
-                        <p className="text-xs text-slate-500">{new Date(comment.reply.createdAt).toLocaleString()}</p>
-                        <p className="text-sm text-slate-700 mt-1">{comment.reply.body}</p>
+                      <div className="mt-2 sm:mt-3 bg-blue-50 p-2 sm:p-3 rounded border-l-4 border-blue-400">
+                        <p className="text-xs sm:text-sm font-semibold text-blue-800">{comment.reply.author}</p>
+                        <p className="text-[10px] sm:text-xs text-slate-500">{new Date(comment.reply.createdAt).toLocaleString()}</p>
+                        <p className="text-xs sm:text-sm text-slate-700 mt-1 break-words">{comment.reply.body}</p>
                         <div className="mt-2">
-                          <button onClick={() => toggleCommentExpansion(comment._id)} className="text-sm text-blue-700">Edit Reply</button>
+                          <button onClick={() => toggleCommentExpansion(comment._id)} className="text-xs sm:text-sm text-blue-700">Edit Reply</button>
                         </div>
                       </div>
                     )}
 
+                    {/* ✅ MOBILE RESPONSIVE REPLY INPUT */}
                     {(expandedComments[comment._id] || !comment.reply) && (
-                      <div className="mt-3">
+                      <div className="mt-2 sm:mt-3">
                         <label className="sr-only">Reply</label>
                         <textarea
                           rows={3}
                           value={replyText[comment._id] || ''}
                           onChange={(e) => setReplyText(prev => ({ ...prev, [comment._id]: e.target.value }))}
                           placeholder={comment.reply ? 'Edit your reply...' : 'Write your reply...'}
-                          className="w-full border rounded p-2 text-sm"
+                          className="w-full border rounded p-2 text-xs sm:text-sm"
                         />
-                        <div className="flex items-center gap-2 mt-2">
-                          <button onClick={() => submitReply(comment._id, comment.postId, comment.postType)} disabled={submittingReply[comment._id]} className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-green-600 text-white text-sm">
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <button 
+                            onClick={() => submitReply(comment._id, comment.postId, comment.postType)} 
+                            disabled={submittingReply[comment._id]} 
+                            className="inline-flex items-center gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded bg-green-600 text-white text-xs sm:text-sm"
+                          >
                             {submittingReply[comment._id] ? 'Submitting...' : (comment.reply ? 'Update Reply' : 'Post Reply')}
                           </button>
                           {comment.reply && (
-                            <button onClick={() => toggleCommentExpansion(comment._id)} className="text-sm text-slate-600">Cancel</button>
+                            <button onClick={() => toggleCommentExpansion(comment._id)} className="text-xs sm:text-sm text-slate-600">Cancel</button>
                           )}
                         </div>
                       </div>
@@ -770,96 +779,95 @@ const Dashboard = () => {
               </ul>
             )}
           </div>
-
         </div>
 
         {/* Right column: Announcement + Create Post + Posts lists */}
         <aside className="space-y-4">
-          <div className="bg-white p-4 rounded-lg shadow-sm">
+          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-medium">Announcement</h3>
+              <h3 className="text-base sm:text-lg font-medium">Announcement</h3>
               {announcement ? (
-                <button onClick={deleteAnnouncement} className="inline-flex items-center gap-2 px-2 py-1 rounded bg-red-600 text-white text-sm">Delete</button>
+                <button onClick={deleteAnnouncement} className="inline-flex items-center gap-2 px-2 py-1 rounded bg-red-600 text-white text-xs sm:text-sm">Delete</button>
               ) : null}
             </div>
 
             {announcement ? (
               <div className="space-y-2">
-                <p className="font-semibold text-slate-800">{announcement.title}</p>
-                <p className="text-sm text-slate-700">{announcement.content}</p>
+                <p className="font-semibold text-slate-800 text-sm sm:text-base break-words">{announcement.title}</p>
+                <p className="text-xs sm:text-sm text-slate-700 break-words">{announcement.content}</p>
                 {announcement.image && (
-                  <img src={getImageUrl(announcement.image)} alt="Announcement" className="w-full mt-2 rounded" />
+                  <img src={getImageUrl(announcement.image)} alt="Announcement" className="w-full max-w-full mt-2 rounded object-contain" />
                 )}
               </div>
             ) : (
-              <p className="text-sm text-slate-500">No announcement yet.</p>
+              <p className="text-xs sm:text-sm text-slate-500">No announcement yet.</p>
             )}
 
             <form onSubmit={createAnnouncement} className="mt-3 space-y-2">
-              <input type="text" value={annTitle} onChange={(e) => setAnnTitle(e.target.value)} placeholder="Title" className="w-full p-2 border rounded text-sm" required />
-              <textarea value={annContent} onChange={(e) => setAnnContent(e.target.value)} rows={3} placeholder="Content" className="w-full p-2 border rounded text-sm" required />
+              <input type="text" value={annTitle} onChange={(e) => setAnnTitle(e.target.value)} placeholder="Title" className="w-full p-2 border rounded text-xs sm:text-sm" required />
+              <textarea value={annContent} onChange={(e) => setAnnContent(e.target.value)} rows={3} placeholder="Content" className="w-full p-2 border rounded text-xs sm:text-sm" required />
               <div className="flex gap-2">
-                <button type="submit" className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-blue-600 text-white text-sm">Create Announcement</button>
-                <button type="button" onClick={() => { setAnnTitle(''); setAnnContent(''); toast.info('Cleared'); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-slate-100 text-slate-700 text-sm">Clear</button>
+                <button type="submit" className="inline-flex items-center gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded bg-blue-600 text-white text-xs sm:text-sm">Create Announcement</button>
+                <button type="button" onClick={() => { setAnnTitle(''); setAnnContent(''); toast.info('Cleared'); }} className="inline-flex items-center gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded bg-slate-100 text-slate-700 text-xs sm:text-sm">Clear</button>
               </div>
             </form>
           </div>
 
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <h3 className="text-lg font-medium mb-3">Create Post</h3>
+          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm">
+            <h3 className="text-base sm:text-lg font-medium mb-3">Create Post</h3>
             <form onSubmit={handlePostSubmit} className="space-y-2">
-              <textarea value={postContent} onChange={(e) => setPostContent(e.target.value)} rows={4} placeholder={editingPostId ? 'Edit post content' : 'Post content (will be directly approved)'} className="w-full p-2 border rounded text-sm" required />
-              <label className="flex items-center gap-2 text-sm">
-                <ImageIcon className="w-4 h-4" />
-                <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="text-sm" />
+              <textarea value={postContent} onChange={(e) => setPostContent(e.target.value)} rows={4} placeholder={editingPostId ? 'Edit post content' : 'Post content (will be directly approved)'} className="w-full p-2 border rounded text-xs sm:text-sm" required />
+              <label className="flex items-center gap-2 text-xs sm:text-sm">
+                <ImageIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="text-xs sm:text-sm" />
               </label>
               <div className="flex gap-2">
-                <button type="submit" className={`inline-flex items-center gap-2 px-3 py-1.5 rounded text-white text-sm ${editingPostId ? 'bg-amber-500' : 'bg-green-600'}`}>
+                <button type="submit" className={`inline-flex items-center gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded text-white text-xs sm:text-sm ${editingPostId ? 'bg-amber-500' : 'bg-green-600'}`}>
                   {editingPostId ? 'Update Post' : 'Create & Post'}
                 </button>
                 {editingPostId && (
-                  <button type="button" onClick={() => { setPostContent(''); setImageFile(null); setEditingPostId(null); toast.info('Edit cancelled'); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-slate-100 text-slate-700 text-sm">Cancel</button>
+                  <button type="button" onClick={() => { setPostContent(''); setImageFile(null); setEditingPostId(null); toast.info('Edit cancelled'); }} className="inline-flex items-center gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded bg-slate-100 text-slate-700 text-xs sm:text-sm">Cancel</button>
                 )}
               </div>
             </form>
           </div>
 
           {/* Pending Posts list - MOBILE RESPONSIVE */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
+          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm">
             <div className="mb-3">
-              <h2 className="text-lg font-medium text-slate-800 mb-3">Pending Posts</h2>
+              <h2 className="text-base sm:text-lg font-medium text-slate-800 mb-3">Pending Posts</h2>
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <input
                   type="text"
                   placeholder="Search..."
                   value={pendingSearch}
                   onChange={(e) => setPendingSearch(e.target.value)}
-                  className="text-sm p-2 border rounded w-full sm:flex-1"
+                  className="text-xs sm:text-sm p-1.5 sm:p-2 border rounded w-full sm:flex-1"
                 />
                 <div className="flex items-center gap-2">
                   <select 
                     value={pendingSortBy} 
                     onChange={(e) => setPendingSortBy(e.target.value)} 
-                    className="text-sm p-2 border rounded flex-1 sm:flex-none"
+                    className="text-xs sm:text-sm p-1.5 sm:p-2 border rounded flex-1 sm:flex-none"
                   >
                     <option value="createdAt">Date</option>
                     <option value="contentLength">Length</option>
                   </select>
                   <button 
                     onClick={() => setPendingSortAsc(prev => !prev)} 
-                    className="p-2 rounded border text-sm inline-flex items-center gap-1 whitespace-nowrap"
+                    className="p-1.5 sm:p-2 rounded border text-xs sm:text-sm inline-flex items-center gap-1 whitespace-nowrap"
                     aria-label={pendingSortAsc ? 'Sort ascending' : 'Sort descending'}
                   >
-                    {pendingSortAsc ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    {pendingSortAsc ? <ChevronUp className="w-3 h-3 sm:w-4 sm:h-4" /> : <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" />}
                     <span className="hidden sm:inline">{pendingSortAsc ? 'Asc' : 'Desc'}</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 mb-3">
               <div className="flex flex-wrap items-center gap-2">
-                <label className="inline-flex items-center gap-2 text-sm">
+                <label className="inline-flex items-center gap-2 text-xs sm:text-sm">
                   <input
                     type="checkbox"
                     checked={selectedPendingPosts.size > 0 && selectedPendingPosts.size === displayedPending.length && displayedPending.length > 0}
@@ -871,28 +879,28 @@ const Dashboard = () => {
                   <>
                     <button 
                       onClick={() => bulkUpdatePendingStatus('approved')} 
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-600 text-white text-xs sm:text-sm"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-600 text-white text-[10px] sm:text-xs"
                     >
                       Approve ({selectedPendingPosts.size})
                     </button>
                     <button 
                       onClick={() => bulkUpdatePendingStatus('rejected')} 
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-600 text-white text-xs sm:text-sm"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-600 text-white text-[10px] sm:text-xs"
                     >
                       Reject ({selectedPendingPosts.size})
                     </button>
                   </>
                 )}
               </div>
-              <div className="text-sm text-slate-500">{pendingPosts.length} total</div>
+              <div className="text-xs sm:text-sm text-slate-500">{pendingPosts.length} total</div>
             </div>
 
             {displayedPending.length === 0 ? (
-              <p className="text-sm text-slate-500">No pending posts.</p>
+              <p className="text-xs sm:text-sm text-slate-500">No pending posts.</p>
             ) : (
               <ul className="space-y-3">
                 {displayedPending.map(post => (
-                  <li key={post._id} className="border rounded p-3 bg-slate-50">
+                  <li key={post._id} className="border rounded p-2 sm:p-3 bg-slate-50">
                     <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
                       <div className="flex-1">
                         <div className="flex items-start gap-2">
@@ -904,8 +912,8 @@ const Dashboard = () => {
                             />
                           </label>
                           <div className="flex-1">
-                            <p className="font-medium text-slate-800 text-sm">{(post.content || '').substring(0, 120)}{(post.content || '').length > 120 ? '...' : ''}</p>
-                            <p className="text-xs text-slate-500 mt-1">{new Date(post.createdAt).toLocaleString()}</p>
+                            <p className="font-medium text-slate-800 text-xs sm:text-sm break-words">{(post.content || '').substring(0, 120)}{(post.content || '').length > 120 ? '...' : ''}</p>
+                            <p className="text-[10px] sm:text-xs text-slate-500 mt-1">{new Date(post.createdAt).toLocaleString()}</p>
                           </div>
                         </div>
                       </div>
@@ -913,13 +921,13 @@ const Dashboard = () => {
                       <div className="flex gap-2 sm:flex-col sm:items-end">
                         <button 
                           onClick={() => updatePostStatus(post._id, 'approved')} 
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-600 text-white text-xs flex-1 sm:flex-none justify-center"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-600 text-white text-[10px] sm:text-xs flex-1 sm:flex-none justify-center"
                         >
                           Approve
                         </button>
                         <button 
                           onClick={() => updatePostStatus(post._id, 'rejected')} 
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-600 text-white text-xs flex-1 sm:flex-none justify-center"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-600 text-white text-[10px] sm:text-xs flex-1 sm:flex-none justify-center"
                         >
                           Reject
                         </button>
@@ -932,41 +940,41 @@ const Dashboard = () => {
           </div>
 
           {/* Admin Posts list - MOBILE RESPONSIVE */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
+          <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm">
             <div className="mb-3">
-              <h2 className="text-lg font-medium text-slate-800 mb-3">Admin Posts</h2>
+              <h2 className="text-base sm:text-lg font-medium text-slate-800 mb-3">Admin Posts</h2>
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <input
                   type="text"
                   placeholder="Search..."
                   value={adminSearch}
                   onChange={(e) => setAdminSearch(e.target.value)}
-                  className="text-sm p-2 border rounded w-full sm:flex-1"
+                  className="text-xs sm:text-sm p-1.5 sm:p-2 border rounded w-full sm:flex-1"
                 />
                 <div className="flex items-center gap-2">
                   <select 
                     value={adminSortBy} 
                     onChange={(e) => setAdminSortBy(e.target.value)} 
-                    className="text-sm p-2 border rounded flex-1 sm:flex-none"
+                    className="text-xs sm:text-sm p-1.5 sm:p-2 border rounded flex-1 sm:flex-none"
                   >
                     <option value="createdAt">Date</option>
                     <option value="contentLength">Length</option>
                   </select>
                   <button 
                     onClick={() => setAdminSortAsc(prev => !prev)} 
-                    className="p-2 rounded border text-sm inline-flex items-center gap-1 whitespace-nowrap"
+                    className="p-1.5 sm:p-2 rounded border text-xs sm:text-sm inline-flex items-center gap-1 whitespace-nowrap"
                     aria-label={adminSortAsc ? 'Sort ascending' : 'Sort descending'}
                   >
-                    {adminSortAsc ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    {adminSortAsc ? <ChevronUp className="w-3 h-3 sm:w-4 sm:h-4" /> : <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" />}
                     <span className="hidden sm:inline">{adminSortAsc ? 'Asc' : 'Desc'}</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 mb-3">
               <div className="flex flex-wrap items-center gap-2">
-                <label className="inline-flex items-center gap-2 text-sm">
+                <label className="inline-flex items-center gap-2 text-xs sm:text-sm">
                   <input
                     type="checkbox"
                     checked={selectedAdminPosts.size > 0 && selectedAdminPosts.size === displayedAdmin.length && displayedAdmin.length > 0}
@@ -977,22 +985,22 @@ const Dashboard = () => {
                 {selectedAdminPosts.size > 0 && (
                   <button 
                     onClick={bulkDeleteAdminPosts} 
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-600 text-white text-xs sm:text-sm"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-600 text-white text-[10px] sm:text-xs"
                   >
                     <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" /> 
                     Delete ({selectedAdminPosts.size})
                   </button>
                 )}
               </div>
-              <div className="text-sm text-slate-500">{adminPosts.length} total</div>
+              <div className="text-xs sm:text-sm text-slate-500">{adminPosts.length} total</div>
             </div>
 
             {displayedAdmin.length === 0 ? (
-              <p className="text-sm text-slate-500">You have no admin posts yet.</p>
+              <p className="text-xs sm:text-sm text-slate-500">You have no admin posts yet.</p>
             ) : (
               <ul className="space-y-3">
                 {displayedAdmin.map(post => (
-                  <li key={post._id} className="border rounded p-3 bg-slate-50">
+                  <li key={post._id} className="border rounded p-2 sm:p-3 bg-slate-50">
                     <div className="flex items-start gap-2 mb-2">
                       <label className="inline-flex items-center gap-2 mt-1">
                         <input
@@ -1002,25 +1010,25 @@ const Dashboard = () => {
                         />
                       </label>
                       <div className="flex-1">
-                        <p className="font-medium text-slate-800 text-sm">
+                        <p className="font-medium text-slate-800 text-xs sm:text-sm break-words">
                           {(post.content || '').substring(0, 120)}{(post.content || '').length > 120 ? '...' : ''}
                         </p>
                       </div>
                     </div>
                     {post.image && (
-                      <img src={getImageUrl(post.image)} alt="post" className="max-w-xs mb-2 rounded" />
+                      <img src={getImageUrl(post.image)} alt="post" className="w-full max-w-full sm:max-w-xs mb-2 rounded object-contain" />
                     )}
-                    <p className="text-xs text-slate-500 mb-2">{new Date(post.createdAt).toLocaleString()}</p>
+                    <p className="text-[10px] sm:text-xs text-slate-500 mb-2">{new Date(post.createdAt).toLocaleString()}</p>
                     <div className="flex gap-2">
                       <button 
                         onClick={() => editPost(post)} 
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-500 text-white text-xs flex-1 sm:flex-none justify-center"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-500 text-white text-[10px] sm:text-xs flex-1 sm:flex-none justify-center"
                       >
                         <Edit2 className="w-3 h-3" /> Edit
                       </button>
                       <button 
                         onClick={() => deleteAdminPost(post._id)} 
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-600 text-white text-xs flex-1 sm:flex-none justify-center"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-600 text-white text-[10px] sm:text-xs flex-1 sm:flex-none justify-center"
                       >
                         <Trash2 className="w-3 h-3" /> Delete
                       </button>

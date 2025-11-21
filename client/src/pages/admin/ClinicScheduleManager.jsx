@@ -23,57 +23,55 @@ const ClinicScheduleManager = () => {
     fetchSchedules();
   }, []);
 
- const fetchSchedules = async () => {
-  try {
-    const response = await api.get('/clinic-schedule');
-    setSchedules(response);
-  } catch (err) {
-    setError('Failed to fetch schedules');
-  }
-};
-
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError('');
-
-  try {
-    if (editingSchedule) {
-      await api.put(`/clinic-schedule/${editingSchedule._id}`, formData);
-    } else {
-      await api.post('/clinic-schedule', formData);
+  const fetchSchedules = async () => {
+    try {
+      const response = await api.get('/clinic-schedule');
+      setSchedules(response);
+    } catch (err) {
+      setError('Failed to fetch schedules');
     }
+  };
 
-    await fetchSchedules();
-    handleCloseModal();
-  } catch (err) {
-    setError(err.message || 'Failed to save schedule');
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
- const handleDelete = async (id) => {
-  if (!confirm('Are you sure you want to delete this schedule?')) return;
+    try {
+      if (editingSchedule) {
+        await api.put(`/clinic-schedule/${editingSchedule._id}`, formData);
+      } else {
+        await api.post('/clinic-schedule', formData);
+      }
 
-  try {
-    await api.delete(`/clinic-schedule/${id}`);
-    await fetchSchedules();
-  } catch (err) {
-    setError('Failed to delete schedule');
-  }
-};
+      await fetchSchedules();
+      handleCloseModal();
+    } catch (err) {
+      setError(err.message || 'Failed to save schedule');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-const handleToggle = async (id) => {
-  try {
-    await api.put(`/clinic-schedule/${id}/toggle`, {});
-    await fetchSchedules();
-  } catch (err) {
-    setError('Failed to toggle schedule status');
-  }
-};
+  const handleDelete = async (id) => {
+    if (!confirm('Are you sure you want to delete this schedule?')) return;
 
+    try {
+      await api.delete(`/clinic-schedule/${id}`);
+      await fetchSchedules();
+    } catch (err) {
+      setError('Failed to delete schedule');
+    }
+  };
 
+  const handleToggle = async (id) => {
+    try {
+      await api.put(`/clinic-schedule/${id}/toggle`, {});
+      await fetchSchedules();
+    } catch (err) {
+      setError('Failed to toggle schedule status');
+    }
+  };
 
   const handleEdit = (schedule) => {
     setEditingSchedule(schedule);
@@ -112,102 +110,117 @@ const handleToggle = async (id) => {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
-      <div className="mb-6">
-        <div className="flex justify-between items-center">
-          <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 flex items-center gap-2 md:gap-3">
-            <Calendar className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
-            Clinic Schedule Manager
-          </h1>
-          <p className="text-sm md:text-base text-gray-600 mt-2">Manage clinic closures, holidays, and special openings</p>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-3 py-2 md:px-4 md:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm md:text-base"
-        >
-          <Plus className="w-4 h-4 md:w-5 md:h-5" />
-          <span className="hidden sm:inline">Add Schedule</span>
-          <span className="sm:hidden">Add</span>
-        </button>
+    <div className="container mx-auto p-3 sm:p-4 md:p-6 max-w-7xl">
+      {/* ✅ MOBILE RESPONSIVE HEADER */}
+      <div className="mb-4 md:mb-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
+          <div className="flex-1">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-2 md:gap-3">
+              <Calendar className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-blue-600" />
+              <span className="break-words">Clinic Schedule Manager</span>
+            </h1>
+            <p className="text-xs sm:text-sm md:text-base text-gray-600 mt-1 sm:mt-2">
+              Manage clinic closures, holidays, and special openings
+            </p>
+          </div>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center justify-center gap-2 px-3 py-2 md:px-4 md:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm md:text-base w-full sm:w-auto"
+          >
+            <Plus className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5" />
+            <span>Add Schedule</span>
+          </button>
         </div>
       </div>
 
+      {/* ✅ MOBILE RESPONSIVE ERROR MESSAGE */}
       {error && (
-        <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-red-600" />
-            <p className="text-red-700">{error}</p>
+        <div className="mb-4 md:mb-6 bg-red-50 border-l-4 border-red-400 p-3 sm:p-4 rounded">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs sm:text-sm md:text-base text-red-700 break-words">{error}</p>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow">
+      {/* ✅ MOBILE RESPONSIVE SCHEDULES LIST */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
         {schedules.length === 0 ? (
-          <div className="p-12 text-center">
-            <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">No Schedules Yet</h3>
-            <p className="text-gray-500">Add clinic closures, holidays, or special openings</p>
+          <div className="p-8 sm:p-12 text-center">
+            <Calendar className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-2">No Schedules Yet</h3>
+            <p className="text-sm sm:text-base text-gray-500">Add clinic closures, holidays, or special openings</p>
           </div>
         ) : (
           <div className="divide-y">
             {schedules.map((schedule) => (
-              <div key={schedule._id} className="p-4 hover:bg-gray-50 transition">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div key={schedule._id} className="p-3 sm:p-4 hover:bg-gray-50 transition">
+                {/* ✅ MOBILE RESPONSIVE SCHEDULE CARD */}
+                <div className="flex flex-col gap-3">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-800">{schedule.title}</h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getTypeBadge(schedule.type)}`}>
-                        {schedule.type.replace('_', ' ').toUpperCase()}
-                      </span>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        schedule.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        {schedule.isActive ? 'ACTIVE' : 'INACTIVE'}
-                      </span>
+                    {/* ✅ MOBILE RESPONSIVE TITLE & BADGES */}
+                    <div className="flex flex-wrap items-start gap-2 mb-2">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-800 break-words flex-1 min-w-0">
+                        {schedule.title}
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold whitespace-nowrap ${getTypeBadge(schedule.type)}`}>
+                          {schedule.type.replace('_', ' ').toUpperCase()}
+                        </span>
+                        <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold whitespace-nowrap ${
+                          schedule.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {schedule.isActive ? 'ACTIVE' : 'INACTIVE'}
+                        </span>
+                      </div>
                     </div>
                     
+                    {/* ✅ MOBILE RESPONSIVE DESCRIPTION */}
                     {schedule.description && (
-                      <p className="text-sm text-gray-600 mb-2">{schedule.description}</p>
+                      <p className="text-xs sm:text-sm text-gray-600 mb-2 break-words">{schedule.description}</p>
                     )}
                     
-                    <div className="text-sm text-gray-700 space-y-1">
-                      <p>
+                    {/* ✅ MOBILE RESPONSIVE DETAILS */}
+                    <div className="text-xs sm:text-sm text-gray-700 space-y-1">
+                      <p className="break-words">
                         <span className="font-medium">Period:</span>{' '}
-                        {new Date(schedule.startDate).toLocaleDateString()} - {new Date(schedule.endDate).toLocaleDateString()}
+                        <span className="inline-block">
+                          {new Date(schedule.startDate).toLocaleDateString()} - {new Date(schedule.endDate).toLocaleDateString()}
+                        </span>
                       </p>
                       {schedule.reason && (
-                        <p>
+                        <p className="break-words">
                           <span className="font-medium">Reason:</span> {schedule.reason}
                         </p>
                       )}
-                      <p className="text-xs text-gray-500">
+                      <p className="text-[10px] sm:text-xs text-gray-500 break-words">
                         Created by: {schedule.createdBy?.name || 'Unknown'} on {new Date(schedule.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex gap-2 ml-4">
+                  {/* ✅ MOBILE RESPONSIVE ACTION BUTTONS */}
+                  <div className="flex gap-2 justify-end sm:justify-start pt-2 border-t sm:border-t-0 sm:pt-0">
                     <button
                       onClick={() => handleToggle(schedule._id)}
-                      className="p-1.5 md:p-2 hover:bg-gray-200 rounded-lg transition"
+                      className="p-2 hover:bg-gray-200 rounded-lg transition flex items-center justify-center"
                       title={schedule.isActive ? 'Deactivate' : 'Activate'}
                     >
-                      <Power className={`w-4 h-4 md:w-5 md:h-5 ${schedule.isActive ? 'text-green-600' : 'text-gray-400'}`} />
+                      <Power className={`w-4 h-4 sm:w-5 sm:h-5 ${schedule.isActive ? 'text-green-600' : 'text-gray-400'}`} />
                     </button>
                     <button
                       onClick={() => handleEdit(schedule)}
-                      className="p-1.5 md:p-2 hover:bg-blue-100 rounded-lg transition"
+                      className="p-2 hover:bg-blue-100 rounded-lg transition flex items-center justify-center"
                       title="Edit"
                     >
-                      <Edit className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
+                      <Edit className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                     </button>
                     <button
                       onClick={() => handleDelete(schedule._id)}
-                      className="p-2 hover:bg-red-100 rounded-lg transition"
+                      className="p-2 hover:bg-red-100 rounded-lg transition flex items-center justify-center"
                       title="Delete"
                     >
-                      <Trash2 className="w-4 h-4 md:w-5 md:h-5 text-red-600" />
+                      <Trash2 className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
                     </button>
                   </div>
                 </div>
@@ -217,28 +230,30 @@ const handleToggle = async (id) => {
         )}
       </div>
 
-      {/* Modal */}
+      {/* ✅ MOBILE RESPONSIVE MODAL */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-xl">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+          <div className="bg-white rounded-lg sm:rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            {/* ✅ MOBILE RESPONSIVE MODAL HEADER */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 rounded-t-lg sm:rounded-t-xl">
               <div className="flex justify-between items-center">
-                <h3 className="text-2xl font-bold text-gray-800">
+                <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800">
                   {editingSchedule ? 'Edit Schedule' : 'Add Schedule'}
                 </h3>
-                <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700">
-                  <X className="w-6 h-6" />
+                <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700 p-1">
+                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            {/* ✅ MOBILE RESPONSIVE MODAL FORM */}
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-3 sm:space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Type</label>
                 <select
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 sm:px-4 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm md:text-base"
                   required
                 >
                   <option value="closure">Closure</option>
@@ -248,75 +263,76 @@ const handleToggle = async (id) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Title</label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 sm:px-4 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm md:text-base"
                   placeholder="e.g., Christmas Day, Saturday Opening"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description (Optional)</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Description (Optional)</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 sm:px-4 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm md:text-base"
                   rows="3"
                   placeholder="Additional details..."
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Start Date</label>
                   <input
                     type="date"
                     value={formData.startDate}
                     onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 sm:px-4 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm md:text-base"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">End Date</label>
                   <input
                     type="date"
                     value={formData.endDate}
                     onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 sm:px-4 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm md:text-base"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Reason (Optional)</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Reason (Optional)</label>
                 <input
                   type="text"
                   value={formData.reason}
                   onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 sm:px-4 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm md:text-base"
                   placeholder="e.g., National Holiday, Maintenance"
                 />
               </div>
 
-              <div className="flex gap-3 pt-4">
+              {/* ✅ MOBILE RESPONSIVE MODAL BUTTONS */}
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2 sm:pt-4">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold disabled:bg-gray-400"
+                  className="flex-1 px-4 py-2.5 sm:px-6 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold disabled:bg-gray-400 text-xs sm:text-sm md:text-base"
                 >
                   {loading ? 'Saving...' : editingSchedule ? 'Update' : 'Create'}
                 </button>
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
+                  className="px-4 py-2.5 sm:px-6 sm:py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold text-xs sm:text-sm md:text-base"
                 >
                   Cancel
                 </button>
