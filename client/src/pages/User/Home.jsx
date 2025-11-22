@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../components/ConfirmModal';
 import { useAuth } from '../../context/AuthContext';
 import { getImageUrl } from '../../utils/api';
+import cpag from '../../assets/cpag.jpg';
 
 const Home = () => {
   const location = useLocation();
@@ -11,10 +12,8 @@ const Home = () => {
   const { confirm } = useConfirm();
   const { user } = useAuth();
   
-  // ✅ Refs for scrolling to posts
   const postRefs = useRef({});
   
-  // Anonymous name generator function
   const generateAnonymousName = (userId) => {
     if (!userId) return 'Anonymous User';
     
@@ -85,7 +84,6 @@ const Home = () => {
     fetchLikedStatus();
   }, []);
 
-  // ✅ Handle scroll to post from saved posts
   useEffect(() => {
     if (location.state?.scrollToPost && posts.length > 0) {
       const postId = location.state.scrollToPost;
@@ -415,10 +413,10 @@ const Home = () => {
 
   if (loading || savedLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FFFFFF] px-4">
+      <div className="min-h-screen flex items-center justify-center bg-[#FFFFFF] dark:bg-gray-900 px-4">
         <div className="text-center">
-          <div className="loading loading-spinner loading-lg text-[#4C8DD8]"></div>
-          <p className="mt-4 text-[#4C8DD8] text-sm md:text-base">Loading content...</p>
+          <div className="loading loading-spinner loading-lg text-[#4C8DD8] dark:text-blue-400"></div>
+          <p className="mt-4 text-[#4C8DD8] dark:text-blue-400 text-sm md:text-base">Loading content...</p>
         </div>
       </div>
     );
@@ -426,8 +424,8 @@ const Home = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FFFFFF] px-4">
-        <div className="alert alert-error max-w-md bg-[#C62828] text-[#FFFFFF] text-sm md:text-base">
+      <div className="min-h-screen flex items-center justify-center bg-[#FFFFFF] dark:bg-gray-900 px-4">
+        <div className="alert alert-error max-w-md bg-[#C62828] dark:bg-red-900 text-[#FFFFFF] text-sm md:text-base">
           <span>{error}</span>
         </div>
       </div>
@@ -438,61 +436,72 @@ const Home = () => {
     <div className="min-h-screen space-y-4 md:space-y-6 lg:space-y-8 px-2 sm:px-4 md:px-6 lg:px-8 py-4 md:py-6">
       {/* Announcement Post */}
       {announcement ? (
-        <div className="card bg-[#FFFFFF] shadow-lg border border-[#4C8DD8]/20 w-full max-w-6xl mx-auto">
+        <div className="card bg-[#FFFFFF] dark:bg-gray-800 shadow-lg border border-[#4C8DD8]/20 dark:border-gray-700 w-full max-w-6xl mx-auto">
           <div className="card-body p-4 md:p-6 lg:p-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-              <h3 className="card-title text-[#4C8DD8] font-semibold text-base md:text-lg lg:text-xl">
+              <h3 className="card-title text-[#4C8DD8] dark:text-blue-400 font-semibold text-base md:text-lg lg:text-xl">
                 ANNOUNCEMENT
               </h3>
-              <p className="text-xs md:text-sm text-[#4C8DD8]/60">
+              <p className="text-xs md:text-sm text-[#4C8DD8]/60 dark:text-gray-400">
                 {new Date(announcement.createdAt).toLocaleString()}
               </p>
             </div>
-            <hr className="border-[#4C8DD8]/20" />
+            <hr className="border-[#4C8DD8]/20 dark:border-gray-700" />
             
-            <p className="font-semibold text-[#4C8DD8] text-sm md:text-base lg:text-lg mt-4">{announcement.title}</p>
-            <p className="text-[#4C8DD8]/80 text-sm md:text-base break-words">{announcement.content}</p>
+            <p className="font-semibold text-[#4C8DD8] dark:text-blue-400 text-sm md:text-base lg:text-lg mt-4">{announcement.title}</p>
+            <p className="text-[#4C8DD8]/80 dark:text-gray-300 text-sm md:text-base break-words">{announcement.content}</p>
 
+            {/* ✅ OPTIMIZED ANNOUNCEMENT IMAGE */}
             {announcement.image && (
-              <div
-                className="rounded-lg h-32 sm:h-40 md:h-48 lg:h-64 flex items-center justify-center text-[#FFFFFF] font-semibold my-4 bg-cover bg-center"
-                style={{ backgroundImage: `url(${getImageUrl(announcement.image)}) ` }}
-              />
+              <div className="relative w-full my-4 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+                <img
+                  src={getImageUrl(announcement.image)}
+                  alt="Announcement"
+                  className="w-full h-auto object-contain max-h-[250px] sm:max-h-[300px] md:max-h-[400px] lg:max-h-[500px]"
+                  loading="lazy"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.parentElement.classList.add('hidden');
+                  }}
+                />
+              </div>
             )}
 
-            <hr className="border-[#4C8DD8]/20" />
-            <div className="flex flex-wrap gap-3 md:gap-6 text-[#4C8DD8]/80 mt-4">
+            <hr className="border-[#4C8DD8]/20 dark:border-gray-700" />
+            <div className="flex flex-wrap gap-3 md:gap-6 text-[#4C8DD8]/80 dark:text-gray-400 mt-4">
               <button
-                className={`btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] text-xs md:text-sm ${
-                  likedAnnouncementIds.has(announcement._id) ? 'text-[#4C8DD8]' : ''
+                className={`btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] dark:hover:text-blue-400 text-xs md:text-sm transition-colors ${
+                  likedAnnouncementIds.has(announcement._id) ? 'text-red-500 dark:text-red-400' : ''
                 }`}
                 onClick={() => handleAnnouncementLike(announcement._id)}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className={`h-4 w-4 md:h-5 md:w-5 ${likedAnnouncementIds.has(announcement._id) ? 'fill-current' : ''}`}
-                  fill="none"
+                  className={`h-5 w-5 md:h-6 md:w-6`}
+                  fill={likedAnnouncementIds.has(announcement._id) ? 'currentColor' : 'none'}
                   viewBox="0 0 24 24"
                   stroke="currentColor"
+                  strokeWidth={2}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                 </svg>
                 <span className="hidden sm:inline">{announcement.likes || 0} {likedAnnouncementIds.has(announcement._id) ? 'Liked' : 'Like'}</span>
                 <span className="sm:hidden">{announcement.likes || 0}</span>
               </button>
               
               <button
-                className="btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] text-xs md:text-sm"
+                className="btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] dark:hover:text-blue-400 text-xs md:text-sm transition-colors"
                 onClick={() => toggleComments(announcement._id, 'announcement')}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4 md:h-5 md:w-5"
+                  className="h-5 w-5 md:h-6 md:w-6"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
+                  strokeWidth={2}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16h6" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
                 <span className="hidden sm:inline">{announcementComments.length} Comment{announcementComments.length !== 1 ? 's' : ''}</span>
                 <span className="sm:hidden">{announcementComments.length}</span>
@@ -500,12 +509,12 @@ const Home = () => {
             </div>
 
             {showComments[announcement._id] && (
-              <div className="mt-4 border-t border-[#4C8DD8]/20 pt-4">
-                <h4 className="font-semibold text-[#4C8DD8] text-sm md:text-base mb-3">Comments</h4>
+              <div className="mt-4 border-t border-[#4C8DD8]/20 dark:border-gray-700 pt-4">
+                <h4 className="font-semibold text-[#4C8DD8] dark:text-blue-400 text-sm md:text-base mb-3">Comments</h4>
                 
                 <div className="mb-4">
                   <textarea
-                    className="textarea textarea-bordered w-full border-[#4C8DD8]/20 focus:border-[#4C8DD8] text-sm md:text-base"
+                    className="textarea textarea-bordered w-full border-[#4C8DD8]/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white focus:border-[#4C8DD8] dark:focus:border-blue-400 text-sm md:text-base"
                     placeholder="Write a comment..."
                     rows="2"
                     value={newComment[`announcement-${announcement._id}`] || ''}
@@ -515,7 +524,7 @@ const Home = () => {
                     }))}
                   />
                   <button
-                    className="btn btn-primary bg-[#4C8DD8] hover:bg-[#4C8DD8]/90 text-[#FFFFFF] btn-sm mt-2 text-xs md:text-sm"
+                    className="btn btn-primary bg-[#4C8DD8] hover:bg-[#4C8DD8]/90 dark:bg-blue-600 dark:hover:bg-blue-700 text-[#FFFFFF] btn-sm mt-2 text-xs md:text-sm"
                     onClick={() => submitAnnouncementComment(announcement._id)}
                     disabled={submittingComment[`announcement-${announcement._id}`]}
                   >
@@ -533,32 +542,32 @@ const Home = () => {
                           key={comment._id} 
                           className={`p-3 rounded ${
                             isMyCommentFlag 
-                              ? 'bg-blue-50 border-2 border-blue-300' 
-                              : 'bg-[#4C8DD8]/5'
+                              ? 'bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-300 dark:border-blue-600' 
+                              : 'bg-[#4C8DD8]/5 dark:bg-gray-700/50'
                           }`}
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className={`font-semibold text-xs md:text-sm ${
-                                  isMyCommentFlag ? 'text-blue-700' : 'text-[#4C8DD8]'
+                                  isMyCommentFlag ? 'text-blue-700 dark:text-blue-300' : 'text-[#4C8DD8] dark:text-blue-400'
                                 }`}>
                                   {generateAnonymousName(comment.author)}
                                 </p>
                                 {isMyCommentFlag && (
-                                  <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">
+                                  <span className="px-2 py-0.5 bg-blue-600 dark:bg-blue-500 text-white text-xs rounded-full">
                                     You
                                   </span>
                                 )}
                               </div>
-                              <p className="text-xs text-[#4C8DD8]/60">{new Date(comment.createdAt).toLocaleString()}</p>
-                              <p className="mt-2 text-[#4C8DD8]/80 text-sm md:text-base break-words">{comment.body}</p>
+                              <p className="text-xs text-[#4C8DD8]/60 dark:text-gray-400">{new Date(comment.createdAt).toLocaleString()}</p>
+                              <p className="mt-2 text-[#4C8DD8]/80 dark:text-gray-300 text-sm md:text-base break-words">{comment.body}</p>
                               
                               {comment.reply && (
-                                <div className="mt-3 ml-3 md:ml-6 bg-[#2E7D32]/10 p-3 rounded border-l-4 border-[#2E7D32]">
-                                  <p className="font-semibold text-xs md:text-sm text-[#2E7D32]">{comment.reply.author}</p>
-                                  <p className="text-xs text-[#2E7D32]/60">{new Date(comment.reply.createdAt).toLocaleString()}</p>
-                                  <p className="mt-1 text-[#2E7D32]/80 text-sm md:text-base break-words">{comment.reply.body}</p>
+                                <div className="mt-3 ml-3 md:ml-6 bg-[#2E7D32]/10 dark:bg-green-900/20 p-3 rounded border-l-4 border-[#2E7D32] dark:border-green-600">
+                                  <p className="font-semibold text-xs md:text-sm text-[#2E7D32] dark:text-green-400">{comment.reply.author}</p>
+                                  <p className="text-xs text-[#2E7D32]/60 dark:text-green-500/60">{new Date(comment.reply.createdAt).toLocaleString()}</p>
+                                  <p className="mt-1 text-[#2E7D32]/80 dark:text-green-300 text-sm md:text-base break-words">{comment.reply.body}</p>
                                 </div>
                               )}
                             </div>
@@ -567,7 +576,7 @@ const Home = () => {
                       );
                     })
                   ) : (
-                    <p className="text-[#4C8DD8]/60 text-xs md:text-sm">No comments yet. Be the first to comment!</p>
+                    <p className="text-[#4C8DD8]/60 dark:text-gray-400 text-xs md:text-sm">No comments yet. Be the first to comment!</p>
                   )}
                 </div>
               </div>
@@ -575,7 +584,7 @@ const Home = () => {
           </div>
         </div>
       ) : (
-        <div className="text-center text-[#4C8DD8]/60 bg-[#FFFFFF] rounded-lg p-6 max-w-4xl mx-auto text-sm md:text-base">
+        <div className="text-center text-[#4C8DD8]/60 dark:text-gray-400 bg-[#FFFFFF] dark:bg-gray-800 rounded-lg p-6 max-w-4xl mx-auto text-sm md:text-base">
           No announcements available.
         </div>
       )}
@@ -592,14 +601,14 @@ const Home = () => {
             <div 
               key={post._id} 
               ref={(el) => postRefs.current[post._id] = el}
-              className="card bg-[#FFFFFF] shadow-lg border border-[#4C8DD8]/20 w-full max-w-6xl mx-auto"
+              className="card bg-[#FFFFFF] dark:bg-gray-800 shadow-lg border border-[#4C8DD8]/20 dark:border-gray-700 w-full max-w-6xl mx-auto"
             >
               <div className="card-body p-4 md:p-6 lg:p-8">
                 <div className="flex items-center mb-4">
                   <div className="avatar">
                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#C62828] flex justify-center items-center text-[#FFFFFF] font-bold">
                       <img
-                        src="/src/assets/cpag.jpg"
+                        src={cpag}
                         alt="Profile"
                         className="w-full h-full rounded-full object-cover"
                         onError={(e) => e.target.style.display = 'none'}
@@ -607,68 +616,78 @@ const Home = () => {
                     </div>
                   </div>
                   <div className="ml-3 flex-1">
-                    <p className="font-semibold text-[#4C8DD8] text-xs md:text-sm lg:text-base break-words">Cavite Positive Action Group The JCH Advocacy Inc.</p>
-                    <p className="text-xs text-blue-500">{new Date(post.createdAt).toLocaleString()}</p>
+                    <p className="font-semibold text-[#4C8DD8] dark:text-blue-400 text-xs md:text-sm lg:text-base break-words">Cavite Positive Action Group The JCH Advocacy Inc.</p>
+                    <p className="text-xs text-blue-500 dark:text-blue-400">{new Date(post.createdAt).toLocaleString()}</p>
                   </div>
                 </div>
 
-                <p className="mb-4 text-[#4C8DD8]/80 text-sm md:text-base break-words">{post.content}</p>
+                <p className="mb-4 text-[#4C8DD8]/80 dark:text-gray-300 text-sm md:text-base break-words">{post.content}</p>
 
+                {/* ✅ OPTIMIZED POST IMAGE */}
                 {post.image && (
-                  <img
-                    src={getImageUrl(post.image)}
-                    alt="Post"
-                    className="rounded-lg w-full h-auto object-cover mb-4 max-h-96 md:max-h-[500px]"
-                    onError={(e) => e.target.style.display = 'none'}
-                  />
+                  <div className="relative w-full mb-4 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+                    <img
+                      src={getImageUrl(post.image)}
+                      alt="Post"
+                      className="w-full h-auto object-contain max-h-[250px] sm:max-h-[300px] md:max-h-[400px] lg:max-h-[500px]"
+                      loading="lazy"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.parentElement.classList.add('hidden');
+                      }}
+                    />
+                  </div>
                 )}
 
-                <div className="flex flex-wrap gap-3 md:gap-6 text-[#4C8DD8]/80">
+                <div className="flex flex-wrap gap-3 md:gap-6 text-[#4C8DD8]/80 dark:text-gray-400">
                   <button
-                    className={`btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] text-xs md:text-sm ${isLiked ? 'text-[#4C8DD8]' : ''}`}
+                    className={`btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] dark:hover:text-blue-400 text-xs md:text-sm transition-colors ${isLiked ? 'text-red-500 dark:text-red-400' : ''}`}
                     onClick={() => handleLike(post._id)}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className={`h-4 w-4 md:h-5 md:w-5 ${isLiked ? 'fill-current' : ''}`}
-                      fill="none"
+                      className={`h-5 w-5 md:h-6 md:w-6`}
+                      fill={isLiked ? 'currentColor' : 'none'}
                       viewBox="0 0 24 24"
                       stroke="currentColor"
+                      strokeWidth={2}
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                     </svg>
                     <span className="hidden sm:inline">{post.likes || 0} {isLiked ? 'Liked' : 'Like'}</span>
                     <span className="sm:hidden">{post.likes || 0}</span>
                   </button>
                   
                   <button 
-                    className="btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] text-xs md:text-sm"
+                    className="btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] dark:hover:text-blue-400 text-xs md:text-sm transition-colors"
                     onClick={() => toggleComments(post._id, 'post')}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 md:h-5 md:w-5"
+                      className="h-5 w-5 md:h-6 md:w-6"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
+                      strokeWidth={2}
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16h6" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                     <span className="hidden sm:inline">{comments.length} Comment{comments.length !== 1 ? 's' : ''}</span>
                     <span className="sm:hidden">{comments.length}</span>
                   </button>
                   
                   <button 
-                    className={`btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] text-xs md:text-sm ${isSaved ? 'text-[#2E7D32]' : ''}`} 
+                    className={`btn btn-ghost btn-sm gap-1 md:gap-2 hover:text-[#4C8DD8] dark:hover:text-blue-400 text-xs md:text-sm transition-colors ${isSaved ? 'text-[#2E7D32] dark:text-green-400' : ''}`} 
                     onClick={() => handleSave(post._id)}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className={`h-4 w-4 md:h-5 md:w-5 ${isSaved ? 'fill-current' : 'fill-none'}`}
+                      className={`h-5 w-5 md:h-6 md:w-6 ${isSaved ? 'fill-current' : 'fill-none'}`}
                       viewBox="0 0 24 24"
                       stroke="currentColor"
+                      strokeWidth={2}
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5v14l7-7 7 7V5H5z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 5v14l7-7 7 7V5H5z" />
                     </svg>
                     <span className="hidden sm:inline">{isSaved ? 'Saved' : 'Save'}</span>
                     <span className="sm:hidden">{isSaved ? '✓' : 'Save'}</span>
@@ -676,12 +695,12 @@ const Home = () => {
                 </div>
 
                 {showComments[post._id] && (
-                  <div className="mt-4 border-t border-[#4C8DD8]/20 pt-4">
-                    <h4 className="font-semibold text-[#4C8DD8] text-sm md:text-base mb-3">Comments</h4>
+                  <div className="mt-4 border-t border-[#4C8DD8]/20 dark:border-gray-700 pt-4">
+                    <h4 className="font-semibold text-[#4C8DD8] dark:text-blue-400 text-sm md:text-base mb-3">Comments</h4>
                     
                     <div className="mb-4">
                       <textarea
-                        className="textarea textarea-bordered w-full border-[#4C8DD8]/20 focus:border-[#4C8DD8] text-sm md:text-base"
+                        className="textarea textarea-bordered w-full border-[#4C8DD8]/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white focus:border-[#4C8DD8] dark:focus:border-blue-400 text-sm md:text-base"
                         placeholder="Write a comment..."
                         rows="2"
                         value={newComment[`post-${post._id}`] || ''}
@@ -691,7 +710,7 @@ const Home = () => {
                         }))}
                       />
                       <button
-                        className="btn btn-primary bg-[#4C8DD8] hover:bg-[#4C8DD8]/90 text-[#FFFFFF] btn-sm mt-2 text-xs md:text-sm"
+                        className="btn btn-primary bg-[#4C8DD8] hover:bg-[#4C8DD8]/90 dark:bg-blue-600 dark:hover:bg-blue-700 text-[#FFFFFF] btn-sm mt-2 text-xs md:text-sm"
                         onClick={() => submitPostComment(post._id)}
                         disabled={submittingComment[`post-${post._id}`]}
                       >
@@ -709,32 +728,32 @@ const Home = () => {
                               key={comment._id} 
                               className={`p-3 rounded ${
                                 isMyCommentFlag 
-                                  ? 'bg-blue-50 border-2 border-blue-300' 
-                                  : 'bg-[#4C8DD8]/5'
+                                  ? 'bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-300 dark:border-blue-600' 
+                                  : 'bg-[#4C8DD8]/5 dark:bg-gray-700/50'
                               }`}
                             >
                               <div className="flex justify-between items-start">
                                 <div className="flex-1">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <p className={`font-semibold text-xs md:text-sm ${
-                                      isMyCommentFlag ? 'text-blue-700' : 'text-[#4C8DD8]'
+                                      isMyCommentFlag ? 'text-blue-700 dark:text-blue-300' : 'text-[#4C8DD8] dark:text-blue-400'
                                     }`}>
                                       {generateAnonymousName(comment.author)}
                                     </p>
                                     {isMyCommentFlag && (
-                                      <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">
+                                      <span className="px-2 py-0.5 bg-blue-600 dark:bg-blue-500 text-white text-xs rounded-full">
                                         You
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-xs text-[#4C8DD8]/60">{new Date(comment.createdAt).toLocaleString()}</p>
-                                  <p className="mt-2 text-[#4C8DD8]/80 text-sm md:text-base break-words">{comment.body}</p>
+                                  <p className="text-xs text-[#4C8DD8]/60 dark:text-gray-400">{new Date(comment.createdAt).toLocaleString()}</p>
+                                  <p className="mt-2 text-[#4C8DD8]/80 dark:text-gray-300 text-sm md:text-base break-words">{comment.body}</p>
                                   
                                   {comment.reply && (
-                                    <div className="mt-3 ml-3 md:ml-6 bg-[#2E7D32]/10 p-3 rounded border-l-4 border-[#2E7D32]">
-                                      <p className="font-semibold text-xs md:text-sm text-[#2E7D32]">{comment.reply.author}</p>
-                                      <p className="text-xs text-[#2E7D32]/60">{new Date(comment.reply.createdAt).toLocaleString()}</p>
-                                      <p className="mt-1 text-[#2E7D32]/80 text-sm md:text-base break-words">{comment.reply.body}</p>
+                                    <div className="mt-3 ml-3 md:ml-6 bg-[#2E7D32]/10 dark:bg-green-900/20 p-3 rounded border-l-4 border-[#2E7D32] dark:border-green-600">
+                                      <p className="font-semibold text-xs md:text-sm text-[#2E7D32] dark:text-green-400">{comment.reply.author}</p>
+                                      <p className="text-xs text-[#2E7D32]/60 dark:text-green-500/60">{new Date(comment.reply.createdAt).toLocaleString()}</p>
+                                      <p className="mt-1 text-[#2E7D32]/80 dark:text-green-300 text-sm md:text-base break-words">{comment.reply.body}</p>
                                     </div>
                                   )}
                                 </div>
@@ -743,7 +762,7 @@ const Home = () => {
                           );
                         })
                       ) : (
-                        <p className="text-[#4C8DD8]/60 text-xs md:text-sm">No comments yet. Be the first to comment!</p>
+                        <p className="text-[#4C8DD8]/60 dark:text-gray-400 text-xs md:text-sm">No comments yet. Be the first to comment!</p>
                       )}
                     </div>
                   </div>
@@ -753,7 +772,7 @@ const Home = () => {
           );
         })
       ) : (
-        <div className="text-center text-[#4C8DD8]/60 bg-[#FFFFFF] rounded-lg p-6 max-w-4xl mx-auto text-sm md:text-base">
+        <div className="text-center text-[#4C8DD8]/60 dark:text-gray-400 bg-[#FFFFFF] dark:bg-gray-800 rounded-lg p-6 max-w-4xl mx-auto text-sm md:text-base">
           No posts available.
         </div>
       )}

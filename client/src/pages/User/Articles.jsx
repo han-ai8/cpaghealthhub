@@ -1,4 +1,4 @@
-// User/pages/Articles.jsx - FIXED VERSION
+// User/pages/Articles.jsx - DARK MODE ADAPTIVE VERSION
 import { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import { useNavigate } from 'react-router-dom';
@@ -43,10 +43,10 @@ const Articles = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex justify-center items-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex justify-center items-center">
         <div className="text-center">
           <span className="loading loading-spinner loading-lg text-primary"></span>
-          <p className="mt-4 text-gray-600">Loading articles...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-300">Loading articles...</p>
         </div>
       </div>
     );
@@ -54,7 +54,7 @@ const Articles = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-6">
         <div className="max-w-md mx-auto mt-20">
           <div className="alert alert-error shadow-lg">
             <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
@@ -68,31 +68,31 @@ const Articles = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white rounded-lg p-6 md:p-8 lg:p-12">
+    <div className="min-h-screen bg-white dark:bg-gray-900 rounded-lg p-6 md:p-8 lg:p-12">
       <div className="max-w-7xl mx-auto ">
         <div className="mb-10 ">
-          <h1 className="text-4xl font-extrabold text-[#2E7D32] mb-3">
+          <h1 className="text-4xl font-extrabold text-[#2E7D32] dark:text-emerald-400 mb-3">
             Latest Articles
           </h1>
-          <p className="text-lg text-gray-600">
+          <p className="text-lg text-gray-600 dark:text-gray-300">
             Discover insightful content curated just for you
           </p>
         </div>
         
         {articles.length === 0 ? (
           <div className="text-center py-20">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 mx-auto text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p className="text-2xl text-gray-500 font-semibold">No articles available yet</p>
-            <p className="text-gray-400 mt-2">Check back soon for new content!</p>
+            <p className="text-2xl text-gray-500 dark:text-gray-400 font-semibold">No articles available yet</p>
+            <p className="text-gray-400 dark:text-gray-500 mt-2">Check back soon for new content!</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {articles.map((article) => (
               <div 
                 key={article._id} 
-                className="group bg-blue-50 rounded-2xl shadow-md hover:shadow-2xl transition-all duration-300 overflow-hidden transform hover:-translate-y-2"
+                className="group bg-blue-50 dark:bg-gray-800 rounded-2xl shadow-md hover:shadow-2xl dark:shadow-gray-900/50 dark:hover:shadow-gray-900/80 transition-all duration-300 overflow-hidden transform hover:-translate-y-2"
               >
                 <div className={`bg-gradient-to-r ${getCategoryColor(article.category)} h-40 flex items-center justify-center relative overflow-hidden`}>
                   <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
@@ -104,7 +104,7 @@ const Articles = () => {
                 <div className="p-6">
                   <div className="flex justify-between items-center mb-3">
                     <span className="badge badge-primary badge-sm">{article.category}</span>
-                    <span className="text-xs text-gray-400 flex items-center gap-1">
+                    <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
@@ -112,16 +112,16 @@ const Articles = () => {
                     </span>
                   </div>
                   
-                  <h2 className="text-xl font-bold text-gray-800 mb-3 line-clamp-2 group-hover:text-primary transition-colors">
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-3 line-clamp-2 group-hover:text-primary dark:group-hover:text-primary transition-colors">
                     {article.title}
                   </h2>
                   
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                  <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-3">
                     {article.excerpt}
                   </p>
                   
-                  <div className="flex justify-between items-center pt-4 border-t border-gray-100">
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <div className="flex justify-between items-center pt-4 border-t border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>

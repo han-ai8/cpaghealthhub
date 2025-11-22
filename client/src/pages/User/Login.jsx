@@ -1,9 +1,9 @@
-// Login.jsx - FIXED VERSION
+// Login.jsx - UPDATED WITH BETTER ERROR HANDLING
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, ShieldAlert } from 'lucide-react';
 import ideaImage from '../../assets/idea-new.png';
 import logoImage from '../../assets/logo-header.png';
 import api from '../../utils/api';
@@ -14,6 +14,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
+  const [remainingAttempts, setRemainingAttempts] = useState(null);
+  const [isLocked, setIsLocked] = useState(false);
   const navigate = useNavigate();
   const { checkSession } = useAuth();
   const toast = useToast();
@@ -27,19 +29,21 @@ export default function Login() {
     }
     setError('');
     setShowVerificationPrompt(false);
+    setRemainingAttempts(null);
+    setIsLocked(false);
   };
 
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
     setShowVerificationPrompt(false);
+    setRemainingAttempts(null);
+    setIsLocked(false);
     setLoading(true);
     
     try {
-      // ✅ FIXED: Use api.post() for POST requests
       const data = await api.post('/auth/user/login', form);
 
-      // ✅ Token is already stored by api.post if present
       if (data.token) {
         localStorage.setItem('token', data.token);
       }
@@ -52,20 +56,45 @@ export default function Login() {
       }, 1000);
     } catch (err) {
       console.error('Login error:', err);
+      
+      // Extract error data
+      const errorData = err.data || {};
       const errorMsg = err.message || 'Login failed';
       
-      // ✅ Handle email verification requirement
-      if (errorMsg.includes('verify') || errorMsg.includes('verification')) {
+      // Handle account locked
+      if (errorData.locked || errorMsg.includes('locked')) {
+        setIsLocked(true);
+        setError('Account locked due to too many failed login attempts. Please try again in 24 hours.');
+        toast.error('Account locked. Try again in 24 hours.');
+      }
+      // Handle email verification requirement
+      else if (errorData.requiresVerification || errorMsg.includes('verify') || errorMsg.includes('verification')) {
         setShowVerificationPrompt(true);
         setError('Please verify your email before logging in');
         toast.error('Please verify your email before logging in');
         localStorage.setItem('verificationEmail', form.email);
       }
-      // ✅ Handle rate limiting
-      else if (errorMsg.includes('locked') || errorMsg.includes('attempts')) {
-        setError(errorMsg);
-        toast.error(errorMsg);
-      } else {
+      // Handle invalid credentials with remaining attempts
+      else if (errorData.remainingAttempts !== undefined) {
+        setRemainingAttempts(errorData.remainingAttempts);
+        
+        if (errorData.remainingAttempts <= 2) {
+          const warningMsg = `Invalid credentials. Only ${errorData.remainingAttempts} ${errorData.remainingAttempts === 1 ? 'attempt' : 'attempts'} remaining before account lock.`;
+          setError(warningMsg);
+          toast.error(warningMsg);
+        } else {
+          const msg = `Invalid credentials. ${errorData.remainingAttempts} attempts remaining.`;
+          setError(msg);
+          toast.error(msg);
+        }
+      }
+      // Handle inactive account
+      else if (errorData.accountInactive) {
+        setError('Your account has been deactivated. Please contact support for assistance.');
+        toast.error('Account deactivated. Contact support.');
+      }
+      // Generic error
+      else {
         setError(errorMsg);
         toast.error(errorMsg);
       }
@@ -91,7 +120,6 @@ export default function Login() {
             className="w-300 h-200 rounded-3xl hover:scale-105" 
           />
         </h1>
-       
       </div>
       
       {/* Right Side: Form */}
@@ -107,32 +135,61 @@ export default function Login() {
             <p className="text-base-content/70">Enter your email address and password to access user panel.</p>
           </div>
           
-          {/* Error Alert */}
-          {error && (
+          {/* Account Locked Alert */}
+          {isLocked && (
             <div className="alert alert-error shadow-lg">
-              <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>{error}</span>
+              <ShieldAlert className="w-6 h-6" />
+              <div>
+                <h3 className="font-bold">Account Locked</h3>
+                <div className="text-sm">{error}</div>
+              </div>
             </div>
           )}
 
-          {/* ✅ IMPROVED: Verification Prompt with Big Button */}
-          {showVerificationPrompt && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-yellow-800 text-sm mb-3">
-                Your email hasn't been verified yet. Please verify your email to login.
-              </p>
-              <button
-                type="button"
-                onClick={handleGoToVerification}
-                className="btn btn-sm bg-[#4c8dd8] hover:bg-[#2E5D93] text-white w-full"
-              >
-                Go to Verification Page →
-              </button>
+          {/* Error Alert with Remaining Attempts */}
+          {error && !isLocked && !showVerificationPrompt && (
+            <div className={`alert ${remainingAttempts !== null && remainingAttempts <= 2 ? 'alert-warning' : 'alert-error'} shadow-lg`}>
+              <AlertCircle className="w-6 h-6" />
+              <div className="flex-1">
+                <span>{error}</span>
+                {remainingAttempts !== null && remainingAttempts > 0 && (
+                  <div className="text-sm mt-1 font-semibold">
+                    {remainingAttempts === 1 ? (
+                      <span className="text-error">⚠️ Last attempt before account lock!</span>
+                    ) : remainingAttempts <= 2 ? (
+                      <span className="text-warning">⚠️ Be careful with your password!</span>
+                    ) : (
+                      <span>{remainingAttempts} attempts remaining</span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
-          
+
+          {/* Verification Prompt */}
+          {showVerificationPrompt && (
+            <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 shadow-md">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-yellow-800 font-semibold mb-2">
+                    Email Verification Required
+                  </p>
+                  <p className="text-yellow-700 text-sm mb-3">
+                    Your email hasn't been verified yet. Please verify your email to login.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleGoToVerification}
+                    className="btn btn-sm bg-[#4c8dd8] hover:bg-[#2E5D93] text-white w-full"
+                  >
+                    Go to Verification Page →
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -148,6 +205,7 @@ export default function Login() {
                 onChange={handleChange}
                 required
                 autoComplete="email"
+                disabled={isLocked}
               />
             </div>
             
@@ -165,11 +223,13 @@ export default function Login() {
                   onChange={handleChange}
                   required
                   autoComplete="current-password"
+                  disabled={isLocked}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  disabled={isLocked}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -177,7 +237,10 @@ export default function Login() {
             </div>
             
             <div className="text-right text-sm mb-4">
-              <Link to="/user/forgot-password" className="link link-hover text-[#4c8dd8] font-semibold">
+              <Link 
+                to="/user/forgot-password" 
+                className="link link-hover text-[#4c8dd8] font-semibold"
+              >
                 Forgot Password?
               </Link>
             </div>
@@ -185,13 +248,15 @@ export default function Login() {
             <button 
               type="submit" 
               className="btn bg-[#4c8dd8] hover:bg-[#2E5D93] text-white w-full btn-lg shadow-lg hover:shadow-xl transition-all duration-300"
-              disabled={loading}
+              disabled={loading || isLocked}
             >
               {loading ? (
                 <>
                   <span className="loading loading-spinner"></span>
                   Logging in...
                 </>
+              ) : isLocked ? (
+                'Account Locked'
               ) : (
                 'Login'
               )}
@@ -201,8 +266,6 @@ export default function Login() {
               Don't have an account? <Link to="/user/register" className="link link-hover text-[#4c8dd8] font-semibold">Register</Link>
             </p>
           </form>
-          
-          
         </div>
       </div>
     </div>

@@ -198,43 +198,43 @@ const FAQs = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 py-8 px-4">
+    <div className="min-h-screen py-8 px-4">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <div className="inline-block p-4 bg-blue-100 rounded-full mb-4">
-            <HelpCircle className="w-12 h-12 text-blue-600" />
+          <div className="inline-block p-4 bg-blue-100 dark:bg-blue-900/30 rounded-full mb-4">
+            <HelpCircle className="w-12 h-12 text-blue-600 dark:text-blue-800" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-800 mb-4">
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-800 dark:text-gray-800 mb-4">
             Frequently Asked Questions
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="text-lg text-gray-600 dark:text-gray-600 max-w-2xl mx-auto">
             Find answers to common questions about HealthHub, CPAG services, and how to use the platform
           </p>
         </div>
 
         {/* Search Bar */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-8">
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5" />
             <input
               type="text"
               placeholder="Search for questions, topics, or keywords..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none text-gray-700 placeholder-gray-400"
+              className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700"
             />
           </div>
           {searchQuery && (
-            <p className="mt-3 text-sm text-gray-600">
-              Found <span className="font-semibold text-blue-600">{filteredFAQs.length}</span> result{filteredFAQs.length !== 1 ? 's' : ''} for "{searchQuery}"
+            <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+              Found <span className="font-semibold text-blue-600 dark:text-blue-400">{filteredFAQs.length}</span> result{filteredFAQs.length !== 1 ? 's' : ''} for "{searchQuery}"
             </p>
           )}
         </div>
 
         {/* Category Filter */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Filter by Category</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-8">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Filter by Category</h3>
           <div className="flex flex-wrap gap-3">
             {categories.map((category) => (
               <button
@@ -242,8 +242,8 @@ const FAQs = () => {
                 onClick={() => setSelectedCategory(category)}
                 className={`px-4 py-2 rounded-full font-medium transition-all ${
                   selectedCategory === category
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-blue-600 dark:bg-blue-500 text-white shadow-md'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 {category === 'all' ? 'All Questions' : category}
@@ -254,10 +254,10 @@ const FAQs = () => {
 
         {/* FAQ List */}
         {filteredFAQs.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-            <MessageCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-2xl font-bold text-gray-700 mb-2">No Results Found</h3>
-            <p className="text-gray-600 mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-12 text-center">
+            <MessageCircle className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+            <h3 className="text-2xl font-bold text-gray-700 dark:text-gray-300 mb-2">No Results Found</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
               We couldn't find any questions matching "{searchQuery}"
             </p>
             <button
@@ -265,7 +265,7 @@ const FAQs = () => {
                 setSearchQuery('');
                 setSelectedCategory('all');
               }}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+              className="px-6 py-3 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition font-semibold"
             >
               Clear Filters
             </button>
@@ -275,32 +275,32 @@ const FAQs = () => {
             {filteredFAQs.map((faq) => (
               <div
                 key={faq.id}
-                className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow overflow-hidden"
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-shadow overflow-hidden"
               >
                 <button
                   onClick={() => toggleExpand(faq.id)}
-                  className="w-full px-6 py-5 flex items-start justify-between text-left hover:bg-gray-50 transition-colors"
+                  className="w-full px-6 py-5 flex items-start justify-between text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   <div className="flex-1 pr-4">
-                    <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full mb-2">
+                    <span className="inline-block px-3 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-semibold rounded-full mb-2">
                       {faq.category}
                     </span>
-                    <h3 className="text-lg font-semibold text-gray-800 leading-relaxed">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 leading-relaxed">
                       {faq.question}
                     </h3>
                   </div>
                   <div className="flex-shrink-0">
                     {expandedId === faq.id ? (
-                      <ChevronUp className="w-6 h-6 text-blue-600" />
+                      <ChevronUp className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                     ) : (
-                      <ChevronDown className="w-6 h-6 text-gray-400" />
+                      <ChevronDown className="w-6 h-6 text-gray-400 dark:text-gray-500" />
                     )}
                   </div>
                 </button>
 
                 {expandedId === faq.id && (
-                  <div className="px-6 pb-6 pt-2 border-t border-gray-100">
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+                  <div className="px-6 pb-6 pt-2 border-t border-gray-100 dark:border-gray-700">
+                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
                       {faq.answer}
                     </p>
                   </div>
@@ -311,10 +311,10 @@ const FAQs = () => {
         )}
 
         {/* Contact Section */}
-        <div className="mt-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl shadow-xl p-8 text-white">
+        <div className="mt-12 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-800 rounded-2xl shadow-xl p-8 text-white">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold mb-3">Still Have Questions?</h2>
-            <p className="text-blue-100 text-lg">
+            <p className="text-blue-100 dark:text-blue-200 text-lg">
               Our team is here to help. Contact us through any of these channels:
             </p>
           </div>
@@ -325,14 +325,14 @@ const FAQs = () => {
                 <Mail className="w-6 h-6" />
               </div>
               <h3 className="font-semibold mb-2">Email Support</h3>
-              <p className="text-sm text-blue-100 mb-2">General Inquiries:</p>
+              <p className="text-sm text-blue-100 dark:text-blue-200 mb-2">General Inquiries:</p>
               <a
                 href="mailto:cavitepositiveactiongroup@outlook.com"
                 className="text-sm hover:underline break-all"
               >
                 cavitepositiveactiongroup@outlook.com
               </a>
-              <p className="text-sm text-blue-100 mt-3 mb-2">Technical Support:</p>
+              <p className="text-sm text-blue-100 dark:text-blue-200 mt-3 mb-2">Technical Support:</p>
               <a
                 href="mailto:itsmedalgom@gmail.com"
                 className="text-sm hover:underline"
@@ -346,11 +346,11 @@ const FAQs = () => {
                 <Phone className="w-6 h-6" />
               </div>
               <h3 className="font-semibold mb-2">Phone</h3>
-              <p className="text-sm text-blue-100 mb-2">Call us at:</p>
+              <p className="text-sm text-blue-100 dark:text-blue-200 mb-2">Call us at:</p>
               <a href="tel:0465429246" className="text-lg font-semibold hover:underline">
                 (046) 542 9246
               </a>
-              <p className="text-sm text-blue-100 mt-3">
+              <p className="text-sm text-blue-100 dark:text-blue-200 mt-3">
                 Monday-Friday<br />9:00 AM - 5:30 PM
               </p>
             </div>
@@ -360,7 +360,7 @@ const FAQs = () => {
                 <MapPin className="w-6 h-6" />
               </div>
               <h3 className="font-semibold mb-2">Visit Us</h3>
-              <p className="text-sm text-blue-100">
+              <p className="text-sm text-blue-100 dark:text-blue-200">
                 9002 J. Miranda Street<br />
                 Brgy. Lao Lao Caridad<br />
                 Cavite City 4100<br />
@@ -370,18 +370,18 @@ const FAQs = () => {
           </div>
 
           <div className="mt-8 text-center">
-            <p className="text-sm text-blue-100">
+            <p className="text-sm text-blue-100 dark:text-blue-200">
               ⏰ We respond to all inquiries within 48 hours
             </p>
           </div>
         </div>
 
         {/* Privacy Notice */}
-        <div className="mt-8 bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
+        <div className="mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border-l-4 border-blue-500 dark:border-blue-400">
           <div className="flex items-start gap-3">
             <div className="flex-shrink-0 mt-1">
               <svg
-                className="w-5 h-5 text-blue-600"
+                className="w-5 h-5 text-blue-600 dark:text-blue-400"
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
@@ -393,8 +393,8 @@ const FAQs = () => {
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-gray-800 mb-2">Privacy & Confidentiality</h3>
-              <p className="text-sm text-gray-600 leading-relaxed">
+              <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">Privacy & Confidentiality</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
                 All communications with CPAG are strictly confidential and protected under the Philippine Data Privacy Act of 2012 (RA 10173). Your information is never shared without your explicit consent. For more details, review our privacy policy.
               </p>
             </div>

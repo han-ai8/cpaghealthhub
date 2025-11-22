@@ -24,9 +24,8 @@ class SocketService {
     });
 
     this.socket.on('connect', () => {
-      console.log('✅ Socket connected');
-      this.socket.emit('join_user_room', userId);
-      this.socket.emit('join_chat', userId);
+      /*this.socket.emit('join_user_room', userId);
+      this.socket.emit('join_chat', userId);*/
     });
 
     this.socket.on('disconnect', () => {

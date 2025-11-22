@@ -1,10 +1,10 @@
 // ForgotPassword.jsx - User side password reset
-// ForgotPassword.jsx - User side password reset
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { Eye, EyeOff, Lock, CheckCircle } from 'lucide-react';
-import api from '../../utils/api'; // ✅ ADD THIS
+import api from '../../utils/api'; 
+import healthhubLogo from '../../assets/HEALTHUB.png';
 
 export default function ForgotPassword() {
   const [step, setStep] = useState(1);
@@ -182,7 +182,7 @@ export default function ForgotPassword() {
         <div className="w-full max-w-md mx-auto space-y-6">
           <div className="text-center">
             <img 
-              src="/src/assets/HEALTHUB.png" 
+              src={healthhubLogo} 
               alt="HealthHub Logo" 
               className="rounded-lg w-500 h-300 hover:scale-105 mb-4 mx-auto" 
             />

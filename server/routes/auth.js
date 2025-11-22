@@ -145,9 +145,7 @@ const router = express.Router();
 // 📧 USER ROUTES WITH EMAIL VERIFICATION
 // ============================================
 
-// ✅ User Register (Enhanced with email verification)
-// In your auth.js routes file, update the user/register route:
-
+// ✅ User Register (Enhanced with PROPER email validation)
 router.post('/user/register', [
   body('username')
     .trim()
@@ -163,9 +161,16 @@ router.post('/user/register', [
       return true;
     }),
   body('email')
+    .trim()
     .isEmail()
     .withMessage('Invalid email address')
-    .normalizeEmail(),
+    .normalizeEmail({ 
+      gmail_remove_dots: false,  // ✅ Keep dots in Gmail addresses
+      gmail_remove_subaddress: false,  // ✅ Keep + addresses
+      outlookdotcom_remove_subaddress: false,
+      yahoo_remove_subaddress: false,
+      icloud_remove_subaddress: false
+    }),
   body('password')
     .isLength({ min: 6 })
     .withMessage('Password must be at least 6 characters')
@@ -189,12 +194,15 @@ router.post('/user/register', [
   }
 
   const { username, email, password } = req.body;
+  
+  // ✅ Normalize email properly - keep all valid characters including dots
   const normalizedEmail = email.toLowerCase().trim();
 
+  console.log('📧 Registration for email:', normalizedEmail);
   console.log('📧 Resend configuration:', {
-  hasApiKey: !!process.env.RESEND_API_KEY,
-  fromEmail: process.env.RESEND_FROM_EMAIL
-});
+    hasApiKey: !!process.env.RESEND_API_KEY,
+    fromEmail: process.env.RESEND_FROM_EMAIL
+  });
 
   try {
     // Check if user already exists
@@ -255,7 +263,6 @@ router.post('/user/register', [
       });
     }
 
-
     console.log('🔐 Generating verification code...');
     const verificationCode = generateVerificationCode();
     const verificationCodeExpires = Date.now() + 10 * 60 * 1000;
@@ -264,7 +271,7 @@ router.post('/user/register', [
     user = new User({
       username: username.trim(),
       name: username.trim(),
-      email: normalizedEmail,
+      email: normalizedEmail,  // ✅ Use properly normalized email
       password,
       role: 'user',
       isEmailVerified: false,
@@ -273,7 +280,7 @@ router.post('/user/register', [
     });
 
     await user.save();
-    console.log('✅ User created in database');
+    console.log('✅ User created in database with email:', user.email);
 
     console.log('📧 Attempting to send verification email...');
     try {
@@ -316,7 +323,11 @@ router.post('/user/register', [
 
 // ✅ Verify Email with Code
 router.post('/user/verify-email', [
-  body('email').isEmail().withMessage('Invalid email'),
+  body('email')
+    .trim()
+    .isEmail()
+    .withMessage('Invalid email')
+    .normalizeEmail({ gmail_remove_dots: false }),
   body('code').isLength({ min: 6, max: 6 }).withMessage('Code must be 6 digits')
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -384,7 +395,11 @@ router.post('/user/verify-email', [
 
 // ✅ Resend Verification Code
 router.post('/user/resend-verification', [
-  body('email').isEmail().withMessage('Invalid email')
+  body('email')
+    .trim()
+    .isEmail()
+    .withMessage('Invalid email')
+    .normalizeEmail({ gmail_remove_dots: false })
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -429,7 +444,11 @@ router.post('/user/resend-verification', [
 
 // ✅ User Forgot Password (Email Code)
 router.post('/user/forgot-password', [
-  body('email').isEmail().withMessage('Invalid email')
+  body('email')
+    .trim()
+    .isEmail()
+    .withMessage('Invalid email')
+    .normalizeEmail({ gmail_remove_dots: false })
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -476,7 +495,11 @@ router.post('/user/forgot-password', [
 
 // ✅ User Reset Password with Code
 router.post('/user/reset-password', [
-  body('email').isEmail().withMessage('Invalid email'),
+  body('email')
+    .trim()
+    .isEmail()
+    .withMessage('Invalid email')
+    .normalizeEmail({ gmail_remove_dots: false }),
   body('code').isLength({ min: 6, max: 6 }).withMessage('Code must be 6 digits'),
   body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
 ], async (req, res) => {
@@ -530,7 +553,11 @@ router.post('/user/reset-password', [
 // ============================================
 
 router.post('/user/login', checkLoginAttempts, [
-  body('email').isEmail().withMessage('Invalid email format'),
+  body('email')
+    .trim()
+    .isEmail()
+    .withMessage('Invalid email format')
+    .normalizeEmail({ gmail_remove_dots: false }),
   body('password').exists().withMessage('Password is required')
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -542,12 +569,12 @@ router.post('/user/login', checkLoginAttempts, [
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    console.log('🔍 Login attempt for:', normalizedEmail); // ✅ Add logging
+    console.log('🔍 Login attempt for:', normalizedEmail);
     
     // ✅ CRITICAL: Must select +password to get the password field
     let user = await User.findOne({ email: normalizedEmail }).select('+password');
     
-    console.log('👤 User found:', user ? 'Yes' : 'No'); // ✅ Add logging
+    console.log('👤 User found:', user ? 'Yes' : 'No');
     
     if (!user) {
       console.log('❌ User not found in database');
@@ -593,9 +620,9 @@ router.post('/user/login', checkLoginAttempts, [
       });
     }
 
-    console.log('🔐 Comparing passwords...'); // ✅ Add logging
+    console.log('🔐 Comparing passwords...');
     const isMatch = await user.comparePassword(password);
-    console.log('🔐 Password match:', isMatch); // ✅ Add logging
+    console.log('🔐 Password match:', isMatch);
     
     if (!isMatch) {
       console.log('❌ Password mismatch');
@@ -649,7 +676,11 @@ router.post('/user/login', checkLoginAttempts, [
 // ADMIN LOGIN (with rate limiting)
 // ============================================
 router.post('/admin/login', checkLoginAttempts, [
-  body('email').isEmail().withMessage('Invalid email'),
+  body('email')
+    .trim()
+    .isEmail()
+    .withMessage('Invalid email')
+    .normalizeEmail({ gmail_remove_dots: false }),
   body('password').exists().withMessage('Password is required')
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -661,11 +692,10 @@ router.post('/admin/login', checkLoginAttempts, [
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    // ✅ FIX: Add .select('+password') to get the password field
     const user = await User.findOne({ 
       email: normalizedEmail, 
       role: { $in: ['admin', 'content_moderator', 'case_manager'] }
-    }).select('+password'); // ← This is the key fix
+    }).select('+password');
     
     if (!user) {
       const attemptRecord = await recordFailedAttempt(normalizedEmail);
@@ -728,7 +758,7 @@ router.post('/admin/login', checkLoginAttempts, [
     });
   } catch (err) {
     console.error('Admin login error:', err);
-    console.error('Error stack:', err.stack); // ✅ Add detailed error logging
+    console.error('Error stack:', err.stack);
     res.status(500).json({ msg: 'Server error during login' });
   }
 });
@@ -839,10 +869,6 @@ router.get('/admin/stats', isAuthenticated, isAdminRole, async (req, res) => {
   }
 });
 
-// Add this to your auth.js routes file
-// This goes in the PROTECTED ROUTES section
-
-// PUT: Admin - Update user (including isActive status)
 router.put('/users/:id', [
   isAuthenticated,
   isAdminRole,
@@ -866,12 +892,10 @@ router.put('/users/:id', [
       return res.status(404).json({ msg: 'User not found' });
     }
 
-    // Prevent changing your own role
     if (targetUserId === currentUserId && role !== undefined) {
       return res.status(400).json({ msg: 'Cannot change your own role' });
     }
 
-    // Check if username is already taken
     if (newUsername && newUsername.trim() !== user.username) {
       const existingUser = await User.findOne({
         username: newUsername.trim(),
@@ -883,7 +907,6 @@ router.put('/users/:id', [
       }
     }
 
-    // Update fields
     if (name !== undefined) user.name = name.trim();
     if (newUsername !== undefined) user.username = newUsername.trim();
     if (role !== undefined) user.role = role;
@@ -975,10 +998,6 @@ router.put('/profile', [
   }
 });
 
-// auth.js - PASSWORD CHANGE ROUTE SECTION
-// Find the existing router.put('/password', ...) route and REPLACE it with this:
-// This should be in the PROTECTED ROUTES section (around line 1200+)
-
 router.put('/password', [
   isAuthenticated,
   body('currentPassword').exists().withMessage('Current password is required'),
@@ -1000,8 +1019,6 @@ router.put('/password', [
   }
 
   const { currentPassword, newPassword } = req.body;
-  
-  // Get user ID from req.user (set by isAuthenticated middleware)
   const userId = req.user?.id || req.session?.userId;
 
   if (!userId) {
@@ -1010,29 +1027,22 @@ router.put('/password', [
   }
 
   try {
-    
-    // Must explicitly select password field since it has select: false in schema
     const user = await User.findById(userId).select('+password');
     
     if (!user) {
       return res.status(404).json({ msg: 'User not found' });
     }
 
-
-    // Check if password field exists
     if (!user.password) {
       return res.status(500).json({ msg: 'User password data is invalid' });
     }
 
-    // Verify current password
     const isMatch = await user.comparePassword(currentPassword);
     
     if (!isMatch) {
       return res.status(400).json({ msg: 'Current password is incorrect' });
     }
 
-
-    // Check if new password is different from current
     const isSamePassword = await user.comparePassword(newPassword);
     if (isSamePassword) {
       return res.status(400).json({ 
@@ -1040,8 +1050,6 @@ router.put('/password', [
       });
     }
 
-    // Update password (will be hashed by pre-save hook in User model)
-   
     user.password = newPassword;
     await user.save();
     res.json({ msg: 'Password changed successfully' });
@@ -1055,59 +1063,15 @@ router.put('/password', [
   }
 });
 
-router.put('/users/:id', [
-  isAuthenticated,
-  isAdminRole,
-  body('name').optional().trim().isLength({ min: 1, max: 100 }),
-  body('username').optional().trim().isLength({ min: 3 }),
-  body('role').optional().isIn(['user', 'admin', 'content_moderator', 'case_manager'])
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  const { name, username: newUsername, role } = req.body;
-  const targetUserId = req.params.id;
-  const currentUserId = req.user?.id || req.session.userId;
-
-  try {
-    const user = await User.findById(targetUserId);
-    if (!user) {
-      return res.status(404).json({ msg: 'User not found' });
-    }
-
-    if (targetUserId === currentUserId && role !== undefined) {
-      return res.status(400).json({ msg: 'Cannot change your own role' });
-    }
-
-    if (name !== undefined) user.name = name.trim();
-    if (newUsername !== undefined) user.username = newUsername.trim();
-    if (role !== undefined) user.role = role;
-
-    await user.save();
-
-    res.json({
-      msg: 'User updated successfully',
-      user: {
-        id: user._id,
-        name: user.name || '',
-        username: user.username,
-        email: user.email,
-        role: user.role
-      }
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: 'Server error' });
-  }
-});
-
 // ============================================
 // ADMIN FORGOT PASSWORD - CODE BASED
 // ============================================
 router.post('/admin/forgot-password', [
-  body('email').isEmail().withMessage('Invalid email address')
+  body('email')
+    .trim()
+    .isEmail()
+    .withMessage('Invalid email address')
+    .normalizeEmail({ gmail_remove_dots: false })
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -1119,45 +1083,33 @@ router.post('/admin/forgot-password', [
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-   
-    // Find admin user - don't need to select password here
     const user = await User.findOne({ 
       email: normalizedEmail,
       role: 'admin'
     });
 
     if (!user) {
-      // Don't reveal if admin exists for security
       return res.json({ 
         msg: 'If an admin account exists with this email, a password reset code has been sent.' 
       });
     }
 
-
-    // Generate reset code
     const resetCode = generateVerificationCode();
-    const resetCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const resetCodeExpires = Date.now() + 10 * 60 * 1000;
 
-
-    // Update user with reset code
     user.resetPasswordCode = resetCode;
     user.resetPasswordExpires = resetCodeExpires;
     await user.save();
 
-
-    // Send email
     try {
       await sendPasswordResetEmail(normalizedEmail, resetCode, user.username);
-
     } catch (emailError) {
-     
       console.error('Email error details:', {
         message: emailError.message,
         code: emailError.code,
         command: emailError.command
       });
       
-      // Clean up the reset code if email fails
       user.resetPasswordCode = undefined;
       user.resetPasswordExpires = undefined;
       await user.save();
@@ -1170,7 +1122,6 @@ router.post('/admin/forgot-password', [
 
     res.json({ 
       msg: 'If an admin account exists with this email, a password reset code has been sent.',
-      // ✅ FOR DEVELOPMENT ONLY - Remove in production
       ...(process.env.NODE_ENV === 'development' && { 
         devCode: resetCode,
         devEmail: normalizedEmail 
@@ -1186,14 +1137,12 @@ router.post('/admin/forgot-password', [
   }
 });
 
-// ============================================
-// ADMIN VERIFY RESET CODE (Enhanced Validation)
-// ============================================
 router.post('/admin/verify-reset-code', [
   body('email')
     .trim()
     .isEmail()
-    .withMessage('Invalid email'),
+    .withMessage('Invalid email')
+    .normalizeEmail({ gmail_remove_dots: false }),
   body('code')
     .trim()
     .isString()
@@ -1201,14 +1150,13 @@ router.post('/admin/verify-reset-code', [
     .matches(/^\d{6}$/)
     .withMessage('Code must be exactly 6 digits')
 ], async (req, res) => {
- 
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     console.error('❌ Validation errors:', JSON.stringify(errors.array(), null, 2));
     return res.status(400).json({ 
       valid: false, 
       msg: errors.array()[0].msg,
-      errors: errors.array() // ✅ Send all errors for debugging
+      errors: errors.array()
     });
   }
 
@@ -1216,24 +1164,18 @@ router.post('/admin/verify-reset-code', [
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-   
-
-    // ✅ SELECT the reset fields explicitly
     const user = await User.findOne({ 
       email: normalizedEmail,
       role: 'admin'
     }).select('+resetPasswordCode +resetPasswordExpires');
 
     if (!user) {
-      
       return res.status(400).json({ 
         valid: false, 
         msg: 'Invalid or expired code' 
       });
     }
 
-    
-    // Check if code matches
     if (user.resetPasswordCode !== code) {
       console.log('❌ Code mismatch');
       return res.status(400).json({ 
@@ -1242,16 +1184,13 @@ router.post('/admin/verify-reset-code', [
       });
     }
 
-    // Check if code expired
     if (user.resetPasswordExpires < Date.now()) {
-      
       return res.status(400).json({ 
         valid: false, 
         msg: 'Verification code expired. Please request a new one.' 
       });
     }
 
-  
     res.json({ 
       valid: true, 
       msg: 'Code verified successfully' 
@@ -1267,11 +1206,12 @@ router.post('/admin/verify-reset-code', [
   }
 });
 
-// ============================================
-// ADMIN RESET PASSWORD WITH CODE
-// ============================================
 router.post('/admin/reset-password-with-code', [
-  body('email').isEmail().withMessage('Invalid email'),
+  body('email')
+    .trim()
+    .isEmail()
+    .withMessage('Invalid email')
+    .normalizeEmail({ gmail_remove_dots: false }),
   body('code').isLength({ min: 6, max: 6 }).withMessage('Code must be 6 digits'),
   body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
 ], async (req, res) => {
@@ -1284,9 +1224,6 @@ router.post('/admin/reset-password-with-code', [
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    
-
-    // ✅ SELECT the reset fields explicitly
     const user = await User.findOne({ 
       email: normalizedEmail,
       role: 'admin'
@@ -1297,13 +1234,11 @@ router.post('/admin/reset-password-with-code', [
       return res.status(404).json({ msg: 'Invalid reset code' });
     }
 
-    // Check if code matches
     if (user.resetPasswordCode !== code) {
       console.log('❌ Code mismatch');
       return res.status(400).json({ msg: 'Invalid reset code' });
     }
 
-    // Check if code expired
     if (user.resetPasswordExpires < Date.now()) {
       console.log('❌ Code expired');
       return res.status(400).json({ 
@@ -1311,12 +1246,10 @@ router.post('/admin/reset-password-with-code', [
       });
     }
 
-    // Update password (will be hashed by pre-save hook)
     user.password = newPassword;
     user.resetPasswordCode = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
-
 
     res.json({
       msg: 'Password reset successful. Please login with your new password.',
@@ -1335,11 +1268,13 @@ router.post('/admin/reset-password-with-code', [
 // ADMIN SELF-MANAGEMENT ROUTES
 // ============================================
 
-// Change Email (Admin Only)
 router.put('/admin/change-email', [
   isAuthenticated,
   isAdminRole,
-  body('newEmail').isEmail(),
+  body('newEmail')
+    .trim()
+    .isEmail()
+    .normalizeEmail({ gmail_remove_dots: false }),
   body('password').exists()
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -1378,8 +1313,6 @@ router.put('/admin/change-email', [
     user.email = normalizedEmail;
     await user.save();
 
-   
-
     res.json({ 
       msg: 'Email updated successfully',
       user: {
@@ -1396,7 +1329,6 @@ router.put('/admin/change-email', [
   }
 });
 
-// Update Username (Admin Only)
 router.put('/admin/update-username', [
   isAuthenticated,
   isAdminRole,
@@ -1434,7 +1366,6 @@ router.put('/admin/update-username', [
       await req.session.save();
     }
 
-
     res.json({
       msg: 'Username updated successfully',
       user: {
@@ -1451,7 +1382,6 @@ router.put('/admin/update-username', [
   }
 });
 
-// Change Password (Admin Only)
 router.put('/admin/change-password', [
   isAuthenticated,
   isAdminRole,

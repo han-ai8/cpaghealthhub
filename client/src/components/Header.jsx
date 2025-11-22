@@ -8,40 +8,60 @@ import logoHeader from '../assets/logo-header.png';
 import api from '../utils/api';
 import userProfile from '../assets/userPfp.png';
 
-const Header = ({ toggleSidebar, unreadCount }) => {
+const Header = ({ toggleSidebar }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user: contextUser, logout, checkSession } = useAuth();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const toast = useToast();
 
   // Fetch user
-const fetchUser = async () => {
-  try {
-    setLoading(true);
-    const token = localStorage.getItem('token');
-    
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
+  const fetchUser = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
 
-    const data = await api.get('/auth/me');
-    setUser(data.user);
-  } catch (err) {
-    console.error('Header user fetch error:', err);
-    setUser(null);
-  } finally {
-    setLoading(false);
-  }
-};
+      const data = await api.get('/auth/me');
+      setUser(data.user);
+    } catch (err) {
+      console.error('Header user fetch error:', err);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch unread notification count
+  const fetchUnreadCount = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setUnreadCount(0);
+        return;
+      }
+
+      const data = await api.get('/notifications/unread-count');
+      setUnreadCount(data.count || 0);
+      console.log('📊 Header unread count updated:', data.count);
+    } catch (err) {
+      console.error('Error fetching unread count:', err);
+      setUnreadCount(0);
+    }
+  };
 
   // Initial fetch on mount
   useEffect(() => {
     fetchUser();
+    fetchUnreadCount();
   }, []);
 
   // Sync with context user
@@ -60,6 +80,21 @@ const fetchUser = async () => {
     window.addEventListener('userUpdated', handleUserUpdated);
     return () => window.removeEventListener('userUpdated', handleUserUpdated);
   }, [checkSession]);
+
+  // Listen for notification count changes
+  useEffect(() => {
+    const handleNotificationCountChanged = (event) => {
+      const newCount = event.detail.count;
+      setUnreadCount(newCount);
+      console.log('📊 Header notification count updated via event:', newCount);
+    };
+
+    window.addEventListener('notificationCountChanged', handleNotificationCountChanged);
+    
+    return () => {
+      window.removeEventListener('notificationCountChanged', handleNotificationCountChanged);
+    };
+  }, []);
 
   // Compute initials from name or username
   const getInitials = (name, username) => {
@@ -86,11 +121,13 @@ const fetchUser = async () => {
     try {
       await logout(navigate);
       setUser(null);
+      setUnreadCount(0);
       toast.success('Logged out successfully');
     } catch (err) {
       toast.error('Logout failed. Please try again.');
       localStorage.removeItem('token');
       setUser(null);
+      setUnreadCount(0);
       navigate('/user/login');
     }
   };
@@ -98,7 +135,7 @@ const fetchUser = async () => {
   // Cancel logout
   const cancelLogout = () => {
     setShowLogoutConfirm(false);
-    toast.removeToast(toast.toasts?.[0]?.id); // Remove the warning toast
+    toast.removeToast(toast.toasts?.[0]?.id);
   };
 
   // If still loading, show skeleton
@@ -135,12 +172,12 @@ const fetchUser = async () => {
 
         {/* Logo Section */}
         <Link to="/user/home" className="hover:opacity-80 transition-opacity duration-200">
-            <img 
-              src={logoHeader} 
-              alt="Logo" 
-              className="w-20 h-15  md:w-30 md:h-15 lg:w-60 lg:h-10 hover:scale-105 transition-transform duration-200" 
-            />
-          </Link>
+          <img 
+            src={logoHeader} 
+            alt="Logo" 
+            className="w-20 h-15  md:w-30 md:h-15 lg:w-60 lg:h-10 hover:scale-105 transition-transform duration-200" 
+          />
+        </Link>
         <div className="flex-1 ml-2">
           
         </div>
@@ -195,7 +232,7 @@ const fetchUser = async () => {
               }`}
             >
               <div className="indicator">
-               <Bell className="w-6 h-6" />
+                <Bell className="w-6 h-6" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                     {unreadCount > 9 ? '9+' : unreadCount}
@@ -251,7 +288,12 @@ const fetchUser = async () => {
                       <Link to="/user/articles" className="text-[#4C8DD8] hover:bg-[#4C8DD8]/10 hover:text-[#2E7D32] transition-colors duration-200">Articles</Link>
                     </li>
                     <li className={`md:hidden ${location.pathname === '/user/notifications' ? 'bg-[#4C8DD8]/10' : ''}`}>
-                      <Link to="/user/notifications" className="text-[#4C8DD8] hover:bg-[#4C8DD8]/10 hover:text-[#2E7D32] transition-colors duration-200">Notifications</Link>
+                      <Link to="/user/notifications" className="text-[#4C8DD8] hover:bg-[#4C8DD8]/10 hover:text-[#2E7D32] transition-colors duration-200">
+                        <span>Notifications</span>
+                        {unreadCount > 0 && (
+                          <span className="badge badge-sm badge-error">{unreadCount > 9 ? '9+' : unreadCount}</span>
+                        )}
+                      </Link>
                     </li>
                     <li>
                       <button 

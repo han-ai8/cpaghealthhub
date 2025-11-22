@@ -1,6 +1,4 @@
 import express from 'express';
-import multer from 'multer';
-import path from 'path';
 import Announcement from '../models/Announcement.js';
 import Post from '../models/Post.js';
 import User from '../models/User.js';
@@ -8,28 +6,10 @@ import CommunityPost from '../models/CommunityPost.js';
 import Appointment from '../models/appointment.js';
 import { isAuthenticated, isAdminRole, isUserRole, isContentModerator } from '../middleware/auth.js';
 
-const router = express.Router();
+// ✅ IMPORT THE NEW UPLOAD SERVICE
+import { upload, getImagePath, deleteImage } from '../services/uploadService.js';
 
-// Multer Configuration (shared)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
-const upload = multer({ 
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only images allowed'), false);
-    }
-  }
-});
+const router = express.Router();
 
 // === ANNOUNCEMENTS ===
 router.get('/announcements', async (req, res) => {
@@ -44,25 +24,39 @@ router.get('/announcements', async (req, res) => {
 router.post('/announcements', isAuthenticated, isAdminRole, upload.single('image'), async (req, res) => {
   try {
     const { title, content } = req.body;
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
+    
+    // ✅ USE HELPER FUNCTION
+    const image = getImagePath(req.file);
+    
+    console.log('📝 Creating announcement with image:', image);
+    
     const announcement = new Announcement({ title, content, image });
     await announcement.save();
 
-    // ✅ ADD THIS: Send notifications to all users
+    // Send notifications to all users
     const notificationService = req.app.get('notificationService');
     const allUsers = await User.find({ role: 'user' }).select('_id');
     const userIds = allUsers.map(u => u._id);
     
     await notificationService.notifyNewAnnouncement(announcement, userIds);
 
+    console.log('✅ Announcement created successfully');
     res.json(announcement);
   } catch (err) {
+    console.error('❌ Create announcement error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
 router.delete('/announcements/:id', isAuthenticated, isAdminRole, async (req, res) => {
   try {
+    const announcement = await Announcement.findById(req.params.id);
+    
+    // ✅ DELETE IMAGE USING HELPER
+    if (announcement && announcement.image) {
+      await deleteImage(announcement.image);
+    }
+    
     await Announcement.findByIdAndDelete(req.params.id);
     res.json({ message: 'Deleted' });
   } catch (err) {
@@ -80,8 +74,7 @@ router.get('/posts', async (req, res) => {
   }
 });
 
-// Add this NEW route right after your existing PUT route (around line 85)
-// This handles POST requests for updates (compatible with file uploads)
+// ✅ POST route for updating posts (compatible with file uploads)
 router.post('/posts/:id', isAuthenticated, isAdminRole, upload.single('image'), async (req, res) => {
   try {
     const { content } = req.body;
@@ -93,13 +86,24 @@ router.post('/posts/:id', isAuthenticated, isAdminRole, upload.single('image'), 
     }
     
     post.content = content;
+    
+    // ✅ HANDLE IMAGE UPDATE
     if (req.file) {
-      post.image = `/uploads/${req.file.filename}`;
+      // Delete old image
+      if (post.image) {
+        await deleteImage(post.image);
+      }
+      
+      // Set new image
+      post.image = getImagePath(req.file);
+      console.log('📸 Updated post image:', post.image);
     }
     
     await post.save();
+    console.log('✅ Post updated successfully');
     res.json(post);
   } catch (err) {
+    console.error('❌ Update post error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -119,12 +123,25 @@ router.post('/posts', isAuthenticated, isAdminRole, upload.single('image'), asyn
   try {
     const { content, status } = req.body;
     if (!content) return res.status(400).json({ error: 'Content required' });
+    
     const postStatus = status === 'approved' ? 'approved' : 'pending';
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
-    const post = new Post({ content, image, status: postStatus, author: 'CPAG' });
+    
+    // ✅ USE HELPER FUNCTION
+    const image = getImagePath(req.file);
+    
+    console.log('📝 Creating post with image:', image);
+    
+    const post = new Post({ 
+      content, 
+      image, 
+      status: postStatus, 
+      author: 'CPAG' 
+    });
+    
     await post.save();
+    console.log('✅ Post created successfully');
 
-    // ✅ ADD THIS: Send notifications if approved
+    // Send notifications if approved
     if (postStatus === 'approved') {
       const notificationService = req.app.get('notificationService');
       const allUsers = await User.find({ role: 'user' }).select('_id');
@@ -135,6 +152,7 @@ router.post('/posts', isAuthenticated, isAdminRole, upload.single('image'), asyn
 
     res.json(post);
   } catch (err) {
+    console.error('❌ Create post error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -143,7 +161,10 @@ router.post('/posts/community', isAuthenticated, isUserRole, upload.single('imag
   try {
     const { content } = req.body;
     if (!content) return res.status(400).json({ error: 'Content required' });
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
+    
+    // ✅ USE HELPER FUNCTION
+    const image = getImagePath(req.file);
+    
     const post = new Post({ 
       content, 
       image, 
@@ -161,13 +182,28 @@ router.put('/posts/:id', isAuthenticated, isAdminRole, upload.single('image'), a
   try {
     const { content } = req.body;
     if (!content) return res.status(400).json({ error: 'Content required' });
+    
     const post = await Post.findById(req.params.id);
-    if (!post || post.author !== 'CPAG') return res.status(403).json({ error: 'Not authorized' });
+    if (!post || post.author !== 'CPAG') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    
     post.content = content;
-    if (req.file) post.image = `/uploads/${req.file.filename}`;
+    
+    // ✅ HANDLE IMAGE UPDATE
+    if (req.file) {
+      // Delete old image
+      if (post.image) {
+        await deleteImage(post.image);
+      }
+      
+      post.image = getImagePath(req.file);
+    }
+    
     await post.save();
     res.json(post);
   } catch (err) {
+    console.error('❌ Update post error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -175,10 +211,20 @@ router.put('/posts/:id', isAuthenticated, isAdminRole, upload.single('image'), a
 router.delete('/posts/:id', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-    if (!post || post.author !== 'CPAG') return res.status(403).json({ error: 'Not authorized' });
+    if (!post || post.author !== 'CPAG') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    
+    // ✅ DELETE IMAGE
+    if (post.image) {
+      await deleteImage(post.image);
+    }
+    
     await Post.findByIdAndDelete(req.params.id);
+    console.log('✅ Post deleted successfully');
     res.json({ message: 'Deleted' });
   } catch (err) {
+    console.error('❌ Delete post error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -186,9 +232,13 @@ router.delete('/posts/:id', isAuthenticated, isAdminRole, async (req, res) => {
 router.put('/posts/:id/approve', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const { status } = req.body;
-    if (!['approved', 'rejected'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    
     const post = await Post.findByIdAndUpdate(req.params.id, { status }, { new: true });
     if (!post) return res.status(404).json({ error: 'Post not found' });
+    
     res.json(post);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -251,12 +301,10 @@ router.get('/posts/saved', isAuthenticated, isUserRole, async (req, res) => {
         const dateB = new Date(b.createdAt);
         return dateB - dateA;
       });
-      
     } catch (sortErr) {
       console.error('Sort error (falling back to unsorted):', sortErr);
     }
 
-    
     res.json(savedPosts);
   } catch (err) {
     console.error('Saved posts route error:', err);
@@ -317,14 +365,13 @@ router.post('/announcements/:id/comments', isAuthenticated, isUserRole, async (r
 
     const comment = {
       body: body.trim(),
-      author: req.user.name || req.user.username || 'Anonymous',
+      author: req.user.id,
       createdAt: new Date()
     };
 
     announcement.comments.push(comment);
     await announcement.save();
 
-    
     res.json({ message: 'Comment added', announcement });
   } catch (err) {
     console.error('Add announcement comment error:', err);
@@ -346,14 +393,13 @@ router.post('/posts/:id/comments', isAuthenticated, isUserRole, async (req, res)
 
     const comment = {
       body: body.trim(),
-      author: req.user.name || req.user.username || 'Anonymous',
+      author: req.user.id,
       createdAt: new Date()
     };
 
     post.comments.push(comment);
     await post.save();
 
-   
     res.json({ message: 'Comment added', post });
   } catch (err) {
     console.error('Add post comment error:', err);
@@ -423,8 +469,6 @@ router.delete('/posts/:id/comments/:commentId', isAuthenticated, isAdminRole, as
   }
 });
 
-// For Announcement comments - around line 433
-// Update the announcement reply route
 router.put('/announcements/:id/comments/:commentId/reply', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const { reply } = req.body;
@@ -460,7 +504,7 @@ router.put('/announcements/:id/comments/:commentId/reply', isAuthenticated, isAd
         commentAuthor._id,
         announcement,
         comment.body,
-        req.params.commentId, // ✅ Pass comment ID
+        req.params.commentId,
         'Announcement'
       );
     }
@@ -472,7 +516,6 @@ router.put('/announcements/:id/comments/:commentId/reply', isAuthenticated, isAd
   }
 });
 
-// Update the post reply route
 router.put('/posts/:id/comments/:commentId/reply', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const { reply } = req.body;
@@ -508,7 +551,7 @@ router.put('/posts/:id/comments/:commentId/reply', isAuthenticated, isAdminRole,
         commentAuthor._id,
         post,
         comment.body,
-        req.params.commentId, // ✅ Pass comment ID
+        req.params.commentId,
         'Post'
       );
     }
@@ -520,7 +563,6 @@ router.put('/posts/:id/comments/:commentId/reply', isAuthenticated, isAdminRole,
   }
 });
 
-// Update community comment route
 router.post('/community/posts/:id/comments', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const { body } = req.body;
@@ -542,7 +584,6 @@ router.post('/community/posts/:id/comments', isAuthenticated, isUserRole, async 
     post.comments.push(comment);
     await post.save();
 
-    // Get the newly added comment ID
     const addedComment = post.comments[post.comments.length - 1];
 
     try {
@@ -556,7 +597,7 @@ router.post('/community/posts/:id/comments', isAuthenticated, isUserRole, async 
               post.author._id,
               commenterName,
               post,
-              addedComment._id.toString() // ✅ Pass comment ID
+              addedComment._id.toString()
             );
             console.log('✅ Comment notification sent');
           }
@@ -659,12 +700,9 @@ router.put('/posts/:id/like', isAuthenticated, isUserRole, async (req, res) => {
 });
 
 // ============================================
-// === COMMUNITY FORUM ROUTES (NEW) ===
+// === COMMUNITY FORUM ROUTES ===
 // ============================================
 
-// === USER COMMUNITY ROUTES ===
-
-// GET: User - Fetch approved community posts
 router.get('/community/posts', async (req, res) => {
   try {
     const posts = await CommunityPost.find({ status: 'approved' })
@@ -677,7 +715,6 @@ router.get('/community/posts', async (req, res) => {
   }
 });
 
-// POST: User - Create community post (pending approval)
 router.post('/community/posts', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const { content, category } = req.body;
@@ -701,7 +738,6 @@ router.post('/community/posts', isAuthenticated, isUserRole, async (req, res) =>
   }
 });
 
-// GET: User - Fetch own posts (all statuses)
 router.get('/community/posts/my-posts', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const posts = await CommunityPost.find({ author: req.user.id })
@@ -713,7 +749,6 @@ router.get('/community/posts/my-posts', isAuthenticated, isUserRole, async (req,
   }
 });
 
-// PUT: User - Edit own post (only if pending or approved)
 router.put('/community/posts/:id', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const { content, category } = req.body;
@@ -743,7 +778,6 @@ router.put('/community/posts/:id', isAuthenticated, isUserRole, async (req, res)
   }
 });
 
-// DELETE: User - Delete own post
 router.delete('/community/posts/:id', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const post = await CommunityPost.findById(req.params.id);
@@ -765,61 +799,6 @@ router.delete('/community/posts/:id', isAuthenticated, isUserRole, async (req, r
   }
 });
 
-// POST: User - Add comment to community post
-router.post('/community/posts/:id/comments', isAuthenticated, isUserRole, async (req, res) => {
-  try {
-    const { body } = req.body;
-    if (!body || !body.trim()) {
-      return res.status(400).json({ error: 'Comment body required' });
-    }
-
-    const post = await CommunityPost.findById(req.params.id).populate('author', 'name username');
-    if (!post) {
-      return res.status(404).json({ error: 'Post not found' });
-    }
-
-    const comment = {
-      body: body.trim(),
-      author: req.user.id,
-      createdAt: new Date()
-    };
-
-    post.comments.push(comment);
-    await post.save();
-
-    // ✅ FIXED: Wrap notification in try-catch to prevent failure
-    try {
-      if (post.author && post.author._id && post.author._id.toString() !== req.user.id.toString()) {
-        const notificationService = req.app.get('notificationService');
-        if (notificationService) {
-          const commenter = await User.findById(req.user.id).select('name username');
-          if (commenter) {
-            const commenterName = commenter.name || commenter.username || 'Someone';
-            await notificationService.notifyNewComment(
-              post.author._id,
-              commenterName,
-              post
-            );
-            console.log('✅ Comment notification sent');
-          }
-        }
-      }
-    } catch (notifError) {
-      // Log notification error but don't fail the request
-      console.error('⚠️ Notification failed (non-critical):', notifError);
-    }
-
-    // Populate comment author for response
-    const populatedPost = await CommunityPost.findById(post._id).populate('author', 'name username');
-    
-    res.json({ message: 'Comment added', post: populatedPost });
-  } catch (err) {
-    console.error('Add community comment error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST: User - Add reply to comment
 router.post('/community/posts/:id/comments/:commentId/replies', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const { body } = req.body;
@@ -846,8 +825,6 @@ router.post('/community/posts/:id/comments/:commentId/replies', isAuthenticated,
     comment.replies.push(reply);
     await post.save();
 
-    
-    // Populate for response
     const populatedPost = await CommunityPost.findById(post._id).populate('author', 'name username');
     
     res.json({ message: 'Reply added', post: populatedPost });
@@ -857,7 +834,6 @@ router.post('/community/posts/:id/comments/:commentId/replies', isAuthenticated,
   }
 });
 
-// POST: User - Report post
 router.post('/community/posts/:id/report', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const { reason } = req.body;
@@ -897,17 +873,8 @@ router.post('/community/posts/:id/report', isAuthenticated, isUserRole, async (r
 
 // === ADMIN COMMUNITY ROUTES ===
 
-// ============================================
-// === ADMIN COMMUNITY ROUTES (UPDATED) ===
-// ============================================
-
-// ✅ IMPORT: Make sure isContentModerator is imported at the top
-// import { isAuthenticated, isAdminRole, isUserRole, isContentModerator } from '../middleware/auth.js';
-
-// GET: Admin/Content Moderator - Fetch all community posts (all statuses)
 router.get('/admin/community/posts', isAuthenticated, isContentModerator, async (req, res) => {
   try {
-    
     const posts = await CommunityPost.find()
       .populate('author', 'name email')
       .populate('reports.reportedBy', 'name email')
@@ -917,7 +884,6 @@ router.get('/admin/community/posts', isAuthenticated, isContentModerator, async 
     const approvedPosts = posts.filter(p => p.status === 'approved');
     const rejectedPosts = posts.filter(p => p.status === 'rejected');
     const reportedPosts = posts.filter(p => p.reports.some(r => r.status === 'pending'));
-
 
     res.json({ 
       pendingPosts, 
@@ -932,7 +898,6 @@ router.get('/admin/community/posts', isAuthenticated, isContentModerator, async 
   }
 });
 
-// PUT: Admin/Content Moderator - Approve/Reject post
 router.put('/admin/community/posts/:id/status', isAuthenticated, isContentModerator, async (req, res) => {
   try {
     const { status } = req.body;
@@ -948,7 +913,6 @@ router.put('/admin/community/posts/:id/status', isAuthenticated, isContentModera
     post.status = status;
     await post.save();
 
-   
     res.json({ message: `Post ${status}`, post });
   } catch (err) {
     console.error('❌ Update post status error:', err);
@@ -956,7 +920,6 @@ router.put('/admin/community/posts/:id/status', isAuthenticated, isContentModera
   }
 });
 
-// DELETE: Admin/Content Moderator - Delete post
 router.delete('/admin/community/posts/:id', isAuthenticated, isContentModerator, async (req, res) => {
   try {
     const post = await CommunityPost.findByIdAndDelete(req.params.id);
@@ -971,8 +934,6 @@ router.delete('/admin/community/posts/:id', isAuthenticated, isContentModerator,
   }
 });
 
-// PUT: Admin/Content Moderator - Resolve/Reject report
-// PUT: Admin/Content Moderator - Resolve/Reject report
 router.put('/admin/community/posts/:id/reports/:reportId', isAuthenticated, isContentModerator, async (req, res) => {
   try {
     const { status, deletePost } = req.body;
@@ -990,24 +951,17 @@ router.put('/admin/community/posts/:id/reports/:reportId', isAuthenticated, isCo
       return res.status(404).json({ error: 'Report not found' });
     }
 
-    // ✅ FIX: Handle different actions
     if (deletePost) {
-      // Action: Delete Post - Remove the post entirely
       await CommunityPost.findByIdAndDelete(req.params.id);
-      
       return res.json({ message: 'Post deleted successfully' });
     } else if (status === 'rejected') {
-      // Action: Reject Report - Mark the report as rejected (post is fine, keep it)
       report.status = 'rejected';
       await post.save();
-      
       return res.json({ message: 'Report rejected', post });
     } else {
-      // Action: Reject Post - Mark the report as resolved AND the post as rejected
       report.status = 'resolved';
-      post.status = 'rejected'; // ✅ This is the key fix!
+      post.status = 'rejected';
       await post.save();
-      
       return res.json({ message: 'Post rejected', post });
     }
   } catch (err) {
@@ -1016,7 +970,6 @@ router.put('/admin/community/posts/:id/reports/:reportId', isAuthenticated, isCo
   }
 });
 
-// DELETE: Admin/Content Moderator - Delete comment from community post
 router.delete('/admin/community/posts/:id/comments/:commentId', isAuthenticated, isContentModerator, async (req, res) => {
   try {
     const post = await CommunityPost.findById(req.params.id);
@@ -1041,10 +994,6 @@ router.delete('/admin/community/posts/:id/comments/:commentId', isAuthenticated,
 // === APPOINTMENT ROUTES ===
 // ============================================
 
-
-// === PUBLIC APPOINTMENT ROUTES ===
-
-// GET: Fetch all booked time slots (for blocking unavailable times in calendar)
 router.get('/appointments/booked-slots', async (req, res) => {
   try {
     const appointments = await Appointment.find({
@@ -1063,21 +1012,16 @@ router.get('/appointments/booked-slots', async (req, res) => {
   }
 });
 
-// === USER APPOINTMENT ROUTES (Authenticated) ===
-
-// GET: Fetch user's appointments (current and history)
 router.get('/appointments/my-appointments', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const appointments = await Appointment.find({ 
       user: req.user.id 
     }).sort({ date: -1, time: -1 });
     
-    // Find current active appointment (pending or confirmed)
     const current = appointments.find(apt => 
       ['pending', 'confirmed'].includes(apt.status)
     );
     
-    // Get history of past appointments (cancelled or completed)
     const history = appointments.filter(apt => 
       ['cancelled', 'completed'].includes(apt.status)
     );
@@ -1089,17 +1033,14 @@ router.get('/appointments/my-appointments', isAuthenticated, isUserRole, async (
   }
 });
 
-// POST: Book a new appointment
 router.post('/appointments', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const { service, date, time, note } = req.body;
     
-    // Validate required fields
     if (!service || !date || !time) {
       return res.status(400).json({ error: 'Service, date, and time are required' });
     }
     
-    // Check if user already has an active appointment
     const existingAppointment = await Appointment.findOne({
       user: req.user.id,
       status: { $in: ['pending', 'confirmed'] }
@@ -1111,7 +1052,6 @@ router.post('/appointments', isAuthenticated, isUserRole, async (req, res) => {
       });
     }
     
-    // Check if the time slot is still available
     const slotTaken = await Appointment.findOne({
       date,
       time,
@@ -1124,7 +1064,6 @@ router.post('/appointments', isAuthenticated, isUserRole, async (req, res) => {
       });
     }
     
-    // Create new appointment
     const appointment = new Appointment({
       user: req.user.id,
       service,
@@ -1144,7 +1083,6 @@ router.post('/appointments', isAuthenticated, isUserRole, async (req, res) => {
   }
 });
 
-// PUT: Update/Edit an existing appointment
 router.put('/appointments/:id', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const { service, date, time, note } = req.body;
@@ -1155,22 +1093,19 @@ router.put('/appointments/:id', isAuthenticated, isUserRole, async (req, res) =>
       return res.status(404).json({ error: 'Appointment not found' });
     }
     
-    // Verify ownership
     if (appointment.user.toString() !== req.user.id.toString()) {
       return res.status(403).json({ error: 'Not authorized to edit this appointment' });
     }
     
-    // Only allow editing of pending or confirmed appointments
     if (!['pending', 'confirmed'].includes(appointment.status)) {
       return res.status(400).json({ 
         error: 'Cannot edit cancelled or completed appointments' 
       });
     }
     
-    // If date or time changed, check if new slot is available
     if (date !== appointment.date || time !== appointment.time) {
       const slotTaken = await Appointment.findOne({
-        _id: { $ne: appointment._id }, // Exclude current appointment
+        _id: { $ne: appointment._id },
         date,
         time,
         status: { $in: ['pending', 'confirmed'] }
@@ -1183,19 +1118,16 @@ router.put('/appointments/:id', isAuthenticated, isUserRole, async (req, res) =>
       }
     }
     
-    // Update appointment fields
     appointment.service = service || appointment.service;
     appointment.date = date || appointment.date;
     appointment.time = time || appointment.time;
     appointment.note = note !== undefined ? note : appointment.note;
     
-    // If appointment was confirmed, reset to pending after edit
     if (appointment.status === 'confirmed') {
       appointment.status = 'pending';
     }
     
     await appointment.save();
-   
     res.json({ message: 'Appointment updated successfully', appointment });
   } catch (err) {
     console.error('Update appointment error:', err);
@@ -1203,7 +1135,6 @@ router.put('/appointments/:id', isAuthenticated, isUserRole, async (req, res) =>
   }
 });
 
-// DELETE: Cancel appointment (only within 24 hours of booking)
 router.delete('/appointments/:id', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id);
@@ -1212,12 +1143,10 @@ router.delete('/appointments/:id', isAuthenticated, isUserRole, async (req, res)
       return res.status(404).json({ error: 'Appointment not found' });
     }
     
-    // Verify ownership
     if (appointment.user.toString() !== req.user.id.toString()) {
       return res.status(403).json({ error: 'Not authorized to cancel this appointment' });
     }
     
-    // Check if within 24 hours of booking
     const hoursSinceBooking = (new Date() - new Date(appointment.bookedAt)) / (1000 * 60 * 60);
     
     if (hoursSinceBooking > 24) {
@@ -1226,11 +1155,9 @@ router.delete('/appointments/:id', isAuthenticated, isUserRole, async (req, res)
       });
     }
     
-    // Update status to cancelled
     appointment.status = 'cancelled';
     appointment.cancelledAt = new Date();
     await appointment.save();
-   
     res.json({ message: 'Appointment cancelled successfully' });
   } catch (err) {
     console.error('Cancel appointment error:', err);
@@ -1238,7 +1165,6 @@ router.delete('/appointments/:id', isAuthenticated, isUserRole, async (req, res)
   }
 });
 
-// POST: Request cancellation (after 24 hours of booking)
 router.post('/appointments/:id/cancel-request', isAuthenticated, isUserRole, async (req, res) => {
   try {
     const { reason } = req.body;
@@ -1253,19 +1179,16 @@ router.post('/appointments/:id/cancel-request', isAuthenticated, isUserRole, asy
       return res.status(404).json({ error: 'Appointment not found' });
     }
     
-    // Verify ownership
     if (appointment.user.toString() !== req.user.id.toString()) {
       return res.status(403).json({ error: 'Not authorized' });
     }
     
-    // Check if cancellation request already submitted
     if (appointment.cancelRequest.requested) {
       return res.status(400).json({ 
         error: 'Cancellation request already submitted' 
       });
     }
     
-    // Create cancellation request
     appointment.cancelRequest = {
       requested: true,
       reason: reason.trim(),
@@ -1284,16 +1207,12 @@ router.post('/appointments/:id/cancel-request', isAuthenticated, isUserRole, asy
   }
 });
 
-// === ADMIN APPOINTMENT ROUTES ===
-
-// GET: Admin - Fetch all appointments with categorization
 router.get('/admin/appointments', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const appointments = await Appointment.find()
       .populate('user', 'name email')
       .sort({ date: 1, time: 1 });
     
-    // Categorize appointments
     const pending = appointments.filter(apt => apt.status === 'pending');
     const confirmed = appointments.filter(apt => apt.status === 'confirmed');
     const cancelRequests = appointments.filter(apt => 
@@ -1316,12 +1235,10 @@ router.get('/admin/appointments', isAuthenticated, isAdminRole, async (req, res)
   }
 });
 
-// PUT: Admin - Update appointment status
 router.put('/admin/appointments/:id/status', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const { status } = req.body;
     
-    // Validate status
     if (!['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
@@ -1332,10 +1249,8 @@ router.put('/admin/appointments/:id/status', isAuthenticated, isAdminRole, async
       return res.status(404).json({ error: 'Appointment not found' });
     }
     
-    // Update status
     appointment.status = status;
     
-    // Set timestamp based on status
     if (status === 'confirmed') {
       appointment.confirmedAt = new Date();
     }
@@ -1353,7 +1268,6 @@ router.put('/admin/appointments/:id/status', isAuthenticated, isAdminRole, async
   }
 });
 
-// PUT: Admin - Respond to cancellation request
 router.put('/admin/appointments/:id/cancel-request', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const { approve, response } = req.body;
@@ -1368,11 +1282,9 @@ router.put('/admin/appointments/:id/cancel-request', isAuthenticated, isAdminRol
       return res.status(400).json({ error: 'No cancellation request found' });
     }
     
-    // Record admin response
     appointment.cancelRequest.adminResponse = response || (approve ? 'Approved' : 'Denied');
     appointment.cancelRequest.respondedAt = new Date();
     
-    // If approved, cancel the appointment
     if (approve) {
       appointment.status = 'cancelled';
       appointment.cancelledAt = new Date();
@@ -1390,7 +1302,6 @@ router.put('/admin/appointments/:id/cancel-request', isAuthenticated, isAdminRol
   }
 });
 
-// DELETE: Admin - Delete appointment
 router.delete('/admin/appointments/:id', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const appointment = await Appointment.findByIdAndDelete(req.params.id);
@@ -1399,7 +1310,6 @@ router.delete('/admin/appointments/:id', isAuthenticated, isAdminRole, async (re
       return res.status(404).json({ error: 'Appointment not found' });
     }
     
-    
     res.json({ message: 'Appointment deleted successfully' });
   } catch (err) {
     console.error('Admin delete appointment error:', err);
@@ -1407,7 +1317,6 @@ router.delete('/admin/appointments/:id', isAuthenticated, isAdminRole, async (re
   }
 });
 
-// GET: Admin - Get appointments for calendar view (optional, for future calendar feature)
 router.get('/admin/appointments/calendar', isAuthenticated, isAdminRole, async (req, res) => {
   try {
     const { month, year } = req.query;
@@ -1416,7 +1325,6 @@ router.get('/admin/appointments/calendar', isAuthenticated, isAdminRole, async (
       status: { $in: ['pending', 'confirmed'] }
     };
     
-    // Filter by month and year if provided
     if (month && year) {
       const monthStr = String(month).padStart(2, '0');
       query.date = { $regex: `^${year}-${monthStr}` };
